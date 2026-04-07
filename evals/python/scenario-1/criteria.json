@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Type hints on all public functions",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "All public function signatures include type annotations"
+    },
+    {
+      "name": "pytest tests present",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Test file uses pytest (not unittest) with descriptive test names"
+    },
+    {
+      "name": "Ruff-compatible code",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Would this code pass ruff linting with default rules? Check for common issues: unused imports, bare excepts, mutable default args. Answer yes/no."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Repo analyzed before changes",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Did the agent read and analyze existing code structure (components, styles, state management) before making changes? Answer yes/no."
+    },
+    {
+      "name": "Existing patterns followed",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Do the changes follow the existing codebase conventions (same state management, same styling approach, same file structure)? Answer yes/no."
+    },
+    {
+      "name": "System preference detected",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Uses prefers-color-scheme media query or matchMedia"
+    }
+  ]
+}

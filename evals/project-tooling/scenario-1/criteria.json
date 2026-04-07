@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "CLI tools verified",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Did the agent verify that tools (pytest, ruff, etc.) actually work by running them, not just installing them? Answer yes/no."
+    },
+    {
+      "name": "pyproject.toml created",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "pyproject.toml exists with project metadata"
+    },
+    {
+      "name": "Ruff configured",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Ruff configuration exists (in pyproject.toml or ruff.toml)"
+    }
+  ]
+}

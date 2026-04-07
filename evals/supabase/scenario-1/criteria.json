@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "RLS policies created",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "SQL includes CREATE POLICY or ALTER TABLE ENABLE ROW LEVEL SECURITY"
+    },
+    {
+      "name": "Migration file created",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Migration file exists in supabase/migrations/"
+    },
+    {
+      "name": "Profile linked to auth.users",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Foreign key reference to auth.users(id)"
+    }
+  ]
+}

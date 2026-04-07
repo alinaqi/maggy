@@ -16,20 +16,58 @@ Before contributing, understand the core philosophy:
 
 ### Adding a New Skill
 
-1. Create a new file in `skills/` following the naming pattern: `[topic].md`
-2. Start with the header and dependency line:
+1. Create a directory in `skills/` with a lowercase hyphenated name
+2. Add `SKILL.md` with YAML frontmatter:
    ```markdown
-   # [Topic] Skill
+   ---
+   name: my-skill
+   description: One-line description of what this skill does
+   when-to-use: When to activate this skill
+   user-invocable: true
+   effort: medium
+   ---
+   # My Skill
 
-   *Load with: base.md + [other dependencies]*
+   ## Core Principles
+   ...
    ```
 3. Include these sections:
-   - Core principles
+   - Core principles with measurable constraints
    - Project structure (if applicable)
-   - Patterns with code examples
+   - Patterns with code examples (>= 1 per 50 lines)
    - Anti-patterns list
-4. Add measurable constraints where possible
-5. Update `README.md` to include the new skill
+4. Keep under 500 lines (ideal: under 300)
+5. Run the linter before submitting:
+   ```bash
+   PYTHONPATH=scripts python3 -m skill_lint --skill my-skill skills/
+   ```
+6. Update `README.md` to include the new skill
+
+### Quality Gates
+
+All skills must pass the automated linter before merge:
+
+```bash
+# Lint all skills
+PYTHONPATH=scripts python3 -m skill_lint skills/
+
+# Lint a single skill
+PYTHONPATH=scripts python3 -m skill_lint --skill python skills/
+
+# JSON output for CI
+PYTHONPATH=scripts python3 -m skill_lint --format json skills/
+```
+
+**Checks enforced:**
+- **FM001-FM009**: YAML frontmatter (name, description, format, fields)
+- **SP001-SP003**: Spec compliance (SKILL.md exists, line count limits)
+- **CQ001-CQ006**: Content quality (no ASCII art, no vague phrases, code examples)
+- **RI001-RI002**: Cross-references (valid skill links, README listing)
+
+Suppress known issues with inline comments:
+```markdown
+<!-- skill-lint: disable=SP002 -->
+```
 
 ### Improving Existing Skills
 

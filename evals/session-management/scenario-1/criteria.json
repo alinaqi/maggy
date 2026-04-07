@@ -1,0 +1,16 @@
+{
+  "criteria": [
+    {
+      "name": "Session state checkpoint created",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Did the agent create or update session state files (current-state.md or similar) during implementation? Answer yes/no."
+    },
+    {
+      "name": "State persisted across refresh",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Uses localStorage, sessionStorage, or similar persistence for form state"
+    }
+  ]
+}

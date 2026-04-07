@@ -1,0 +1,64 @@
+name: Skill Review (Tessl + skills-ref)
+
+on:
+  pull_request:
+    paths:
+      - 'skills/**'
+
+jobs:
+  tessl:
+    runs-on: ubuntu-latest
+    if: ${{ vars.TESSL_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Tessl
+        uses: tesslio/setup-tessl@v2
+        with:
+          token: ${{ secrets.TESSL_TOKEN }}
+
+      - name: Detect changed skills
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
+          echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "Changed skills: $CHANGED"
+
+      - name: Run Tessl review on changed skills
+        if: steps.changes.outputs.skills != ''
+        run: |
+          for skill in ${{ steps.changes.outputs.skills }}; do
+            echo "=== Reviewing: $skill ==="
+            tessl skill lint "skills/$skill" || true
+            tessl skill review --json "skills/$skill" || true
+          done
+
+  skills-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install skills-ref
+        run: pip install skills-ref || echo "skills-ref not available, skipping"
+
+      - name: Detect changed skills
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
+          echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Validate changed skills
+        if: steps.changes.outputs.skills != ''
+        run: |
+          for skill in ${{ steps.changes.outputs.skills }}; do
+            echo "=== Validating: $skill ==="
+            skills-ref validate "skills/$skill" || true
+          done

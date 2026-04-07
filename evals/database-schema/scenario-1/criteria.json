@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Schema read before writing queries",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Did the agent read existing database schema/models before writing new models or queries? Check tool call order. Answer yes/no."
+    },
+    {
+      "name": "Foreign keys defined",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Comment model has foreign keys to post and user tables"
+    },
+    {
+      "name": "Migration created",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Alembic migration file created for new table"
+    }
+  ]
+}

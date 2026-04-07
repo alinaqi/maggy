@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "TDD order followed",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Did the agent write or plan tests before the implementation, or at least alongside it? Check tool call order. Answer yes/no."
+    },
+    {
+      "name": "Cursor-based pagination implemented",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Response model includes next_cursor and has_more fields"
+    },
+    {
+      "name": "Limit validation",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Limit parameter has max=100 constraint"
+    }
+  ]
+}

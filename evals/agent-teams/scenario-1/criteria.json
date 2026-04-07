@@ -1,0 +1,16 @@
+{
+  "criteria": [
+    {
+      "name": "Pipeline ordering respected",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Was work organized in a logical pipeline (schema/API first, then frontend, then integration)? Or was everything done in a jumbled order? Answer ordered/jumbled."
+    },
+    {
+      "name": "Backend before frontend",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Was the backend API implemented before the frontend component that consumes it? Answer yes/no."
+    }
+  ]
+}

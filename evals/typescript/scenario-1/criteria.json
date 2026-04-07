@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Strict TypeScript mode",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "tsconfig.json has strict: true"
+    },
+    {
+      "name": "Barrel export from index.ts",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "index.ts exists with re-exports"
+    },
+    {
+      "name": "Proper generic types",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Does the task queue use proper TypeScript generics for task payloads and results, avoiding 'any' type? Answer yes/no."
+    }
+  ]
+}

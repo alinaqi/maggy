@@ -1,0 +1,44 @@
+name: Skill Lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'skills/**'
+      - 'scripts/skill_lint/**'
+      - 'tests/test_skill_lint.py'
+  pull_request:
+    paths:
+      - 'skills/**'
+      - 'scripts/skill_lint/**'
+      - 'tests/test_skill_lint.py'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run skill-lint tests
+        run: PYTHONPATH=scripts python -m pytest tests/test_skill_lint.py -v
+
+      - name: Run skill-lint (errors fail)
+        run: PYTHONPATH=scripts python -m skill_lint --fail-on error skills/
+
+      - name: Run skill-lint (full report)
+        if: always()
+        run: PYTHONPATH=scripts python -m skill_lint --format json skills/ > skill-lint-report.json || true
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-lint-report
+          path: skill-lint-report.json

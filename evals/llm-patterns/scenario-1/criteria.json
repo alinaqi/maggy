@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Structured output used",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Uses Pydantic model or JSON schema for LLM response parsing"
+    },
+    {
+      "name": "Retry with backoff",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Retry logic present with exponential backoff (tenacity or manual)"
+    },
+    {
+      "name": "API responses mocked in tests",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Tests mock the OpenAI API, not make real calls"
+    }
+  ]
+}

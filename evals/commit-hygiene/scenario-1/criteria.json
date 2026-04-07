@@ -1,0 +1,16 @@
+{
+  "criteria": [
+    {
+      "name": "Atomic commits",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Were changes committed as separate atomic commits (one per feature: search, sort, URL sync) rather than one big commit? Answer yes/no."
+    },
+    {
+      "name": "Descriptive commit messages",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Do commit messages describe the 'why' not just the 'what'? Are they concise and follow conventional format? Answer yes/no."
+    }
+  ]
+}

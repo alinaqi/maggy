@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Self-review performed",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Did the agent perform a code review (re-read code, check for issues) before considering the task done? Answer yes/no."
+    },
+    {
+      "name": "File size validation",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "File size check exists (10MB limit)"
+    },
+    {
+      "name": "File type validation",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "MIME type or extension validation for image types"
+    }
+  ]
+}

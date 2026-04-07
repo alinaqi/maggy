@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [3.4.0] - 2026-04-07
+
+### Added
+- **Skill Quality Gates** — Automated linter, CI integration, and behavioral evals
+  - `scripts/skill_lint/` — Python package with 20 check rules across 4 categories:
+    - Frontmatter (FM001-FM009): YAML validation, name/description/field checks
+    - Spec (SP001-SP003, SR001): SKILL.md existence, line count limits, skills-ref integration
+    - Content (CQ001-CQ006): ASCII art detection, vague phrase detection, filler intensity, code block density, stale references, H1 heading
+    - References (RI001-RI002): Cross-skill link validation, README coverage
+  - CLI: `PYTHONPATH=scripts python3 -m skill_lint [--format text|json] [--severity error|warning|info] [--skill NAME] [--fail-on error|warning] skills/`
+  - Inline suppression: `<!-- skill-lint: disable=SP002 -->` in first 10 lines
+  - 28 unit tests covering all check modules, report formatters, and CLI
+  - `.github/workflows/skill-lint.yml` — Runs linter + tests on PR/push to skills/ or scripts/skill_lint/
+  - `.github/workflows/skill-review.yml` — Tessl skill review + skills-ref validation on PRs (requires TESSL_TOKEN)
+  - `evals/` — 18 behavioral eval scenarios for 15 skills with deterministic and LLM-judged criteria
+  - `evals/run-evals.sh` — Eval runner with baseline comparison mode
+- Updated `CONTRIBUTING.md` with quality gate requirements and linter usage
+
+### Scan Results (59 skills)
+- Errors: 1 (mnemos/ missing frontmatter)
+- Warnings: 85 (19 skills over 500 lines, 30+ with ASCII art)
+- Clean: 3 skills
+
+---
+
 ## [3.3.2] - 2026-04-07
 
 ### Fixed

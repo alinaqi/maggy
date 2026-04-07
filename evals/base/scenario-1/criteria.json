@@ -1,0 +1,28 @@
+{
+  "criteria": [
+    {
+      "name": "Functions under 50 lines",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "No function body exceeds 50 lines"
+    },
+    {
+      "name": "Tests written before or alongside implementation",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Were tests written as part of the implementation? Check for pytest test functions that cover the main endpoints. Answer yes/no."
+    },
+    {
+      "name": "Input validation present",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "URL validation exists (regex or pydantic HttpUrl)"
+    },
+    {
+      "name": "No god functions",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Is the code modular with single-responsibility functions, or does it have monolithic handler functions doing everything? Answer modular/monolithic."
+    }
+  ]
+}

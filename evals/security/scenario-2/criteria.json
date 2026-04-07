@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Keys not logged or exposed",
+      "type": "llm_judged",
+      "weight": 1.0,
+      "prompt": "Are API keys properly protected? Check: not logged in plain text, not returned in full after creation, stored hashed. Answer yes/no with details."
+    },
+    {
+      "name": "Timing-safe comparison",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Uses hmac.compare_digest or secrets.compare_digest for key comparison"
+    },
+    {
+      "name": "Rate limiting implemented",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Rate limiting logic exists with per-key tracking"
+    }
+  ]
+}

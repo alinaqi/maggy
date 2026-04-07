@@ -1,0 +1,16 @@
+[project]
+name = "skill-lint"
+version = "0.1.0"
+description = "Quality gates for Claude Bootstrap skills"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+skills-ref = ["skills-ref>=0.1.0"]
+
+[project.scripts]
+skill-lint = "skill_lint.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

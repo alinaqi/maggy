@@ -1,0 +1,28 @@
+{
+  "criteria": [
+    {
+      "name": "Password hashed with bcrypt or argon2",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Uses bcrypt, argon2, or passlib for password hashing (not md5/sha256)"
+    },
+    {
+      "name": "No hardcoded secrets",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "No hardcoded API keys, JWT secrets, or database passwords in source"
+    },
+    {
+      "name": "Password not in response",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "Response model excludes password/hash field"
+    },
+    {
+      "name": "Environment variables for secrets",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Are secrets (DB URL, JWT secret) loaded from environment variables or a config file, not hardcoded? Answer yes/no."
+    }
+  ]
+}

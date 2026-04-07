@@ -1,0 +1,22 @@
+{
+  "criteria": [
+    {
+      "name": "Zustand store used",
+      "type": "deterministic",
+      "weight": 1.0,
+      "check": "Uses zustand create() for state management"
+    },
+    {
+      "name": "Functional components only",
+      "type": "deterministic",
+      "weight": 0.5,
+      "check": "No class components, all function/arrow function components"
+    },
+    {
+      "name": "Proper component decomposition",
+      "type": "llm_judged",
+      "weight": 0.5,
+      "prompt": "Are components properly decomposed (TodoItem, TodoList, FilterBar, etc.) or is everything in one large component? Answer decomposed/monolithic."
+    }
+  ]
+}
