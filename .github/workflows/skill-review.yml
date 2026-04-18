@@ -23,7 +23,18 @@ jobs:
         id: changes
         run: |
           CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
-          echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
+          # $CHANGED can be empty or multiline. Plain `echo "skills=$X"` breaks
+          # GHA's output parser when $X contains newlines ("Invalid format"),
+          # so emit an explicit empty string or use heredoc syntax for multiline.
+          if [ -z "$CHANGED" ]; then
+            echo "skills=" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "skills<<SKILLS_EOF"
+              echo "$CHANGED"
+              echo "SKILLS_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
           echo "Changed skills: $CHANGED"
 
       - name: Run Tessl review on changed skills
@@ -53,7 +64,16 @@ jobs:
         id: changes
         run: |
           CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
-          echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
+          # Same heredoc dance as the tessl job — plain echo breaks on multiline.
+          if [ -z "$CHANGED" ]; then
+            echo "skills=" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "skills<<SKILLS_EOF"
+              echo "$CHANGED"
+              echo "SKILLS_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate changed skills
         if: steps.changes.outputs.skills != ''
