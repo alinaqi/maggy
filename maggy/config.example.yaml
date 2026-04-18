@@ -1,0 +1,91 @@
+# Maggy configuration
+# Copy this to ~/.maggy/config.yaml and customize.
+
+org:
+  name: "Your Org"
+  # Drives competitor auto-discovery and system prompt phrasing.
+  # Examples: "fintech", "devtools", "cx-feedback", "healthcare", "marketplaces"
+  domain: "your-domain"
+
+issue_tracker:
+  # Which provider: "github" | "asana" | "linear"
+  provider: "github"
+
+  github:
+    # Your GitHub org or user
+    org: "your-org"
+    # Repos to monitor (full name: "org/repo")
+    repos:
+      - "your-org/api"
+      - "your-org/web"
+    # Optional: only show issues with these labels (empty = all)
+    labels: []
+    # Read-only token from env: GITHUB_TOKEN
+
+  asana:
+    # Used when provider: "asana". Ignore if using GitHub.
+    workspace_id: ""
+    # Project GIDs for each "board" that appears in the sidebar
+    boards:
+      dev: ""
+      bugs: ""
+    # Token from env: ASANA_API_KEY
+
+  linear:
+    # Stub — implement later
+    workspace: ""
+    # Token from env: LINEAR_API_KEY
+
+codebases:
+  # Paths to repos Maggy can execute in. When you click Execute on a ticket,
+  # Maggy picks the right repo based on keyword matching.
+  - path: "~/dev/your-org/api"
+    key: "api"
+    # Optional: default working_dir override per repo
+  - path: "~/dev/your-org/web"
+    key: "web"
+
+competitors:
+  # Maggy auto-discovers competitors in these categories using AI + G2/Capterra research.
+  # Results stored in ~/.maggy/competitors.json — edit freely.
+  categories:
+    - "your-primary-category"
+  # Optional: seed with specific competitor names to ensure they're tracked
+  seed:
+    - "CompetitorOne"
+    - "CompetitorTwo"
+
+okrs:
+  # Two ways to provide OKRs:
+  #   source: "yaml"  → list them inline below
+  #   source: "skip"  → no OKR tracking
+  source: "skip"
+  # If source == "yaml":
+  items: []
+  # Example items structure:
+  # - id: "Q2-1"
+  #   title: "Reduce p95 latency to 200ms"
+  #   keywords: ["latency", "performance", "slow"]
+
+ai:
+  provider: "anthropic"
+  model: "claude-sonnet-4-5-20250929"
+  # API key from env: ANTHROPIC_API_KEY
+  max_budget_usd_per_execute: 5.0
+
+storage:
+  # SQLite by default — zero setup. For multi-user/P2P, use Supabase (not yet supported in MVP).
+  backend: "sqlite"
+  path: "~/.maggy/maggy.db"
+
+dashboard:
+  host: "127.0.0.1"
+  port: 8080
+  # "local" = no auth (single-user local install).
+  # "token" = require X-API-Key header matching MAGGY_API_KEY env var.
+  auth_mode: "local"
+
+# Paths to claude-bootstrap installation — auto-detected, usually don't touch.
+bootstrap:
+  # If omitted, Maggy looks at ~/.claude/.bootstrap-dir written by install.sh
+  path: ""
