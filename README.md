@@ -289,6 +289,89 @@ icpg bootstrap                                    # Infer from git history
 
 **6-Dimension Drift Detection:** spec drift, decision drift, ownership drift, test drift, usage drift, dependency drift.
 
+## Maggy — AI Engineering Command Center (Optional)
+
+Maggy turns your team's issue tracker into an AI-prioritized inbox with one-click code execution. It's an **optional extension** that ships under `maggy/` — install it when you want a persistent dashboard, skip it if you only need the CLI-based bootstrap.
+
+```bash
+cd claude-bootstrap/maggy
+./install.sh
+
+# Edit ~/.maggy/config.yaml — set your org, GitHub repos, codebase paths
+export GITHUB_TOKEN=ghp_...
+export ANTHROPIC_API_KEY=sk-ant-...
+
+python3 -m maggy.main   # Open http://localhost:8080
+```
+
+Or from inside any Claude Code session:
+
+```
+/maggy-init   # Interactive setup wizard
+/maggy        # Launch dashboard
+```
+
+### What it does
+
+- **AI-prioritized inbox** — Claude ranks your open issues by urgency, OKR alignment, and recency. 30-min SQLite cache with stale-cache fallback when the tracker is down.
+- **One-click Execute** — spawns `claude -p` locally in the right codebase, with **iCPG context pre-injected** from the bootstrap's own reason graph. Runs a TDD pipeline (plan → tests → implement), then commits locally for your review.
+- **Competitor intelligence** — AI-discovered competitors in whatever domain you configure, plus daily news briefing from RSS + Google News.
+- **Provider-agnostic** — same 21 REST endpoints whether you use GitHub Issues, Asana, or (stubbed) Linear. Swap trackers without touching services.
+- **Minimal dashboard** — Tailwind + vanilla JS, no build step. 5 tabs: Inbox, Followed, Competitors, Sessions, Settings.
+
+### Architecture
+
+```
+claude-bootstrap/
+├── maggy/                           # optional — run ./install.sh to enable
+│   ├── maggy/                       # Python package (importable as `maggy`)
+│   │   ├── main.py                  # FastAPI entry
+│   │   ├── config.py                # ~/.maggy/config.yaml loader
+│   │   ├── providers/               # GitHub, Asana, Linear (stub)
+│   │   ├── services/                # inbox, competitor, executor
+│   │   ├── api/routes.py            # REST endpoints
+│   │   └── static/                  # dashboard
+│   ├── config.example.yaml          # template for ~/.maggy/config.yaml
+│   └── install.sh                   # one-line install
+├── commands/maggy.md                # /maggy command
+├── commands/maggy-init.md           # /maggy-init wizard
+└── skills/maggy/SKILL.md            # skill reference
+```
+
+### Config-driven, no hardcoded anything
+
+One `~/.maggy/config.yaml` drives everything — org name, domain, repos, codebase paths, competitor categories. No hardcoded board IDs or team lists.
+
+```yaml
+org: { name: "Acme Corp", domain: "fintech" }
+issue_tracker:
+  provider: "github"           # or "asana"
+  github:
+    org: "acmecorp"
+    repos: ["acmecorp/api", "acmecorp/web"]
+codebases:
+  - { path: "~/dev/acmecorp/api", key: "api" }
+  - { path: "~/dev/acmecorp/web", key: "web" }
+competitors:
+  categories: ["fintech", "embedded-finance"]
+```
+
+### Safety model
+
+Execute runs Claude Code with `--dangerously-skip-permissions` so the TDD subprocess isn't blocked waiting on approval prompts with no terminal attached. Mitigations in place:
+
+- `working_dir` is **validated against the configured codebase roots** — Claude can't be pointed at arbitrary filesystem paths
+- Dashboard **refuses to boot** if `auth_mode="local"` is combined with a non-loopback host (would expose Execute on the local network)
+- RSS URLs **SSRF-validated** before fetching (blocks loopback, private, link-local)
+- Dashboard links use a `http(s)`/`mailto` scheme allowlist; inline JS string escaping via `jsStr()`
+
+See `maggy/README.md` for the full hardening notes, and `skills/maggy/SKILL.md` for the skill doc Claude Code uses.
+
+### Not in the MVP
+
+- Meeting bot (voice), Slack integration, P2P session handoff, self-improvement — deferred to a v2 if there's demand
+- Linear provider is a stub; `build()` raises `NotImplementedError` cleanly
+
 ## Pre-configured Permissions
 
 `.claude/settings.json` includes permission rules so users don't get pestered for routine operations:
@@ -441,7 +524,7 @@ your-project/
 | `code-deduplication.md` | Prevent semantic duplication with capability index |
 | `agent-teams.md` | Agent team workflow with proper frontmatter definitions |
 | `ticket-craft.md` | AI-native ticket writing optimized for Claude Code |
-| `maggy.md` | Optional local AI command center — AI-prioritized inbox, one-click TDD execute, competitor intelligence. See `maggy/` folder |
+| `maggy.md` | Optional local AI command center — AI-prioritized inbox, one-click TDD execute, competitor intelligence. See the [Maggy section](#maggy--ai-engineering-command-center-optional) for the full docs |
 | `team-coordination.md` | Multi-person projects, shared state, handoffs |
 | `code-graph.md` | Persistent code graph via MCP |
 | `cpg-analysis.md` | Deep CPG analysis - Joern + CodeQL |
