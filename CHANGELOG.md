@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [3.5.0] - 2026-04-19
 
+### CI
+- **`skill-review.yml`**: both `tessl` and `skills-ref` jobs now space-join the detected-skills list before writing to `$GITHUB_OUTPUT`. The old plain `echo "skills=$CHANGED"` with a multi-line `$CHANGED` value failed GHA's output parser ("Invalid format") AND broke the downstream `for skill in ${{ outputs.skills }}` loop. Space-joining keeps both happy and unblocks multi-skill PRs (like this one, which touches both `maggy/` and `mnemos/`).
+
 ### Third review pass fixes (Copilot iteration)
 - **Package renamed `src/` → `maggy/`.** The top-level `src` package name was a well-known Python packaging anti-pattern that collides with other projects. The Python code now lives at `claude-bootstrap/maggy/maggy/` and imports as `from maggy.X import Y` (matching the icpg/mnemos/skill_lint convention). `pyproject.toml` entrypoint + includes, `install.sh`, and the launcher commands updated to `python3 -m maggy.main`.
 - **SQLite PRAGMAs** — `InboxService` and `CompetitorService` open connections via a shared helper that sets `journal_mode=WAL`, `foreign_keys=ON`, and `busy_timeout=30000`. Matches the convention used by `scripts/icpg/store.py` and prevents "database is locked" errors when the FastAPI handlers race the heartbeat worker.

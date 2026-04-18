@@ -22,19 +22,15 @@ jobs:
       - name: Detect changed skills
         id: changes
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
-          # $CHANGED can be empty or multiline. Plain `echo "skills=$X"` breaks
-          # GHA's output parser when $X contains newlines ("Invalid format"),
-          # so emit an explicit empty string or use heredoc syntax for multiline.
-          if [ -z "$CHANGED" ]; then
-            echo "skills=" >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "skills<<SKILLS_EOF"
-              echo "$CHANGED"
-              echo "SKILLS_EOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
+          # Multi-skill PRs produce a multi-line list. Plain echo "skills=$X"
+          # fails GHA's output parser on newlines ("Invalid format"), AND the
+          # downstream `for skill in ${{ outputs.skills }}` breaks on newlines
+          # because the expansion ends the `for ... in` expression. Join with
+          # spaces so both the output format and the shell loop are happy.
+          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+          # Trim trailing space for clean logs
+          CHANGED="${CHANGED%% }"
+          echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
           echo "Changed skills: $CHANGED"
 
       - name: Run Tessl review on changed skills
@@ -63,17 +59,11 @@ jobs:
       - name: Detect changed skills
         id: changes
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
-          # Same heredoc dance as the tessl job — plain echo breaks on multiline.
-          if [ -z "$CHANGED" ]; then
-            echo "skills=" >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "skills<<SKILLS_EOF"
-              echo "$CHANGED"
-              echo "SKILLS_EOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
+          # Same space-join as the tessl job — keeps both the GHA output format
+          # and the downstream `for skill in ${{ ... }}` loop working.
+          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+          CHANGED="${CHANGED%% }"
+          echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Validate changed skills
         if: steps.changes.outputs.skills != ''
