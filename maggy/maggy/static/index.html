@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maggy</title>
+
+  <!--
+    Content Security Policy — limits where scripts/styles can load from.
+    This mitigates the risk of a compromised CDN injecting arbitrary code,
+    since Maggy runs with local file-system access to your codebases and
+    can spawn `claude --dangerously-skip-permissions`.
+
+    For production / air-gapped installs: run `maggy/scripts/vendor-assets.sh`
+    (TODO) to copy Tailwind + Font Awesome locally, then replace the two
+    external references below with /static/tailwind.css and /static/fontawesome.css.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline';
+    style-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com 'unsafe-inline';
+    font-src 'self' https://cdnjs.cloudflare.com data:;
+    connect-src 'self';
+    img-src 'self' data:;
+    frame-ancestors 'none';
+    base-uri 'self';
+  " />
+
+  <!-- Tailwind Play CDN: no stable SRI hash (generated on demand). Vendor for prod. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font Awesome 6.5.0 all.min.css — SHA-384 subresource integrity per cdnjs -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-SzlrxWUlpfuzQ+pcUCosxcglQRNAq/DZjVsC0lE40xsADsfeQoEypE+enwcOiGjk/bSuGGKHEyjSoQ1zVisanQ=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer" />
+  <style>
+    body { background:#0b0e14; color:#e6e6e6; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .tab-btn.active { background:#ea580c; color:white; }
+    .card { background:#151922; border:1px solid #262b3a; border-radius: 0.5rem; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <div class="min-h-screen">
+    <header class="border-b border-gray-800 bg-black/40 px-6 py-3 flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <i class="fas fa-robot text-orange-500 text-xl"></i>
+        <h1 class="text-lg font-bold text-white">Maggy</h1>
+        <span class="text-[10px] text-gray-500">v0.1.0</span>
+      </div>
+      <div id="org-badge" class="text-xs text-gray-400"></div>
+      <div class="flex-1"></div>
+      <button onclick="loadAll()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-sync-alt mr-1"></i>Refresh</button>
+    </header>
+
+    <nav class="border-b border-gray-800 px-6 py-2 flex gap-2 bg-black/20">
+      <button class="tab-btn active text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="inbox" onclick="switchTab('inbox')"><i class="fas fa-inbox mr-1"></i>Inbox</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="followed" onclick="switchTab('followed')"><i class="fas fa-eye mr-1"></i>Followed</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="competitors" onclick="switchTab('competitors')"><i class="fas fa-chess mr-1"></i>Competitors</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="sessions" onclick="switchTab('sessions')"><i class="fas fa-terminal mr-1"></i>Sessions</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="settings" onclick="switchTab('settings')"><i class="fas fa-gear mr-1"></i>Settings</button>
+    </nav>
+
+    <main class="px-6 py-4">
+      <div id="pane-inbox" class="pane"></div>
+      <div id="pane-followed" class="pane hidden"></div>
+      <div id="pane-competitors" class="pane hidden"></div>
+      <div id="pane-sessions" class="pane hidden"></div>
+      <div id="pane-settings" class="pane hidden"></div>
+    </main>
+
+    <div id="drawer" class="fixed top-0 right-0 h-full w-[40rem] max-w-full card border-l border-gray-800 p-4 overflow-y-auto translate-x-full transition-transform z-20">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="drawer-title" class="text-sm font-bold text-white">Task</h3>
+        <button onclick="closeDrawer()" class="text-gray-400 hover:text-white text-lg"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div id="drawer-body" class="text-sm text-gray-300"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

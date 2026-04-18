@@ -441,6 +441,7 @@ your-project/
 | `code-deduplication.md` | Prevent semantic duplication with capability index |
 | `agent-teams.md` | Agent team workflow with proper frontmatter definitions |
 | `ticket-craft.md` | AI-native ticket writing optimized for Claude Code |
+| `maggy.md` | Optional local AI command center — AI-prioritized inbox, one-click TDD execute, competitor intelligence. See `maggy/` folder |
 | `team-coordination.md` | Multi-person projects, shared state, handoffs |
 | `code-graph.md` | Persistent code graph via MCP |
 | `cpg-analysis.md` | Deep CPG analysis - Joern + CodeQL |

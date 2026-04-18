@@ -6,6 +6,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [3.5.0] - 2026-04-19
+
+### CI
+- **`skill-review.yml`**: both `tessl` and `skills-ref` jobs now space-join the detected-skills list before writing to `$GITHUB_OUTPUT`. The old plain `echo "skills=$CHANGED"` with a multi-line `$CHANGED` value failed GHA's output parser ("Invalid format") AND broke the downstream `for skill in ${{ outputs.skills }}` loop. Space-joining keeps both happy and unblocks multi-skill PRs (like this one, which touches both `maggy/` and `mnemos/`).
+
+### Third review pass fixes (Copilot iteration)
+- **Package renamed `src/` → `maggy/`.** The top-level `src` package name was a well-known Python packaging anti-pattern that collides with other projects. The Python code now lives at `claude-bootstrap/maggy/maggy/` and imports as `from maggy.X import Y` (matching the icpg/mnemos/skill_lint convention). `pyproject.toml` entrypoint + includes, `install.sh`, and the launcher commands updated to `python3 -m maggy.main`.
+- **SQLite PRAGMAs** — `InboxService` and `CompetitorService` open connections via a shared helper that sets `journal_mode=WAL`, `foreign_keys=ON`, and `busy_timeout=30000`. Matches the convention used by `scripts/icpg/store.py` and prevents "database is locked" errors when the FastAPI handlers race the heartbeat worker.
+- **Host-safety startup check** — `create_app()` now refuses to boot when `dashboard.auth_mode="local"` is combined with a non-loopback host (anything other than `127.0.0.1`/`localhost`/`::1`). Execute spawns `claude --dangerously-skip-permissions`, so binding to `0.0.0.0` with no auth would expose that to the local network. Users are directed to switch to token auth or rebind.
+- **`is_configured()` no longer accepts `linear`** — `providers.build()` raises `NotImplementedError` for Linear (stub), so treating it as configured would crash `create_app()` at startup. Now returns `False` cleanly.
+- **`providers.build()`** raises `NotImplementedError` with a clear "use github or asana" hint for `linear`.
+- **GitHub provider logs non-200s** in `list_tasks` — previously a 401/403/404 silently yielded an empty inbox. Now WARNING-logged with the repo slug and first 200 chars of the response body for debuggability.
+- **Removed unused `timedelta` import** from `inbox.py`.
+
+### Second review pass fixes (CodeRabbit iteration 2)
+- `AsyncAnthropic` used in async methods — inbox ranking + competitor discovery + daily briefing no longer block the event loop on multi-second LLM round-trips
+- RSS/Google News feed date handling uses `parsedate_to_datetime` + ISO parser and compares real `datetime` objects — RFC 822 strings aren't lexicographically ordered (day-of-week cycles weekly)
+- iCPG CLI invocation fixed: `python3 -m scripts.icpg query prior --text ...` against the real argparse entrypoint, not the utility submodule `scripts.icpg.symbols` which has no `__main__`
+- Background `asyncio.create_task()` reference kept in a set + `add_done_callback(discard)` so GC can't kill the TDD pipeline mid-run
+- `GitHubIssuesProvider.list_followed()` and `search_tasks()` refuse to run when `repos` is empty (otherwise the query has no repo filter and searches all of public GitHub)
+- `AsanaProvider.list_tasks()` drops the dead `completed_filter` variable and skips sending `completed_since=""` (Asana validator rejects empty string); filters `closed` state properly
+- `install.sh` enforces Python 3.11+ minimum (was only checking `python3` existed)
+- `/static/index.html`: added CSP meta tag; Font Awesome pinned with SHA-384 SRI; Tailwind Play CDN annotated with vendor-for-prod TODO
+- `static/app.js`: added `jsStr()` for JS-string-context escaping in inline onclick handlers (esc() alone leaves single quotes intact — XSS via ticket titles was possible)
+- `regenerateBriefing()` catches and displays errors instead of swallowing them
+- `commands/maggy.md`: reads `dashboard.host`/`dashboard.port` from config before probing health (was hardcoded 8080)
+- `commands/maggy-init.md`: removed the "offer to write to .env" suggestion — the runtime doesn't load that file, so it would leave tokens on disk with no reader
+- `config.example.yaml`: removed the Linear section (stub only, shouldn't be in the advertised selectable set)
+- `PLAN.md`: config sample aligned with the actual runtime schema (removed spurious `config:` nesting)
+- `maggy/README.md`: install path no longer assumes `~/Documents/AI-Playground/...`; uses relative `cd claude-bootstrap/maggy`
+- `providers/__init__.py`: `__all__` alphabetized (RUF022)
+- `skills/maggy/SKILL.md`: explicit permission-model disclosure box explaining the `--dangerously-skip-permissions` tradeoff and the `working_dir` whitelist mitigations
+
+### Added
+- **Maggy — AI engineering command center** (optional extension under `maggy/`)
+  - Local FastAPI + vanilla JS dashboard; install with `maggy/install.sh`, zero build step
+  - Provider abstraction: `GitHubIssuesProvider`, `AsanaProvider`, `LinearProvider` (stub) implement a single `IssueTrackerProvider` Protocol — swap trackers without touching services
+  - AI-prioritized inbox with 30-min SQLite cache; stale-cache fallback when provider is unavailable
+  - Generic competitor discovery + RSS + Google News monitoring with daily AI briefing (cached per day)
+  - TDD execute pipeline (plan → tests → implement) spawns `claude -p --dangerously-skip-permissions` locally in the right codebase, with iCPG context auto-injected from the bootstrap's iCPG CLI
+  - Config-driven (`~/.maggy/config.yaml`) — no hardcoded org IDs, repo names, or competitor lists
+  - `/maggy` command launches dashboard; `/maggy-init` runs interactive setup
+  - `skills/maggy/SKILL.md` documents capabilities; README skills table updated
+- Maggy skill included in the skills table (fixes RI002 lint error for this PR)
+
+### Fixed
+- Added YAML frontmatter to `skills/mnemos/SKILL.md` (fixes FM001 lint error that was blocking CI on main)
+- Skill lint now passes across all 60 skills
+
+### Security (Maggy)
+- RSS URL validation before fetching competitor feeds — blocks loopback, link-local, private-network, and non-HTTP(S) targets (SSRF prevention)
+- `safeHref()` in dashboard JS — only allows `http(s)`/`mailto` schemes in external links, blocks `javascript:`/`data:` URIs that would slip past HTML escaping
+- `working_dir` validated against configured codebase roots before launching Claude Code — prevents arbitrary-cwd execution of `--dangerously-skip-permissions`
+- Execute-mode input validated via `Literal["tdd", "plan"]`; typos rejected at request boundary
+- GitHub `_decode_id()` returns `None` on malformed input instead of raising — surfaces as 404 not 500
+- LLM ranking output validated (index range, numeric rank, dedupe) before applying
+
+### Resilience (Maggy)
+- `provider.list_tasks` failure falls back to last cached ranking (flagged `stale=true`) instead of 500
+- Route-level `_require_configured()` returns 503 + onboarding hint when `~/.maggy/config.yaml` is missing, instead of dereferencing `None` services
+- `is_configured()` requires provider credentials (token) in addition to org/repos; refreshes cache on each check
+- Claude subprocess kill on timeout (`proc.kill()` + `await proc.wait()`), non-zero exits marked as failed sessions
+- `_run_claude()` returns `(ok, output)` tuple — TDD pipeline now aborts chain on first-step failure
+- Competitor news events use deterministic SHA-256 IDs with `INSERT OR IGNORE` — prevents duplicate rows on cursor reset / overlapping scans
+
+### Changed (Maggy)
+- `pyproject.toml` console script `maggy = "src.main:main"` (proper callable) instead of `"src.main:app"` (ASGI instance)
+
+---
+
 ## [3.4.1] - 2026-04-10
 
 ### Fixed

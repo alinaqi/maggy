@@ -22,7 +22,14 @@ jobs:
       - name: Detect changed skills
         id: changes
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
+          # Multi-skill PRs produce a multi-line list. Plain echo "skills=$X"
+          # fails GHA's output parser on newlines ("Invalid format"), AND the
+          # downstream `for skill in ${{ outputs.skills }}` breaks on newlines
+          # because the expansion ends the `for ... in` expression. Join with
+          # spaces so both the output format and the shell loop are happy.
+          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+          # Trim trailing space for clean logs
+          CHANGED="${CHANGED%% }"
           echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
           echo "Changed skills: $CHANGED"
 
@@ -52,7 +59,10 @@ jobs:
       - name: Detect changed skills
         id: changes
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u)
+          # Same space-join as the tessl job — keeps both the GHA output format
+          # and the downstream `for skill in ${{ ... }}` loop working.
+          CHANGED=$(git diff --name-only origin/main...HEAD -- skills/ | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+          CHANGED="${CHANGED%% }"
           echo "skills=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Validate changed skills

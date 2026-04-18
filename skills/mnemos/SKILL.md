@@ -1,3 +1,11 @@
+---
+name: mnemos
+description: Task-scoped memory lifecycle — typed MnemoGraph prevents lossy context compaction by treating facts/decisions/code-refs/handoffs as distinct node types with per-type eviction policies
+when-to-use: "When you need durable working memory across compactions — checkpoint decisions, preserve task handoffs, or audit what was remembered"
+user-invocable: false
+effort: high
+---
+
 # Mnemos — Task-Scoped Memory Lifecycle
 
 ## What It Does

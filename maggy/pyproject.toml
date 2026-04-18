@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maggy"
+version = "0.1.0"
+description = "Generic AI engineering command center — ships with claude-bootstrap"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Maggy Contributors" }]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "anthropic>=0.40",
+    "pyyaml>=6.0",
+    "feedparser>=6.0",
+    "pydantic>=2.6",
+]
+
+[project.scripts]
+# Points to a callable, not the ASGI app instance — console_scripts need
+# callables that take no args. Runs uvicorn with the configured host/port.
+maggy = "maggy.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["maggy*"]
