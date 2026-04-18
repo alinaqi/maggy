@@ -54,11 +54,11 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ## Run
 
 ```bash
-cd ~/Documents/AI-Playground/claude-bootstrap/maggy
+cd claude-bootstrap/maggy
 python3 -m maggy.main
 ```
 
-Open `http://localhost:8080`.
+Open `http://localhost:8080` (or whatever `dashboard.host:dashboard.port` you set in the config).
 
 ## From inside Claude Code
 
