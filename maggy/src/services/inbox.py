@@ -122,8 +122,11 @@ Tasks:
 {chr(10).join(task_lines)}"""
 
         try:
-            client = anthropic.Anthropic(api_key=self.cfg.ai.api_key)
-            msg = client.messages.create(
+            # Use AsyncAnthropic so we don't block the event loop during a
+            # multi-second LLM round-trip — this runs inside a FastAPI handler
+            # that serves other requests concurrently.
+            client = anthropic.AsyncAnthropic(api_key=self.cfg.ai.api_key)
+            msg = await client.messages.create(
                 model=self.cfg.ai.model,
                 max_tokens=2000,
                 messages=[{"role": "user", "content": prompt}],

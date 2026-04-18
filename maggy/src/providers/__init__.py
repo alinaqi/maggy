@@ -1,10 +1,16 @@
 """Issue tracker provider abstractions."""
 
-from .base import IssueTrackerProvider, Task, Comment
-from .github_issues import GitHubIssuesProvider
 from .asana import AsanaProvider
+from .base import Comment, IssueTrackerProvider, Task
+from .github_issues import GitHubIssuesProvider
 
-__all__ = ["IssueTrackerProvider", "Task", "Comment", "GitHubIssuesProvider", "AsanaProvider"]
+__all__ = [
+    "AsanaProvider",
+    "Comment",
+    "GitHubIssuesProvider",
+    "IssueTrackerProvider",
+    "Task",
+]
 
 
 def build(cfg) -> IssueTrackerProvider:

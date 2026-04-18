@@ -4,8 +4,37 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Maggy</title>
+
+  <!--
+    Content Security Policy — limits where scripts/styles can load from.
+    This mitigates the risk of a compromised CDN injecting arbitrary code,
+    since Maggy runs with local file-system access to your codebases and
+    can spawn `claude --dangerously-skip-permissions`.
+
+    For production / air-gapped installs: run `maggy/scripts/vendor-assets.sh`
+    (TODO) to copy Tailwind + Font Awesome locally, then replace the two
+    external references below with /static/tailwind.css and /static/fontawesome.css.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline';
+    style-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com 'unsafe-inline';
+    font-src 'self' https://cdnjs.cloudflare.com data:;
+    connect-src 'self';
+    img-src 'self' data:;
+    frame-ancestors 'none';
+    base-uri 'self';
+  " />
+
+  <!-- Tailwind Play CDN: no stable SRI hash (generated on demand). Vendor for prod. -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <!-- Font Awesome 6.5.0 all.min.css — SHA-384 subresource integrity per cdnjs -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-SzlrxWUlpfuzQ+pcUCosxcglQRNAq/DZjVsC0lE40xsADsfeQoEypE+enwcOiGjk/bSuGGKHEyjSoQ1zVisanQ=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer" />
   <style>
     body { background:#0b0e14; color:#e6e6e6; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .tab-btn.active { background:#ea580c; color:white; }

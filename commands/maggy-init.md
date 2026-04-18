@@ -64,14 +64,17 @@ cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
 
 ### 5. Credentials check
 
-Tell the user to export these in their shell:
+Tell the user to export these in their shell and source them when starting Maggy:
 
 ```
 export GITHUB_TOKEN=ghp_...           # repo + issues scopes
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Offer to write them to `~/.maggy/.env` (gitignored) if they prefer.
+**Do not write tokens to `~/.maggy/.env`** — the Maggy server does not load that
+file automatically, so credentials would sit on disk in plaintext with no code
+reading them. Use your shell's standard secret store (e.g. `.zshrc`, `direnv`,
+`op run`, a secrets manager) or export them inline when launching Maggy.
 
 ### 6. Test the connection
 

@@ -77,12 +77,11 @@ org:
   domain: "fintech"                  # drives competitor category + system prompt
 
 issue_tracker:
-  provider: "github"                 # or "asana" | "linear"
-  config:
-    github:
-      org: "acmecorp"
-      repos: ["acmecorp/api", "acmecorp/web"]
-      # PAT read from env: GITHUB_TOKEN
+  provider: "github"                 # "github" | "asana" (linear = stub)
+  github:
+    org: "acmecorp"
+    repos: ["acmecorp/api", "acmecorp/web"]
+    # PAT read from env: GITHUB_TOKEN
 
 codebases:
   - path: "~/dev/acmecorp/api"
@@ -96,7 +95,7 @@ competitors:
 
 ai:
   provider: "anthropic"
-  model: "claude-sonnet-4-5"
+  model: "claude-sonnet-4-5-20250929"
   # API key from ANTHROPIC_API_KEY env
 
 storage:

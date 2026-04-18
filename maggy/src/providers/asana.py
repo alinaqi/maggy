@@ -66,24 +66,28 @@ class AsanaProvider:
         else:
             board_gids = list(self.boards.values())
 
-        completed_filter = "false" if state == "open" else "true"
         tasks: list[Task] = []
-
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:
             for gid in board_gids:
-                resp = await client.get(
-                    f"{ASANA_BASE}/projects/{gid}/tasks",
-                    params={
-                        "opt_fields": "name,notes,completed,assignee.name,projects.name,modified_at,created_at,permalink_url,tags.name",
-                        "completed_since": "now" if state == "open" else "",
-                        "limit": str(min(limit, 100)),
-                    },
-                )
+                # `completed_since=now` tells Asana to exclude tasks completed
+                # before this instant (i.e. give us open + just-now-completed).
+                # Don't send it at all when we WANT completed tasks — empty
+                # string is rejected by Asana's validator.
+                params = {
+                    "opt_fields": "name,notes,completed,assignee.name,projects.name,modified_at,created_at,permalink_url,tags.name",
+                    "limit": str(min(limit, 100)),
+                }
+                if state == "open":
+                    params["completed_since"] = "now"
+                resp = await client.get(f"{ASANA_BASE}/projects/{gid}/tasks", params=params)
                 if resp.status_code != 200:
                     continue
                 for t in resp.json().get("data", []):
-                    # Filter by state since completed_since doesn't always work perfectly
+                    # completed_since gives everything after a timestamp — we
+                    # still need to filter to match the requested state.
                     if state == "open" and t.get("completed"):
+                        continue
+                    if state == "closed" and not t.get("completed"):
                         continue
                     tasks.append(self._to_task(t))
 

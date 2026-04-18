@@ -14,12 +14,17 @@ echo "  Installing to: $MAGGY_HOME"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo
 
-# 1. Check Python
+# 1. Check Python — enforce the 3.11+ minimum from pyproject.toml's requires-python.
 if ! command -v python3 >/dev/null 2>&1; then
   echo "❌ python3 not found. Install Python 3.11 or later first."
   exit 1
 fi
 PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'; then
+  echo "❌ Python 3.11 or later is required. Found Python $PY_VERSION."
+  echo "   Install a newer Python (e.g. via pyenv, homebrew, or python.org)."
+  exit 1
+fi
 echo "✓ Python $PY_VERSION"
 
 # 2. Check claude CLI

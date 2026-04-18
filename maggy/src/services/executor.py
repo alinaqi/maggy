@@ -27,6 +27,10 @@ class ExecutorService:
         self.cfg = cfg
         self.provider = provider
         self._sessions: dict[str, dict] = {}
+        # Hold strong refs to in-flight background tasks — asyncio.create_task
+        # returns a weakly-held Task, so without storing it the garbage collector
+        # can kill our TDD pipeline mid-run.
+        self._bg_tasks: set[asyncio.Task] = set()
 
     async def start(self, task_id: str, mode: str = "tdd", working_dir: str | None = None) -> str:
         """Spawn a Claude Code session for this task. Returns session_id.
@@ -59,8 +63,10 @@ class ExecutorService:
         }
         self._sessions[session_id] = session
 
-        # Run in background
-        asyncio.create_task(self._run(session_id, task, wd, mode))
+        # Run in background. Keep a strong reference or Python can GC it.
+        bg = asyncio.create_task(self._run(session_id, task, wd, mode))
+        self._bg_tasks.add(bg)
+        bg.add_done_callback(self._bg_tasks.discard)
         return session_id
 
     def get_session(self, session_id: str) -> dict | None:
@@ -210,44 +216,54 @@ class ExecutorService:
         """Query claude-bootstrap's iCPG CLI for symbols/blast radius/prior intents.
 
         Silent fallback if iCPG isn't installed or repo isn't indexed — returns empty string.
+
+        Invokes the iCPG package (`python3 -m scripts.icpg`) which is a real CLI
+        entry point with an argparse subcommand interface (init/create/record/query/
+        drift/bootstrap/status). We use `query --subcommand prior --text <keywords>`
+        to find relevant symbols and past intents. The scripts.icpg.symbols
+        submodule is a utility module with NO __main__ — invoking it directly
+        produces nothing.
         """
         bootstrap_path = self.cfg.resolve_bootstrap_path()
         if not bootstrap_path:
             return ""
 
-        icpg_py = bootstrap_path / "scripts" / "icpg"
-        if not icpg_py.exists():
+        icpg_pkg = bootstrap_path / "scripts" / "icpg" / "__main__.py"
+        if not icpg_pkg.exists():
             return ""
 
         keywords = self._extract_keywords(f"{task.title} {task.description}")
         if not keywords:
             return ""
 
-        # Try calling `icpg query` or fall back gracefully. We use Python -m invocation
-        # to avoid needing icpg on PATH.
-        symbols_out: list[str] = []
-        for kw in keywords[:5]:
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    "python3", "-m", "scripts.icpg.symbols", "--keyword", kw, "--limit", "5",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=str(bootstrap_path),
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
-                text = (stdout or b"").decode("utf-8", errors="replace").strip()
-                if text:
-                    symbols_out.append(f"- keyword `{kw}`: {text[:300]}")
-            except Exception:
-                continue
+        # Build one search text from the top keywords — iCPG's 'query prior' takes
+        # a free-text query, not a keyword list.
+        query_text = " ".join(keywords[:8])
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "python3", "-m", "scripts.icpg",
+                "--project", str(bootstrap_path),
+                "query", "prior",
+                "--text", query_text,
+                "--limit", "8",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(bootstrap_path),
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+            if proc.returncode != 0:
+                return ""
+            text = (stdout or b"").decode("utf-8", errors="replace").strip()
+        except (asyncio.TimeoutError, FileNotFoundError, OSError):
+            return ""
 
-        if not symbols_out:
+        if not text:
             return ""
 
         return (
             "## iCPG Code Intelligence\n"
             "Pre-queried from claude-bootstrap's intent code property graph:\n\n"
-            + "\n".join(symbols_out)
+            + text[:2000]
             + "\n\n**Use this to target your file reads and avoid searching blind.**"
         )
 

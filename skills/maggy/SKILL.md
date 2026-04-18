@@ -11,9 +11,29 @@ effort: medium
 **Maggy** is a generic, local AI engineering command center that ships with claude-bootstrap. Install once, point it at your team's issue tracker and codebases, and get:
 
 - **AI-prioritized inbox** — ranks open issues by urgency, OKR alignment, and recency
-- **One-click Execute** — spawns `claude -p --dangerously-skip-permissions` with iCPG context injected
+- **One-click Execute** — spawns Claude Code locally with iCPG context injected
 - **Competitor intelligence** — daily AI briefing on your competitive landscape
 - **No hardcoding** — works for any team, any stack, any issue tracker
+
+### ⚠️ Execute permission model (important)
+
+Execute currently runs `claude -p --dangerously-skip-permissions` so the TDD
+pipeline isn't blocked waiting on approval prompts (subprocess has no terminal).
+That flag **grants Claude full permission to write/edit files and run shell
+commands** inside the target codebase, and the prompt it receives includes
+content from the issue tracker (which any team member can author).
+
+**Hardening already in place:**
+- `working_dir` is validated against the list of codebase roots in
+  `~/.maggy/config.yaml` — Claude can't be pointed at arbitrary filesystem paths.
+- Only tickets from your configured trackers reach Execute; no public-internet
+  input flows into the prompt.
+
+**Roadmap:** move the unconditional flag behind per-codebase config
+(`auto_approve: true|false`) so privileged execution becomes opt-in.
+Until then, treat Execute like `git pull && make` on any ticket you push
+the button for — only run it on repos you own, against tickets from
+authors you trust.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐

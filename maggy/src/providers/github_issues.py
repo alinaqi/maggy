@@ -166,7 +166,13 @@ class GitHubIssuesProvider:
             return resp.status_code == 200
 
     async def list_followed(self, user_id: str | None = None, limit: int = 50) -> list[Task]:
-        """Issues assigned to or mentioning the authenticated user across configured repos."""
+        """Issues assigned to or mentioning the authenticated user across configured repos.
+
+        Refuses to run without repos — otherwise the GitHub search query would
+        have no repo filter and hit every public issue on the site.
+        """
+        if not self.repos:
+            return []
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:
             # Figure out the user if not provided
             if not user_id:
@@ -197,6 +203,10 @@ class GitHubIssuesProvider:
             return tasks
 
     async def search_tasks(self, query: str, limit: int = 20) -> list[Task]:
+        # Same guard as list_followed — without repos, the query would search
+        # all public GitHub issues, which is never what we want.
+        if not self.repos:
+            return []
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:
             repo_qual = " ".join(f"repo:{r}" for r in self.repos)
             q = f"is:issue {query} {repo_qual}"

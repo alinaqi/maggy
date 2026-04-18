@@ -11,10 +11,15 @@ Install once, point it at your team's GitHub (or Asana) and codebases, and get:
 
 ## Install
 
+From wherever you cloned `claude-bootstrap`:
+
 ```bash
-cd ~/Documents/AI-Playground/claude-bootstrap/maggy
+cd claude-bootstrap/maggy
 ./install.sh
 ```
+
+The installer records the bootstrap location in `~/.claude/.bootstrap-dir` so
+Maggy can find the iCPG CLI from any working directory afterwards.
 
 ## Configure
 

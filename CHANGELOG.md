@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [3.5.0] - 2026-04-19
 
+### Second review pass fixes (CodeRabbit iteration 2)
+- `AsyncAnthropic` used in async methods — inbox ranking + competitor discovery + daily briefing no longer block the event loop on multi-second LLM round-trips
+- RSS/Google News feed date handling uses `parsedate_to_datetime` + ISO parser and compares real `datetime` objects — RFC 822 strings aren't lexicographically ordered (day-of-week cycles weekly)
+- iCPG CLI invocation fixed: `python3 -m scripts.icpg query prior --text ...` against the real argparse entrypoint, not the utility submodule `scripts.icpg.symbols` which has no `__main__`
+- Background `asyncio.create_task()` reference kept in a set + `add_done_callback(discard)` so GC can't kill the TDD pipeline mid-run
+- `GitHubIssuesProvider.list_followed()` and `search_tasks()` refuse to run when `repos` is empty (otherwise the query has no repo filter and searches all of public GitHub)
+- `AsanaProvider.list_tasks()` drops the dead `completed_filter` variable and skips sending `completed_since=""` (Asana validator rejects empty string); filters `closed` state properly
+- `install.sh` enforces Python 3.11+ minimum (was only checking `python3` existed)
+- `/static/index.html`: added CSP meta tag; Font Awesome pinned with SHA-384 SRI; Tailwind Play CDN annotated with vendor-for-prod TODO
+- `static/app.js`: added `jsStr()` for JS-string-context escaping in inline onclick handlers (esc() alone leaves single quotes intact — XSS via ticket titles was possible)
+- `regenerateBriefing()` catches and displays errors instead of swallowing them
+- `commands/maggy.md`: reads `dashboard.host`/`dashboard.port` from config before probing health (was hardcoded 8080)
+- `commands/maggy-init.md`: removed the "offer to write to .env" suggestion — the runtime doesn't load that file, so it would leave tokens on disk with no reader
+- `config.example.yaml`: removed the Linear section (stub only, shouldn't be in the advertised selectable set)
+- `PLAN.md`: config sample aligned with the actual runtime schema (removed spurious `config:` nesting)
+- `maggy/README.md`: install path no longer assumes `~/Documents/AI-Playground/...`; uses relative `cd claude-bootstrap/maggy`
+- `providers/__init__.py`: `__all__` alphabetized (RUF022)
+- `skills/maggy/SKILL.md`: explicit permission-model disclosure box explaining the `--dangerously-skip-permissions` tradeoff and the `working_dir` whitelist mitigations
+
 ### Added
 - **Maggy — AI engineering command center** (optional extension under `maggy/`)
   - Local FastAPI + vanilla JS dashboard; install with `maggy/install.sh`, zero build step

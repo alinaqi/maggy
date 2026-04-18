@@ -34,6 +34,24 @@ function safeHref(url) {
   return esc(trimmed);
 }
 
+// Escape a value for use inside a JS string literal that is itself embedded in
+// an HTML attribute. esc() is NOT enough here — it leaves single quotes and
+// backslashes intact, so a task id containing `'); alert(1);//` would break
+// out of onclick="executeTask('${id}', ...)". We need to:
+//   1. escape the backslash first (so later escapes don't double-encode)
+//   2. escape the single quote that wraps the JS string
+//   3. escape angle brackets in case the attribute is interpreted as HTML
+//   4. escape newlines and carriage returns that would break the statement
+function jsStr(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/\r?\n/g, '\\n');
+}
+
 function relDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -89,7 +107,7 @@ async function loadInbox(refresh = false) {
     html += `<div class="space-y-2">`;
     for (const i of items) {
       const labels = (i.labels || []).slice(0, 4).map(l => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">${esc(l)}</span>`).join(' ');
-      html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${esc(i.id)}')">
+      html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(i.id)}')">
         <div class="flex items-start gap-3">
           <div class="text-xs font-mono text-orange-400 mt-0.5">#${i.rank}</div>
           <div class="flex-1 min-w-0">
@@ -103,8 +121,8 @@ async function loadInbox(refresh = false) {
             ${i.ai_reason ? `<div class="text-[11px] text-gray-400 mt-1 italic">“${esc(i.ai_reason)}”</div>` : ''}
           </div>
           <div class="flex gap-1 shrink-0" onclick="event.stopPropagation()">
-            <button onclick="executeTask('${esc(i.id)}', 'plan')" class="text-[10px] px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Plan</button>
-            <button onclick="executeTask('${esc(i.id)}', 'tdd')" class="text-[10px] px-2 py-1 rounded bg-orange-600 hover:bg-orange-700 text-white">Execute</button>
+            <button onclick="executeTask('${jsStr(i.id)}', 'plan')" class="text-[10px] px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Plan</button>
+            <button onclick="executeTask('${jsStr(i.id)}', 'tdd')" class="text-[10px] px-2 py-1 rounded bg-orange-600 hover:bg-orange-700 text-white">Execute</button>
           </div>
         </div>
       </div>`;
@@ -129,7 +147,7 @@ async function loadFollowed() {
     }
     let html = `<h2 class="text-sm font-bold text-white mb-3">Following (${items.length})</h2><div class="space-y-2">`;
     for (const i of items) {
-      html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${esc(i.id)}')">
+      html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(i.id)}')">
         <div class="text-sm text-white">${esc(i.title)}</div>
         <div class="text-[11px] text-gray-500 mt-0.5">
           <span class="text-blue-400">${esc(i.board || '')}</span>
@@ -168,8 +186,8 @@ async function openTaskDetail(taskId) {
       html += `<div class="card p-3"><div class="text-[10px] text-gray-500 uppercase mb-1">Description</div><pre class="text-xs text-gray-300 max-h-48 overflow-y-auto">${esc(t.description)}</pre></div>`;
     }
     html += `<div class="flex gap-2">
-      <button onclick="executeTask('${esc(t.id)}', 'plan')" class="flex-1 text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white"><i class="fas fa-list-check mr-1"></i>Plan</button>
-      <button onclick="executeTask('${esc(t.id)}', 'tdd')" class="flex-1 text-xs px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-700 text-white"><i class="fas fa-play mr-1"></i>Execute (TDD)</button>
+      <button onclick="executeTask('${jsStr(t.id)}', 'plan')" class="flex-1 text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white"><i class="fas fa-list-check mr-1"></i>Plan</button>
+      <button onclick="executeTask('${jsStr(t.id)}', 'tdd')" class="flex-1 text-xs px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-700 text-white"><i class="fas fa-play mr-1"></i>Execute (TDD)</button>
     </div>`;
     if (comments.length) {
       html += `<div class="card p-3"><div class="text-[10px] text-gray-500 uppercase mb-2">Comments (${comments.length})</div><div class="space-y-2 max-h-64 overflow-y-auto">`;
@@ -184,7 +202,7 @@ async function openTaskDetail(taskId) {
     html += `<div class="card p-3">
       <div class="text-[10px] text-gray-500 uppercase mb-1">Reply</div>
       <textarea id="reply-box" rows="3" class="w-full bg-gray-900 text-xs text-white rounded px-2 py-1.5 border border-gray-700"></textarea>
-      <button onclick="postReply('${esc(t.id)}')" class="mt-2 text-xs px-3 py-1 rounded bg-blue-600 text-white">Post</button>
+      <button onclick="postReply('${jsStr(t.id)}')" class="mt-2 text-xs px-3 py-1 rounded bg-blue-600 text-white">Post</button>
     </div>`;
     html += `</div>`;
     document.getElementById('drawer-body').innerHTML = html;
@@ -304,9 +322,14 @@ async function loadBriefing() {
 }
 
 async function regenerateBriefing() {
-  document.getElementById('briefing').innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Regenerating…</div>';
-  await api('/competitors/news/summary?refresh=true');
-  loadBriefing();
+  const el = document.getElementById('briefing');
+  if (el) el.innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Regenerating…</div>';
+  try {
+    await api('/competitors/news/summary?refresh=true');
+    loadBriefing();
+  } catch (e) {
+    if (el) el.innerHTML = `<div class="text-xs text-red-400">Regenerate failed: ${esc(e.message)}</div>`;
+  }
 }
 
 async function discoverCompetitors() {
@@ -343,7 +366,7 @@ async function loadSessions() {
     let html = `<h2 class="text-sm font-bold text-white mb-3">Sessions (${sessions.length})</h2><div class="space-y-2">`;
     for (const s of sessions) {
       const statusCls = s.status === 'running' ? 'text-yellow-400' : s.status === 'completed' ? 'text-green-400' : 'text-red-400';
-      html += `<div class="card p-3 cursor-pointer" onclick="openSession('${esc(s.id)}')">
+      html += `<div class="card p-3 cursor-pointer" onclick="openSession('${jsStr(s.id)}')">
         <div class="flex items-center justify-between">
           <div class="text-sm text-white">${esc(s.task_title || s.task_id)}</div>
           <span class="text-[10px] ${statusCls}">${esc(s.status)}</span>

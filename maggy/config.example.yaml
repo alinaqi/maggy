@@ -8,7 +8,8 @@ org:
   domain: "your-domain"
 
 issue_tracker:
-  # Which provider: "github" | "asana" | "linear"
+  # Currently supported: "github" | "asana"
+  # ("linear" is a stub and not selectable yet — tracking via #TODO)
   provider: "github"
 
   github:
@@ -30,11 +31,6 @@ issue_tracker:
       dev: ""
       bugs: ""
     # Token from env: ASANA_API_KEY
-
-  linear:
-    # Stub — implement later
-    workspace: ""
-    # Token from env: LINEAR_API_KEY
 
 codebases:
   # Paths to repos Maggy can execute in. When you click Execute on a ticket,

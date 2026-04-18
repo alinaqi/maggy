@@ -25,6 +25,34 @@ from src.config import MaggyConfig
 logger = logging.getLogger(__name__)
 
 
+def _parse_feed_date(raw: str) -> datetime | None:
+    """Parse RFC 822 / ISO 8601 date strings from RSS/Atom feeds.
+
+    feedparser returns `published` as RFC 822 ("Mon, 15 Jan 2024 10:30:00 GMT").
+    Comparing those lexicographically is wrong because day names cycle weekly.
+    Returns a timezone-aware UTC datetime, or None if parsing fails.
+    """
+    if not raw:
+        return None
+    # feedparser exposes parsed tuple when it can
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        pass
+    # Fall through: try ISO 8601 (atom feeds, Google News sometimes)
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
 def _is_safe_feed_url(url: str) -> bool:
     """Reject RSS URLs that would let an attacker hit internal services.
 
@@ -159,8 +187,10 @@ Format (STRICT JSON):
 ]}}"""
 
         try:
-            client = anthropic.Anthropic(api_key=self.cfg.ai.api_key)
-            msg = client.messages.create(
+            # Use async client so the event loop isn't blocked during
+            # a multi-second LLM round-trip.
+            client = anthropic.AsyncAnthropic(api_key=self.cfg.ai.api_key)
+            msg = await client.messages.create(
                 model=self.cfg.ai.model,
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
@@ -273,21 +303,27 @@ Format (STRICT JSON):
         except Exception:
             return 0
 
+        # Cursor is stored as an ISO-8601 UTC string so comparisons are
+        # valid lexicographically AND survive round-trips through SQLite.
+        last_cursor_dt = _parse_feed_date(last_cursor) if last_cursor else None
         new_items = 0
-        latest = last_cursor
+        latest_dt = last_cursor_dt
         for entry in feed.entries[:10]:
-            pub = entry.get("published", entry.get("updated", ""))
-            if pub and pub <= last_cursor:
+            pub_raw = entry.get("published", entry.get("updated", ""))
+            pub_dt = _parse_feed_date(pub_raw)
+            # Skip entries already seen (we have a cursor AND the entry's parsed date is ≤ cursor).
+            # Entries without a parseable date are always processed — INSERT OR IGNORE dedupes.
+            if pub_dt and last_cursor_dt and pub_dt <= last_cursor_dt:
                 continue
             title = entry.get("title", "")
             link = entry.get("link", "")
-            if pub and pub > latest:
-                latest = pub
+            if pub_dt and (latest_dt is None or pub_dt > latest_dt):
+                latest_dt = pub_dt
             self._log_event(cid, comp.get("name", cid), "blog_post", f"{comp.get('name','')}: {title}", link, "rss")
             new_items += 1
 
-        if latest and latest != last_cursor:
-            self._set_cursor(cursor_key, latest)
+        if latest_dt and latest_dt != last_cursor_dt:
+            self._set_cursor(cursor_key, latest_dt.isoformat())
         return new_items
 
     async def _check_google_news(self, cid: str, comp: dict) -> int:
@@ -311,21 +347,22 @@ Format (STRICT JSON):
         except Exception:
             return 0
 
+        last_cursor_dt = _parse_feed_date(last_cursor) if last_cursor else None
         new_items = 0
-        latest = last_cursor
+        latest_dt = last_cursor_dt
         for entry in feed.entries[:5]:
-            pub = entry.get("published", "")
-            if pub and pub <= last_cursor:
+            pub_dt = _parse_feed_date(entry.get("published", ""))
+            if pub_dt and last_cursor_dt and pub_dt <= last_cursor_dt:
                 continue
             title = entry.get("title", "")
             link = entry.get("link", "")
-            if pub and pub > latest:
-                latest = pub
+            if pub_dt and (latest_dt is None or pub_dt > latest_dt):
+                latest_dt = pub_dt
             self._log_event(cid, name, self._classify(title), f"{name}: {title}", link, "google_news")
             new_items += 1
 
-        if latest and latest != last_cursor:
-            self._set_cursor(cursor_key, latest)
+        if latest_dt and latest_dt != last_cursor_dt:
+            self._set_cursor(cursor_key, latest_dt.isoformat())
         return new_items
 
     # ── News query ───────────────────────────────────────────────────────
@@ -377,8 +414,8 @@ Signals ({len(digest)} total):
 {chr(10).join(digest)}"""
 
         try:
-            client = anthropic.Anthropic(api_key=self.cfg.ai.api_key)
-            msg = client.messages.create(
+            client = anthropic.AsyncAnthropic(api_key=self.cfg.ai.api_key)
+            msg = await client.messages.create(
                 model=self.cfg.ai.model,
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
