@@ -1,7 +1,7 @@
 """Maggy FastAPI app entrypoint.
 
-Run with: python -m src.main
-Or: uvicorn src.main:app --host 127.0.0.1 --port 8080
+Run with: python -m maggy.main
+Or: uvicorn maggy.main:app --host 127.0.0.1 --port 8080
 """
 
 from __future__ import annotations
@@ -13,12 +13,12 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from src import config as config_mod
-from src import providers
-from src.api.routes import router as api_router
-from src.services.competitor import CompetitorService
-from src.services.executor import ExecutorService
-from src.services.inbox import InboxService
+from maggy import config as config_mod
+from maggy import providers
+from maggy.api.routes import router as api_router
+from maggy.services.competitor import CompetitorService
+from maggy.services.executor import ExecutorService
+from maggy.services.inbox import InboxService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("maggy")
@@ -26,6 +26,17 @@ logger = logging.getLogger("maggy")
 
 def create_app() -> FastAPI:
     cfg = config_mod.load()
+
+    # Safety check: auth_mode="local" skips every auth check. That's fine on a
+    # loopback address, but combining it with a non-loopback host would expose
+    # /api/execute (which spawns claude --dangerously-skip-permissions) on the
+    # local network. Refuse to start in that combination — require an API key.
+    if cfg.dashboard.auth_mode == "local" and cfg.dashboard.host not in ("127.0.0.1", "localhost", "::1"):
+        raise RuntimeError(
+            f"dashboard.auth_mode=\"local\" is only safe on loopback. You configured "
+            f"host={cfg.dashboard.host!r} — set auth_mode=\"token\" and MAGGY_API_KEY, "
+            f"or bind to 127.0.0.1."
+        )
 
     app = FastAPI(title="Maggy", version="0.1.0")
     app.state.cfg = cfg
@@ -69,13 +80,13 @@ app = create_app()
 def main() -> None:
     """Console script entrypoint — runs uvicorn with the configured host/port.
 
-    Referenced by `[project.scripts] maggy = "src.main:main"` in pyproject.toml.
-    Can also be invoked with `python -m src.main`.
+    Referenced by `[project.scripts] maggy = "maggy.main:main"` in pyproject.toml.
+    Can also be invoked with `python -m maggy.main`.
     """
     import uvicorn
     cfg = config_mod.load()
     uvicorn.run(
-        "src.main:app",
+        "maggy.main:app",
         host=cfg.dashboard.host,
         port=cfg.dashboard.port,
         reload=False,

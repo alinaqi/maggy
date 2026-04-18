@@ -219,6 +219,6 @@ def is_configured() -> bool:
     if cfg.issue_tracker.provider == "asana":
         az = cfg.issue_tracker.asana
         return bool(az.workspace_id and az.token)
-    if cfg.issue_tracker.provider == "linear":
-        return bool(cfg.issue_tracker.linear.token)
+    # NOTE: provider="linear" is a stub — providers.build() raises for it.
+    # Don't mark it as configured, or create_app() will crash at startup.
     return False

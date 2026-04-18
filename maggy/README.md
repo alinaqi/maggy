@@ -55,7 +55,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ```bash
 cd ~/Documents/AI-Playground/claude-bootstrap/maggy
-python3 -m src.main
+python3 -m maggy.main
 ```
 
 Open `http://localhost:8080`.

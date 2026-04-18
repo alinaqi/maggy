@@ -58,7 +58,7 @@ fi
 
 cd "$MAGGY_DIR"
 mkdir -p "$HOME/.maggy"
-nohup python3 -m src.main > "$HOME/.maggy/maggy.log" 2>&1 &
+nohup python3 -m maggy.main > "$HOME/.maggy/maggy.log" 2>&1 &
 echo $! > "$HOME/.maggy/maggy.pid"
 ```
 

@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [3.5.0] - 2026-04-19
 
+### Third review pass fixes (Copilot iteration)
+- **Package renamed `src/` → `maggy/`.** The top-level `src` package name was a well-known Python packaging anti-pattern that collides with other projects. The Python code now lives at `claude-bootstrap/maggy/maggy/` and imports as `from maggy.X import Y` (matching the icpg/mnemos/skill_lint convention). `pyproject.toml` entrypoint + includes, `install.sh`, and the launcher commands updated to `python3 -m maggy.main`.
+- **SQLite PRAGMAs** — `InboxService` and `CompetitorService` open connections via a shared helper that sets `journal_mode=WAL`, `foreign_keys=ON`, and `busy_timeout=30000`. Matches the convention used by `scripts/icpg/store.py` and prevents "database is locked" errors when the FastAPI handlers race the heartbeat worker.
+- **Host-safety startup check** — `create_app()` now refuses to boot when `dashboard.auth_mode="local"` is combined with a non-loopback host (anything other than `127.0.0.1`/`localhost`/`::1`). Execute spawns `claude --dangerously-skip-permissions`, so binding to `0.0.0.0` with no auth would expose that to the local network. Users are directed to switch to token auth or rebind.
+- **`is_configured()` no longer accepts `linear`** — `providers.build()` raises `NotImplementedError` for Linear (stub), so treating it as configured would crash `create_app()` at startup. Now returns `False` cleanly.
+- **`providers.build()`** raises `NotImplementedError` with a clear "use github or asana" hint for `linear`.
+- **GitHub provider logs non-200s** in `list_tasks` — previously a 401/403/404 silently yielded an empty inbox. Now WARNING-logged with the repo slug and first 200 chars of the response body for debuggability.
+- **Removed unused `timedelta` import** from `inbox.py`.
+
 ### Second review pass fixes (CodeRabbit iteration 2)
 - `AsyncAnthropic` used in async methods — inbox ranking + competitor discovery + daily briefing no longer block the event loop on multi-second LLM round-trips
 - RSS/Google News feed date handling uses `parsedate_to_datetime` + ISO parser and compares real `datetime` objects — RFC 822 strings aren't lexicographically ordered (day-of-week cycles weekly)

@@ -90,7 +90,7 @@ If this returns tasks, setup is working.
 > Maggy is configured. Run `/maggy` to launch the dashboard, or:
 >
 > ```
-> cd $BOOTSTRAP_DIR/maggy && python3 -m src.main
+> cd $BOOTSTRAP_DIR/maggy && python3 -m maggy.main
 > ```
 >
 > Then open http://127.0.0.1:8080

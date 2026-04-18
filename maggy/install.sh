@@ -77,12 +77,12 @@ if [ "$NEEDS_CONFIG" = "1" ]; then
   echo "     export ANTHROPIC_API_KEY=sk-ant-..."
   echo
   echo "  3. Run:"
-  echo "     cd $HERE && python3 -m src.main"
+  echo "     cd $HERE && python3 -m maggy.main"
   echo
   echo "  4. Open http://localhost:8080"
 else
   echo "Ready to run:"
-  echo "  cd $HERE && python3 -m src.main"
+  echo "  cd $HERE && python3 -m maggy.main"
   echo "  Then open http://localhost:8080"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

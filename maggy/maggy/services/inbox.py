@@ -8,17 +8,32 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import anthropic
 
-from src.config import MaggyConfig
-from src.providers.base import IssueTrackerProvider, Task
+from maggy.config import MaggyConfig
+from maggy.providers.base import IssueTrackerProvider, Task
 
 logger = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = 30 * 60  # 30 min
+
+
+def _connect_sqlite(path: Path) -> sqlite3.Connection:
+    """Open a SQLite connection with sensible defaults for concurrent use.
+
+    FastAPI serves requests concurrently, and the heartbeat worker writes from
+    a different thread. WAL lets readers and writers coexist; foreign_keys
+    enforces referential integrity; busy_timeout avoids 'database is locked'
+    errors under contention. Matches the convention used by scripts/icpg/store.py.
+    """
+    db = sqlite3.connect(path, timeout=30.0)
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA foreign_keys=ON")
+    db.execute("PRAGMA busy_timeout=30000")
+    return db
 
 
 class InboxService:
@@ -30,7 +45,7 @@ class InboxService:
         self._init_db()
 
     def _init_db(self) -> None:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.execute("""
                 CREATE TABLE IF NOT EXISTS inbox_cache (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +55,7 @@ class InboxService:
             """)
 
     def _read_cache(self, ignore_ttl: bool = False) -> list[dict] | None:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             row = db.execute(
                 "SELECT cached_at, payload FROM inbox_cache ORDER BY id DESC LIMIT 1"
             ).fetchone()
@@ -54,7 +69,7 @@ class InboxService:
         return json.loads(row[1])
 
     def _write_cache(self, items: list[dict]) -> None:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.execute("DELETE FROM inbox_cache")  # keep just latest
             db.execute(
                 "INSERT INTO inbox_cache (cached_at, payload) VALUES (?, ?)",

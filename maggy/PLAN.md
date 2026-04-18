@@ -37,14 +37,13 @@ claude-bootstrap/
 │   ├── install.sh                  # one-line install
 │   ├── pyproject.toml              # deps
 │   ├── config.example.yaml         # config template
-│   ├── src/
+│   ├── maggy/                      # Python package (importable as `maggy`)
 │   │   ├── main.py                 # FastAPI entry
 │   │   ├── config.py               # loads ~/.maggy/config.yaml
 │   │   ├── providers/
 │   │   │   ├── base.py             # IssueTrackerProvider Protocol
 │   │   │   ├── github_issues.py    # GitHub Issues impl
-│   │   │   ├── asana.py            # Asana impl
-│   │   │   └── linear.py           # Linear impl (stub)
+│   │   │   └── asana.py            # Asana impl (linear deferred)
 │   │   ├── services/
 │   │   │   ├── inbox.py            # AI-prioritized ranking
 │   │   │   ├── competitor.py       # discovery + monitoring + briefing
@@ -54,8 +53,6 @@ claude-bootstrap/
 │   │   └── static/
 │   │       ├── index.html          # dashboard
 │   │       └── app.js              # vanilla JS
-│   └── templates/
-│       └── config.yaml             # template for ~/.maggy/config.yaml
 ├── commands/
 │   ├── maggy.md                    # /maggy → launch dashboard
 │   └── maggy-init.md               # /maggy-init → setup wizard
@@ -203,7 +200,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export GITHUB_TOKEN=ghp_...
 
 # Run
-python -m maggy.src.main
+python -m maggy.main
 
 # Open http://localhost:8080
 ```

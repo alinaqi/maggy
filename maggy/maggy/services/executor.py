@@ -14,8 +14,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.config import MaggyConfig
-from src.providers.base import IssueTrackerProvider, Task
+from maggy.config import MaggyConfig
+from maggy.providers.base import IssueTrackerProvider, Task
 
 logger = logging.getLogger(__name__)
 

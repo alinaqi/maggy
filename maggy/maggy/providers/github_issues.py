@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from .base import Comment, IssueTrackerProvider, Task
+
+logger = logging.getLogger(__name__)
 
 GITHUB_API = "https://api.github.com"
 
@@ -90,6 +94,15 @@ class GitHubIssuesProvider:
                     params["labels"] = ",".join(self.label_filter)
                 resp = await client.get(f"{GITHUB_API}/repos/{repo}/issues", params=params)
                 if resp.status_code != 200:
+                    # Log at WARNING so misconfiguration (bad token, repo renamed,
+                    # missing read scope) is visible instead of silently returning
+                    # an empty inbox. Include the status code + first 200 chars
+                    # of the response body to make diagnostics easy.
+                    body_excerpt = (resp.text or "")[:200].replace("\n", " ")
+                    logger.warning(
+                        "GitHub /repos/%s/issues returned %s: %s",
+                        repo, resp.status_code, body_excerpt,
+                    )
                     continue
                 for issue in resp.json():
                     # GitHub returns PRs in /issues — filter them out

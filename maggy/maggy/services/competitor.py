@@ -20,9 +20,22 @@ import anthropic
 import feedparser
 import httpx
 
-from src.config import MaggyConfig
+from maggy.config import MaggyConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _connect_sqlite(path: Path) -> sqlite3.Connection:
+    """Open a SQLite connection with WAL + foreign_keys + busy_timeout.
+
+    Same defaults as InboxService — safe for concurrent FastAPI handlers
+    plus the heartbeat worker writing from another thread.
+    """
+    db = sqlite3.connect(path, timeout=30.0)
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA foreign_keys=ON")
+    db.execute("PRAGMA busy_timeout=30000")
+    return db
 
 
 def _parse_feed_date(raw: str) -> datetime | None:
@@ -101,7 +114,7 @@ class CompetitorService:
         self._init_db()
 
     def _init_db(self) -> None:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.execute("""
                 CREATE TABLE IF NOT EXISTS competitor_news (
                     id TEXT PRIMARY KEY,
@@ -244,12 +257,12 @@ Format (STRICT JSON):
         return {"rss": rss_new, "news": news_new, "total_competitors": len(registry)}
 
     def _get_cursor(self, key: str) -> str:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             row = db.execute("SELECT cursor FROM feed_cursors WHERE feed_key = ?", (key,)).fetchone()
         return row[0] if row else ""
 
     def _set_cursor(self, key: str, cursor: str) -> None:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.execute(
                 "INSERT INTO feed_cursors (feed_key, cursor) VALUES (?, ?) "
                 "ON CONFLICT(feed_key) DO UPDATE SET cursor = excluded.cursor",
@@ -275,7 +288,7 @@ Format (STRICT JSON):
         # overlapping scans) becomes a no-op instead of a duplicate row.
         id_seed = f"{competitor_id}|{source}|{url or title}"
         event_id = hashlib.sha256(id_seed.encode("utf-8")).hexdigest()[:32]
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.execute(
                 "INSERT OR IGNORE INTO competitor_news "
                 "(id, competitor_id, competitor_name, event_type, title, url, source, created_at) "
@@ -368,7 +381,7 @@ Format (STRICT JSON):
     # ── News query ───────────────────────────────────────────────────────
 
     def get_news(self, limit: int = 100) -> list[dict]:
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.row_factory = sqlite3.Row
             rows = db.execute(
                 "SELECT * FROM competitor_news ORDER BY created_at DESC LIMIT ?",
@@ -382,7 +395,7 @@ Format (STRICT JSON):
         today = date.today().isoformat()
 
         if not refresh:
-            with sqlite3.connect(self.db_path) as db:
+            with _connect_sqlite(self.db_path) as db:
                 row = db.execute(
                     "SELECT summary, signal_count, generated_at FROM briefing_cache WHERE date = ?",
                     (today,),
@@ -425,7 +438,7 @@ Signals ({len(digest)} total):
             return {"date": today, "summary": f"Failed to generate briefing: {e}", "total_signals": len(news)}
 
         generated_at = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(self.db_path) as db:
+        with _connect_sqlite(self.db_path) as db:
             db.execute(
                 "INSERT INTO briefing_cache (date, summary, signal_count, generated_at) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(date) DO UPDATE SET summary = excluded.summary, signal_count = excluded.signal_count, generated_at = excluded.generated_at",
