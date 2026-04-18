@@ -21,7 +21,9 @@ dependencies = [
 ]
 
 [project.scripts]
-maggy = "src.main:app"
+# Points to a callable, not the ASGI app instance — console_scripts need
+# callables that take no args. Runs uvicorn with the configured host/port.
+maggy = "src.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -34,11 +34,17 @@ class ExecutorService:
         mode='tdd' runs the full plan→tests→implement cycle.
         mode='plan' generates a plan only and posts to the ticket.
         """
+        if mode not in ("tdd", "plan"):
+            raise ValueError(f"Unknown mode {mode!r} — expected 'tdd' or 'plan'")
+
         task = await self.provider.get_task(task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
 
-        wd = working_dir or self._pick_working_dir(task)
+        # Resolve & validate working_dir against configured codebase roots.
+        # Prevents a caller from running claude --dangerously-skip-permissions
+        # in arbitrary filesystem locations.
+        wd = self._resolve_working_dir(working_dir, task)
         session_id = uuid.uuid4().hex[:10]
 
         session = {
@@ -63,6 +69,35 @@ class ExecutorService:
     def list_sessions(self) -> list[dict]:
         return list(self._sessions.values())
 
+    def _resolve_working_dir(self, requested: str | None, task: Task) -> str:
+        """Resolve working_dir, enforcing it stays inside a configured codebase.
+
+        If `requested` is None → auto-pick via keyword match.
+        If `requested` is provided → resolve to absolute path and verify it's
+        inside one of the configured codebase roots (prevents arbitrary cwd).
+        Raises ValueError on violation.
+        """
+        if not self.cfg.codebases:
+            raise ValueError("No codebases configured")
+
+        # Build the allowed roots set (absolute, resolved)
+        allowed_roots = [Path(c.path).expanduser().resolve() for c in self.cfg.codebases]
+
+        if requested:
+            candidate = Path(requested).expanduser().resolve()
+            for root in allowed_roots:
+                try:
+                    candidate.relative_to(root)
+                    return str(candidate)
+                except ValueError:
+                    continue
+            raise ValueError(
+                f"working_dir {requested!r} is not inside any configured codebase. "
+                f"Allowed roots: {[str(r) for r in allowed_roots]}"
+            )
+
+        return self._pick_working_dir(task)
+
     def _pick_working_dir(self, task: Task) -> str:
         """Match ticket title/body against configured codebases by keyword.
 
@@ -72,7 +107,7 @@ class ExecutorService:
         if not self.cfg.codebases:
             raise ValueError("No codebases configured")
         if len(self.cfg.codebases) == 1:
-            return str(Path(self.cfg.codebases[0].path).expanduser())
+            return str(Path(self.cfg.codebases[0].path).expanduser().resolve())
 
         text = f"{task.title} {task.description} {task.board}".lower()
         scores = {}
@@ -89,9 +124,9 @@ class ExecutorService:
 
         best = max(scores.items(), key=lambda x: x[1])
         if best[1] == 0:
-            return str(Path(self.cfg.codebases[0].path).expanduser())
+            return str(Path(self.cfg.codebases[0].path).expanduser().resolve())
         picked = next(c for c in self.cfg.codebases if c.key == best[0])
-        return str(Path(picked.path).expanduser())
+        return str(Path(picked.path).expanduser().resolve())
 
     async def _run(self, session_id: str, task: Task, wd: str, mode: str) -> None:
         session = self._sessions[session_id]
@@ -108,28 +143,34 @@ class ExecutorService:
                     f"{icpg_block}\n"
                     f"Output: numbered steps, files to touch, risks, tests to add."
                 )
-                output = await self._run_claude(prompt, wd, max_turns=5)
+                ok, output = await self._run_claude(prompt, wd, max_turns=5)
                 session["output"] = output[:10000]
-                session["status"] = "completed"
-                # Post back to ticket
-                if output:
+                session["status"] = "completed" if ok else "failed"
+                if not ok:
+                    session["error"] = output[:500]
+                # Post back to ticket only if the plan actually succeeded
+                if ok and output:
                     try:
                         await self.provider.add_comment(task.id, f"## Maggy Plan\n\n{output[:4000]}")
                     except Exception as e:
                         logger.warning("Failed to post plan: %s", e)
                 return
 
-            # TDD mode: plan → tests → implement
+            # TDD mode: plan → tests → implement. Abort the chain on first failure —
+            # running "implement" after a failed "analyze" wastes tokens.
             analysis_prompt = (
                 f"Analyze this ticket against the codebase and output a concise plan.\n"
                 f"Identify: files to change, functions affected, tests needed, risks.\n\n"
                 f"Ticket: {task.title}\n{task.description[:1500]}"
                 f"{icpg_block}"
             )
-            analysis = await self._run_claude(analysis_prompt, wd, max_turns=5)
+            ok, analysis = await self._run_claude(analysis_prompt, wd, max_turns=5)
             session["output"] += f"\n=== ANALYZE ===\n{analysis[:2000]}\n"
+            if not ok:
+                session["status"] = "failed"
+                session["error"] = f"Analyze step failed: {analysis[:300]}"
+                return
 
-            # Write failing tests
             tests_prompt = (
                 f"Write failing test cases for this ticket (TDD — no implementation yet).\n"
                 f"Use the project's existing test patterns. Commit tests separately.\n\n"
@@ -137,10 +178,13 @@ class ExecutorService:
                 f"{icpg_block}\n"
                 f"Analysis:\n{analysis[:1000]}"
             )
-            tests_out = await self._run_claude(tests_prompt, wd, max_turns=15)
+            ok, tests_out = await self._run_claude(tests_prompt, wd, max_turns=15)
             session["output"] += f"\n=== WRITE TESTS ===\n{tests_out[:2000]}\n"
+            if not ok:
+                session["status"] = "failed"
+                session["error"] = f"Write-tests step failed: {tests_out[:300]}"
+                return
 
-            # Implement
             impl_prompt = (
                 f"Implement the feature to make the failing tests pass.\n"
                 f"Follow existing code patterns. Keep changes minimal.\n\n"
@@ -148,8 +192,12 @@ class ExecutorService:
                 f"{icpg_block}\n"
                 f"Run tests to verify, then commit with a conventional commit message."
             )
-            impl_out = await self._run_claude(impl_prompt, wd, max_turns=25)
+            ok, impl_out = await self._run_claude(impl_prompt, wd, max_turns=25)
             session["output"] += f"\n=== IMPLEMENT ===\n{impl_out[:2000]}\n"
+            if not ok:
+                session["status"] = "failed"
+                session["error"] = f"Implement step failed: {impl_out[:300]}"
+                return
 
             session["status"] = "completed"
             session["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -222,12 +270,17 @@ class ExecutorService:
             keywords.append(w)
         return keywords[:20]
 
-    async def _run_claude(self, prompt: str, working_dir: str, max_turns: int = 20) -> str:
+    async def _run_claude(self, prompt: str, working_dir: str, max_turns: int = 20) -> tuple[bool, str]:
         """Spawn claude -p as a non-interactive subprocess on the user's local machine.
 
         Uses --dangerously-skip-permissions because (a) there's no terminal to
         answer permission prompts, and (b) the user explicitly authorized this
         execution by clicking Execute on the ticket.
+
+        Returns (success, output). success=False on timeout, non-zero exit, or
+        missing binary. Caller is responsible for flipping the session status
+        to 'failed' when success=False — this function never silently masks
+        a failed run as completed.
         """
         cmd = [
             CLAUDE_BIN,
@@ -236,6 +289,7 @@ class ExecutorService:
             "--max-turns", str(max_turns),
             "--dangerously-skip-permissions",
         ]
+        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -244,10 +298,26 @@ class ExecutorService:
                 cwd=working_dir,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
-            return (stdout or b"").decode("utf-8", errors="replace")
+            text = (stdout or b"").decode("utf-8", errors="replace")
+            if proc.returncode != 0:
+                return False, f"claude exited with status {proc.returncode}\n{text}"
+            return True, text
         except asyncio.TimeoutError:
-            return "ERROR: claude timed out after 10 minutes"
+            # Kill the subprocess — wait_for alone doesn't terminate it.
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except ProcessLookupError:
+                    pass
+            return False, "claude timed out after 10 minutes (process terminated)"
         except FileNotFoundError:
-            return "ERROR: `claude` CLI not found on PATH. Install Claude Code first."
+            return False, "`claude` CLI not found on PATH. Install Claude Code first."
         except Exception as e:
-            return f"ERROR: {e}"
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except ProcessLookupError:
+                    pass
+            return False, f"claude subprocess error: {e}"

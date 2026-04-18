@@ -39,17 +39,18 @@ class InboxService:
                 )
             """)
 
-    def _read_cache(self) -> list[dict] | None:
+    def _read_cache(self, ignore_ttl: bool = False) -> list[dict] | None:
         with sqlite3.connect(self.db_path) as db:
             row = db.execute(
                 "SELECT cached_at, payload FROM inbox_cache ORDER BY id DESC LIMIT 1"
             ).fetchone()
         if not row:
             return None
-        cached_at = datetime.fromisoformat(row[0])
-        age = (datetime.now(timezone.utc) - cached_at).total_seconds()
-        if age > CACHE_TTL_SECONDS:
-            return None
+        if not ignore_ttl:
+            cached_at = datetime.fromisoformat(row[0])
+            age = (datetime.now(timezone.utc) - cached_at).total_seconds()
+            if age > CACHE_TTL_SECONDS:
+                return None
         return json.loads(row[1])
 
     def _write_cache(self, items: list[dict]) -> None:
@@ -61,13 +62,26 @@ class InboxService:
             )
 
     async def get_prioritized(self, force_refresh: bool = False) -> list[dict]:
-        """Return AI-ranked tasks. Cached 30 min."""
+        """Return AI-ranked tasks. Cached 30 min.
+
+        On provider failure (GitHub/Asana down), fall back to the last cached
+        ranking — even if stale — rather than 500ing the whole endpoint.
+        Staleness is indicated to clients via the `stale` flag on items.
+        """
         if not force_refresh:
             cached = self._read_cache()
             if cached is not None:
                 return cached
 
-        tasks = await self.provider.list_tasks(state="open", limit=50)
+        try:
+            tasks = await self.provider.list_tasks(state="open", limit=50)
+        except Exception as e:
+            logger.warning("provider.list_tasks failed, falling back to stale cache: %s", e)
+            stale = self._read_cache(ignore_ttl=True) or []
+            for item in stale:
+                item["stale"] = True
+            return stale
+
         if not tasks:
             return []
 
@@ -124,16 +138,30 @@ Tasks:
             return [self._task_to_dict(t, rank=i + 1, reason="AI ranking unavailable")
                     for i, t in enumerate(tasks)]
 
-        # Apply rankings
-        rank_map = {r["index"]: r for r in data.get("rankings", [])}
+        # Apply rankings — validate each row before trusting it.
+        # LLMs routinely return missing indices, string ranks, or out-of-range values.
+        rank_map: dict[int, dict] = {}
+        for r in data.get("rankings", []):
+            if not isinstance(r, dict):
+                continue
+            idx = r.get("index")
+            rank = r.get("rank")
+            if not isinstance(idx, int) or idx < 0 or idx >= len(tasks):
+                continue
+            # Coerce rank defensively
+            try:
+                rank_int = int(rank)
+            except (TypeError, ValueError):
+                continue
+            if rank_int < 1:
+                continue
+            # First write wins — LLM occasionally emits duplicate indices
+            rank_map.setdefault(idx, {"rank": rank_int, "reason": str(r.get("reason", ""))[:300]})
+
         ranked: list[dict] = []
         for i, t in enumerate(tasks):
-            r = rank_map.get(i, {})
-            ranked.append(self._task_to_dict(
-                t,
-                rank=r.get("rank", i + 1),
-                reason=r.get("reason", ""),
-            ))
+            r = rank_map.get(i) or {"rank": i + 1, "reason": ""}
+            ranked.append(self._task_to_dict(t, rank=r["rank"], reason=r["reason"]))
         ranked.sort(key=lambda x: x["rank"])
         return ranked
 

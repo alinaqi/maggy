@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [3.5.0] - 2026-04-19
+
+### Added
+- **Maggy — AI engineering command center** (optional extension under `maggy/`)
+  - Local FastAPI + vanilla JS dashboard; install with `maggy/install.sh`, zero build step
+  - Provider abstraction: `GitHubIssuesProvider`, `AsanaProvider`, `LinearProvider` (stub) implement a single `IssueTrackerProvider` Protocol — swap trackers without touching services
+  - AI-prioritized inbox with 30-min SQLite cache; stale-cache fallback when provider is unavailable
+  - Generic competitor discovery + RSS + Google News monitoring with daily AI briefing (cached per day)
+  - TDD execute pipeline (plan → tests → implement) spawns `claude -p --dangerously-skip-permissions` locally in the right codebase, with iCPG context auto-injected from the bootstrap's iCPG CLI
+  - Config-driven (`~/.maggy/config.yaml`) — no hardcoded org IDs, repo names, or competitor lists
+  - `/maggy` command launches dashboard; `/maggy-init` runs interactive setup
+  - `skills/maggy/SKILL.md` documents capabilities; README skills table updated
+- Maggy skill included in the skills table (fixes RI002 lint error for this PR)
+
+### Fixed
+- Added YAML frontmatter to `skills/mnemos/SKILL.md` (fixes FM001 lint error that was blocking CI on main)
+- Skill lint now passes across all 60 skills
+
+### Security (Maggy)
+- RSS URL validation before fetching competitor feeds — blocks loopback, link-local, private-network, and non-HTTP(S) targets (SSRF prevention)
+- `safeHref()` in dashboard JS — only allows `http(s)`/`mailto` schemes in external links, blocks `javascript:`/`data:` URIs that would slip past HTML escaping
+- `working_dir` validated against configured codebase roots before launching Claude Code — prevents arbitrary-cwd execution of `--dangerously-skip-permissions`
+- Execute-mode input validated via `Literal["tdd", "plan"]`; typos rejected at request boundary
+- GitHub `_decode_id()` returns `None` on malformed input instead of raising — surfaces as 404 not 500
+- LLM ranking output validated (index range, numeric rank, dedupe) before applying
+
+### Resilience (Maggy)
+- `provider.list_tasks` failure falls back to last cached ranking (flagged `stale=true`) instead of 500
+- Route-level `_require_configured()` returns 503 + onboarding hint when `~/.maggy/config.yaml` is missing, instead of dereferencing `None` services
+- `is_configured()` requires provider credentials (token) in addition to org/repos; refreshes cache on each check
+- Claude subprocess kill on timeout (`proc.kill()` + `await proc.wait()`), non-zero exits marked as failed sessions
+- `_run_claude()` returns `(ok, output)` tuple — TDD pipeline now aborts chain on first-step failure
+- Competitor news events use deterministic SHA-256 IDs with `INSERT OR IGNORE` — prevents duplicate rows on cursor reset / overlapping scans
+
+### Changed (Maggy)
+- `pyproject.toml` console script `maggy = "src.main:main"` (proper callable) instead of `"src.main:app"` (ASGI instance)
+
+---
+
 ## [3.4.1] - 2026-04-10
 
 ### Fixed

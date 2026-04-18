@@ -68,12 +68,30 @@ Once claude-bootstrap is installed:
 
 - ✅ GitHub Issues provider (primary)
 - ✅ Asana provider (optional, for migration scenarios)
-- ✅ AI-prioritized inbox with 30-min cache
-- ✅ TDD execute pipeline (plan → tests → implement)
-- ✅ Generic competitor discovery + RSS + Google News
+- ✅ AI-prioritized inbox with 30-min cache + stale-cache fallback
+- ✅ TDD execute pipeline (plan → tests → implement), validated `working_dir`
+- ✅ Generic competitor discovery + RSS + Google News, SSRF-hardened
 - ✅ Daily competitor briefing (cached per day)
-- ✅ Minimal dashboard (no build step)
+- ✅ Minimal dashboard (no build step), safe external-URL rendering
 - ✅ SQLite storage (zero setup)
+
+## Hardening notes
+
+- **Working dir whitelist** — Execute validates any caller-supplied `working_dir`
+  against configured codebase roots. You can't point `claude --dangerously-skip-permissions`
+  at arbitrary paths.
+- **SSRF protection** — RSS/blog feed URLs from the AI-discovered registry are
+  validated before fetch: non-HTTP(S), loopback, link-local, private-network,
+  and unspecified addresses are rejected.
+- **Process lifecycle** — Claude subprocesses are explicitly killed on timeout;
+  non-zero exits flip the session to `failed` instead of silently "completed".
+- **Input validation** — Execute mode uses `Literal["tdd", "plan"]`; malformed
+  task IDs return 404 not 500; LLM ranking output is validated before applying.
+- **503 onboarding mode** — When `~/.maggy/config.yaml` is missing or incomplete,
+  only `/api/health` and `/api/config` respond. All other routes return 503 with
+  a pointer to the example config.
+- **Safe external links** — Dashboard uses a scheme allowlist + `rel="noopener noreferrer"`
+  when rendering competitor/issue URLs.
 
 ## Not in MVP (v2 work)
 

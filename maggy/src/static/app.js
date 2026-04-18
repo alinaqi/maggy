@@ -24,6 +24,16 @@ function esc(s) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Only allow http(s) / mailto URLs when rendering external `href`.
+// Blocks javascript:, data:, vbscript: and other script-capable schemes that
+// would slip past `esc()` (since it only encodes angle brackets and quotes).
+function safeHref(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!/^(https?:|mailto:)/i.test(trimmed)) return '';
+  return esc(trimmed);
+}
+
 function relDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -151,7 +161,7 @@ async function openTaskDetail(taskId) {
           <span>${esc(t.status)}</span>
           ${t.assignee ? `<span>@${esc(t.assignee)}</span>` : ''}
           <span>${esc(relDate(t.updated_at))}</span>
-          ${t.url ? `<a href="${esc(t.url)}" target="_blank" class="text-orange-400">Open ↗</a>` : ''}
+          ${safeHref(t.url) ? `<a href="${safeHref(t.url)}" target="_blank" rel="noopener noreferrer" class="text-orange-400">Open ↗</a>` : ''}
         </div>
       </div>`;
     if (t.description) {
@@ -271,7 +281,7 @@ function renderNewsFeed(news) {
           · ${esc(relDate(n.created_at))}
         </div>
       </div>
-      ${n.url ? `<a href="${esc(n.url)}" target="_blank" class="text-blue-400 text-[10px]"><i class="fas fa-external-link-alt"></i></a>` : ''}
+      ${safeHref(n.url) ? `<a href="${safeHref(n.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-400 text-[10px]"><i class="fas fa-external-link-alt"></i></a>` : ''}
     </div>`;
   }
   html += `</div>`;

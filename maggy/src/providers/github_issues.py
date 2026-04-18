@@ -38,14 +38,25 @@ class GitHubIssuesProvider:
         slug = repo.split("/")[-1]
         return f"{slug}/{number}"
 
-    def _decode_id(self, task_id: str) -> tuple[str, int]:
-        slug, num = task_id.split("/", 1)
-        # Find full repo name matching the slug
+    def _decode_id(self, task_id: str) -> tuple[str, int] | None:
+        """Parse 'slug/number' IDs. Returns None for malformed input.
+
+        Returning None (instead of raising) lets the caller translate to a
+        404/None response instead of a 500 to the client.
+        """
+        if not task_id or "/" not in task_id:
+            return None
+        slug, _, num_str = task_id.partition("/")
+        if not num_str.isdigit():
+            return None
+        number = int(num_str)
         for repo in self.repos:
             if repo.endswith("/" + slug):
-                return repo, int(num)
-        # Fallback: assume org prefix
-        return f"{self.org}/{slug}", int(num)
+                return repo, number
+        # Fallback: assume org prefix (for repos not in the configured list)
+        if self.org:
+            return f"{self.org}/{slug}", number
+        return None
 
     def _to_task(self, repo: str, issue: dict) -> Task:
         return Task(
@@ -90,7 +101,10 @@ class GitHubIssuesProvider:
         return tasks[:limit]
 
     async def get_task(self, task_id: str) -> Task | None:
-        repo, number = self._decode_id(task_id)
+        decoded = self._decode_id(task_id)
+        if decoded is None:
+            return None
+        repo, number = decoded
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:
             resp = await client.get(f"{GITHUB_API}/repos/{repo}/issues/{number}")
             if resp.status_code != 200:
@@ -98,7 +112,10 @@ class GitHubIssuesProvider:
             return self._to_task(repo, resp.json())
 
     async def get_comments(self, task_id: str) -> list[Comment]:
-        repo, number = self._decode_id(task_id)
+        decoded = self._decode_id(task_id)
+        if decoded is None:
+            return []
+        repo, number = decoded
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:
             resp = await client.get(f"{GITHUB_API}/repos/{repo}/issues/{number}/comments")
             if resp.status_code != 200:
@@ -114,7 +131,10 @@ class GitHubIssuesProvider:
             ]
 
     async def add_comment(self, task_id: str, text: str) -> Comment | None:
-        repo, number = self._decode_id(task_id)
+        decoded = self._decode_id(task_id)
+        if decoded is None:
+            return None
+        repo, number = decoded
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:
             resp = await client.post(
                 f"{GITHUB_API}/repos/{repo}/issues/{number}/comments",
@@ -132,7 +152,10 @@ class GitHubIssuesProvider:
 
     async def update_status(self, task_id: str, status: str) -> bool:
         """GitHub issues only have open/closed — map any "done-like" status to closed."""
-        repo, number = self._decode_id(task_id)
+        decoded = self._decode_id(task_id)
+        if decoded is None:
+            return False
+        repo, number = decoded
         normalized = status.lower().strip()
         new_state = "closed" if normalized in ("done", "closed", "complete", "completed", "resolved") else "open"
         async with httpx.AsyncClient(timeout=15, headers=self._headers()) as client:

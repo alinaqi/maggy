@@ -29,8 +29,9 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Maggy", version="0.1.0")
     app.state.cfg = cfg
+    app.state.configured = config_mod.is_configured()
 
-    if config_mod.is_configured():
+    if app.state.configured:
         app.state.provider = providers.build(cfg)
         app.state.inbox = InboxService(cfg, app.state.provider)
         app.state.competitors = CompetitorService(cfg)
@@ -40,7 +41,9 @@ def create_app() -> FastAPI:
     else:
         logger.warning("Maggy is not configured — edit ~/.maggy/config.yaml and restart.")
         logger.warning("Copy claude-bootstrap/maggy/config.example.yaml to ~/.maggy/config.yaml")
-        # Still expose health + config endpoints so the UI can show onboarding
+        # Stay up so /api/health + /api/config can drive an onboarding UI,
+        # but the runtime services are None — routes gate on app.state.configured
+        # and return 503 instead of dereferencing.
         app.state.provider = None
         app.state.inbox = None
         app.state.competitors = None
@@ -63,7 +66,12 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console script entrypoint — runs uvicorn with the configured host/port.
+
+    Referenced by `[project.scripts] maggy = "src.main:main"` in pyproject.toml.
+    Can also be invoked with `python -m src.main`.
+    """
     import uvicorn
     cfg = config_mod.load()
     uvicorn.run(
@@ -72,3 +80,7 @@ if __name__ == "__main__":
         port=cfg.dashboard.port,
         reload=False,
     )
+
+
+if __name__ == "__main__":
+    main()

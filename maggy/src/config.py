@@ -203,12 +203,22 @@ def save(cfg: MaggyConfig) -> None:
 
 
 def is_configured() -> bool:
-    """Check if Maggy has been set up (config file exists + has minimum fields)."""
+    """Check if Maggy has been set up (config file + minimum fields + provider token).
+
+    Forces a refresh so we don't trust a stale empty cache from an earlier
+    load() that ran before the file existed. Also requires provider credentials
+    — without them, the app would claim to be configured but every API call
+    would immediately 401.
+    """
     if not CONFIG_PATH.exists():
         return False
-    cfg = load()
+    cfg = load(refresh=True)
     if cfg.issue_tracker.provider == "github":
-        return bool(cfg.issue_tracker.github.org and cfg.issue_tracker.github.repos)
+        gh = cfg.issue_tracker.github
+        return bool(gh.org and gh.repos and gh.token)
     if cfg.issue_tracker.provider == "asana":
-        return bool(cfg.issue_tracker.asana.workspace_id)
+        az = cfg.issue_tracker.asana
+        return bool(az.workspace_id and az.token)
+    if cfg.issue_tracker.provider == "linear":
+        return bool(cfg.issue_tracker.linear.token)
     return False

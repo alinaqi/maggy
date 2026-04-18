@@ -6,13 +6,15 @@ Works for ANY domain — CX, fintech, devtools, healthcare, etc. Domain comes fr
 
 from __future__ import annotations
 
+import hashlib
+import ipaddress
 import json
 import logging
+import socket
 import sqlite3
-import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import anthropic
 import feedparser
@@ -21,6 +23,46 @@ import httpx
 from src.config import MaggyConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_feed_url(url: str) -> bool:
+    """Reject RSS URLs that would let an attacker hit internal services.
+
+    Blocks non-HTTP(S), bare hostnames without scheme, and any host whose
+    resolved IPs include loopback, link-local, private, or multicast ranges.
+    Prevents SSRF via AI-discovered or user-edited competitor registry.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").strip().lower()
+    if not host or host in ("localhost",):
+        return False
+    # Block bare IP strings that are themselves private
+    try:
+        ip = ipaddress.ip_address(host)
+        return not (ip.is_loopback or ip.is_private or ip.is_link_local
+                    or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+    except ValueError:
+        pass
+    # Hostname: resolve and check every returned address
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr.split("%")[0])  # strip scope id on v6
+        except ValueError:
+            return False
+        if (ip.is_loopback or ip.is_private or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            return False
+    return True
 
 
 class CompetitorService:
@@ -199,15 +241,25 @@ Format (STRICT JSON):
         return "news"
 
     def _log_event(self, competitor_id: str, competitor_name: str, event_type: str, title: str, url: str, source: str) -> None:
+        # Deterministic ID so the same article logged twice (cursor reset,
+        # overlapping scans) becomes a no-op instead of a duplicate row.
+        id_seed = f"{competitor_id}|{source}|{url or title}"
+        event_id = hashlib.sha256(id_seed.encode("utf-8")).hexdigest()[:32]
         with sqlite3.connect(self.db_path) as db:
             db.execute(
-                "INSERT INTO competitor_news (id, competitor_id, competitor_name, event_type, title, url, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (str(uuid.uuid4()), competitor_id, competitor_name, event_type, title, url, source, datetime.now(timezone.utc).isoformat()),
+                "INSERT OR IGNORE INTO competitor_news "
+                "(id, competitor_id, competitor_name, event_type, title, url, source, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (event_id, competitor_id, competitor_name, event_type, title, url, source,
+                 datetime.now(timezone.utc).isoformat()),
             )
 
     async def _check_rss(self, cid: str, comp: dict) -> int:
         rss_url = (comp.get("social") or {}).get("blog_rss")
         if not rss_url:
+            return 0
+        if not _is_safe_feed_url(rss_url):
+            logger.warning("Skipping unsafe RSS URL for %s: %s", cid, rss_url)
             return 0
         cursor_key = f"rss:{cid}"
         last_cursor = self._get_cursor(cursor_key)
