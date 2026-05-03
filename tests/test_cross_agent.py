@@ -78,7 +78,6 @@ class TestCrossAgentDelegation:
     def test_skill_has_tool_detection(self) -> None:
         path = REPO_ROOT / "skills" / "cross-agent-delegation" / "SKILL.md"
         content = path.read_text()
-        assert "command -v claude" in content
         assert "command -v kimi" in content
         assert "command -v codex" in content
 

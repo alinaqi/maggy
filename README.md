@@ -118,13 +118,15 @@ Stop hook order:
 
 ### Kimi Delegation (Token Optimization)
 
-The `cross-agent-delegation` skill teaches Claude to check iCPG blast radius before starting tasks:
+Claude checks iCPG blast radius and delegates small tasks to Kimi automatically — the user doesn't run anything:
 
-| Blast Radius | Action |
-|-------------|--------|
-| 1-3 files | Suggest Kimi: `kimi -y "<task>"` |
-| 4-8 files | Offer Kimi as option |
-| 9+ files | Stay in Claude |
+| Blast Radius | Claude's Action |
+|-------------|----------------|
+| 1-3 files | Saves context via `mnemos checkpoint`, runs `kimi --print -y -p "..."` with context + task |
+| 4-8 files | Asks user, then delegates or handles directly |
+| 9+ files | Handles directly (needs full context window) |
+
+Context transfer uses structured state (mnemos checkpoints + iCPG constraints), not raw conversation.
 
 ### iCPG + Mnemos (Always-On for All Agents)
 

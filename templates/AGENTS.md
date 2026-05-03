@@ -66,10 +66,11 @@ After tests pass, Codex automatically reviews changes for bugs/security.
 Critical/High findings feed back to the agent for fixing. Requires: `codex` CLI installed.
 
 ### Kimi Delegation (Token Optimization)
-Before starting tasks, check iCPG blast radius:
-- Blast radius <= 3 files: Suggest using Kimi (`kimi -y "<task>"`)
-- Blast radius 4-8 files: Suggest Kimi as option
-- Blast radius > 8 files: Stay in current agent
+The orchestrating agent delegates to Kimi automatically:
+- Blast radius <= 3 files: Delegate to Kimi via `kimi --print -y -p "..."`
+- Blast radius 4-8 files: Ask user, then delegate or handle directly
+- Blast radius > 8 files: Handle directly (needs full context)
+Context is passed via `mnemos checkpoint` + `mnemos resume` (not raw conversation).
 
 ### iCPG (Always-On for All Agents)
 Before ANY code change in ANY tool (Claude, Kimi, Codex):
