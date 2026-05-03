@@ -4,7 +4,7 @@
 
 **The bottleneck has moved from code generation to code comprehension.** AI can generate infinite code, but humans still need to review, understand, and maintain it. Claude Bootstrap provides guardrails that keep AI-generated code simple, secure, and verifiable.
 
-**New in v3.3.1:** Mnemos two-layer post-compaction task restoration — guaranteed context recovery when Claude Code's compaction fires, crashes, or doesn't run. Typed memory graph (goals never evicted), 4-dimension fatigue monitoring, checkpoint/resume across sessions. iCPG intent-augmented code property graph — track why code exists, detect drift, prevent duplicate work.
+**New in v3.6.0:** Cross-agent intelligence — Codex auto-reviews your code via Stop hook, Kimi handles small-blast-radius tasks to save tokens, iCPG + Mnemos mandatory across all three tools. Cross-tool compatibility with Claude Code, Kimi CLI, and Codex CLI.
 
 ## Core Philosophy
 
@@ -68,6 +68,78 @@ Claude will:
 6. **Generate CLAUDE.md** - With `@include` directives for modular skills
 7. **Generate CLAUDE.local.md** - Template for private developer overrides
 8. **Spawn agent team** - Deploy Team Lead + Quality + Security + Review + Merger + Feature agents
+
+## Cross-Tool Compatibility (Claude + Kimi + Codex)
+
+Claude Bootstrap works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**. All three use the same `SKILL.md` format.
+
+| Feature | Claude Code | Kimi CLI | Codex CLI |
+|---------|-------------|----------|-----------|
+| Skills | `.claude/skills/` | `.kimi/skills/` (also reads `.claude/`) | `.codex/skills/` |
+| Project instructions | `CLAUDE.md` | (uses skills) | `AGENTS.md` |
+| Hooks config | `settings.json` | `config.toml` | `config.toml` |
+
+**`install.sh`** auto-detects installed tools and installs skills to all of them.
+
+**`/sync-agents`** syncs project config across tools on demand.
+
+```bash
+# Install tools
+curl -L code.kimi.com/install.sh | bash     # Kimi
+npm i -g @openai/codex                       # Codex
+
+# Reinstall bootstrap to pick up new tools
+cd claude-bootstrap && ./install.sh
+
+# In any project, sync cross-tool config
+claude
+> /sync-agents
+```
+
+## Cross-Agent Intelligence
+
+When multiple AI CLI tools are installed, claude-bootstrap enables intelligent collaboration between them.
+
+### Codex Auto-Review (Stop Hook)
+
+After tests pass, Codex automatically reviews your diff for critical bugs and security issues. Runs as a Stop hook between TDD and iCPG recording.
+
+```
+Stop hook order:
+1. tdd-loop-check.sh     → tests pass?
+2. codex-auto-review.sh  → Codex reviews diff (NEW)
+3. icpg-stop-record.sh   → record symbols
+4. mnemos-checkpoint.sh   → save memory
+```
+
+- Exit 0 = no critical issues found
+- Exit 2 = critical/high issues feed back to Claude for fixing
+- Gracefully skips if Codex not installed
+
+### Kimi Delegation (Token Optimization)
+
+The `cross-agent-delegation` skill teaches Claude to check iCPG blast radius before starting tasks:
+
+| Blast Radius | Action |
+|-------------|--------|
+| 1-3 files | Suggest Kimi: `kimi -y "<task>"` |
+| 4-8 files | Offer Kimi as option |
+| 9+ files | Stay in Claude |
+
+### iCPG + Mnemos (Always-On for All Agents)
+
+All three tools run the same iCPG pre-task queries and Mnemos memory lifecycle:
+
+```bash
+# Before any code change (Claude, Kimi, or Codex):
+icpg query prior "<goal>"        # check for duplicate work
+icpg query constraints <file>    # check invariants
+icpg query risk <symbol>         # check fragility
+
+# Memory management:
+mnemos add goal "<task>"         # at task start
+mnemos checkpoint                # at sub-goal boundaries
+```
 
 ## How TDD Loops Work (Stop Hooks)
 
@@ -474,6 +546,7 @@ your-project/
 │   │   ├── iterative-development/SKILL.md
 │   │   ├── security/SKILL.md
 │   │   ├── mnemos/SKILL.md
+│   │   ├── cross-agent-delegation/SKILL.md
 │   │   └── [framework]/SKILL.md
 │   └── settings.json         # Permissions + hooks + statusline
 ├── scripts/
@@ -507,7 +580,7 @@ your-project/
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Skills Included (59 Skills)
+## Skills Included (61 Skills)
 
 ### Core Skills
 | Skill | Purpose |
@@ -533,6 +606,7 @@ your-project/
 | `session-management.md` | Context preservation, resumability |
 | `project-tooling.md` | gh, vercel, supabase CLI + deployment |
 | `existing-repo.md` | Analyze existing repos, setup guardrails |
+| `cross-agent-delegation.md` | Cross-agent task routing, Codex auto-review, Kimi delegation |
 
 ### Language & Framework Skills
 | Skill | Purpose |

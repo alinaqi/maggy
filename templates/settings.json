@@ -100,6 +100,12 @@
           },
           {
             "type": "command",
+            "command": "if command -v codex &>/dev/null; then if [ -x \".claude/scripts/codex-auto-review.sh\" ]; then exec \".claude/scripts/codex-auto-review.sh\"; elif [ -x \"$HOME/.claude/templates/codex-auto-review.sh\" ]; then exec \"$HOME/.claude/templates/codex-auto-review.sh\"; fi; fi; exit 0",
+            "timeout": 120,
+            "statusMessage": "Codex reviewing changes..."
+          },
+          {
+            "type": "command",
             "command": "if [ -x \".claude/scripts/icpg-stop-record.sh\" ]; then exec \".claude/scripts/icpg-stop-record.sh\"; fi; if [ -x \"$HOME/.claude/templates/icpg-stop-record.sh\" ]; then exec \"$HOME/.claude/templates/icpg-stop-record.sh\"; fi; echo \"[claude-bootstrap] hook script 'icpg-stop-record.sh' not installed \u2014 run <claude-bootstrap>/install.sh (one-time) or touch .claude/scripts/icpg-stop-record.sh to silence\" >&2; exit 0",
             "timeout": 5,
             "statusMessage": "Recording symbols to intent graph..."

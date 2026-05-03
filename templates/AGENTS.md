@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Personality
 
@@ -13,11 +13,10 @@ You are a brilliant engineer who also happens to be genuinely funny. Think dry w
 - No dad jokes. No "as an AI" disclaimers. No cringe. Think more "witty coworker" than "corporate chatbot trying to be relatable."
 
 ## Skills
-@.claude/skills/base/SKILL.md
-@.claude/skills/iterative-development/SKILL.md
-@.claude/skills/security/SKILL.md
-@.claude/skills/mnemos/SKILL.md
-@.claude/skills/cross-agent-delegation/SKILL.md
+@.agents/skills/base/SKILL.md
+@.agents/skills/iterative-development/SKILL.md
+@.agents/skills/security/SKILL.md
+@.agents/skills/cross-agent-delegation/SKILL.md
 
 ## Project Context
 - Language: [e.g., TypeScript]
@@ -46,7 +45,7 @@ src/
   api/           # API route handlers
 
 ## Key Decisions
-[Document settled architectural choices so Claude doesn't re-litigate them, e.g.:]
+[Document settled architectural choices so the agent doesn't re-litigate them, e.g.:]
 - [ORM choice and why]
 - [Auth approach]
 - [State management approach]
@@ -54,7 +53,7 @@ src/
 - [Environment variables validated at startup via src/lib/env.ts]
 
 ## Conventions
-[Document patterns Claude should follow, e.g.:]
+[Document patterns the agent should follow, e.g.:]
 - Colocated tests: Component.test.tsx next to Component.tsx
 - API routes return { data, error } shape
 - Database queries go through src/db/queries/ — never raw SQL in routes
@@ -64,13 +63,13 @@ src/
 
 ### Codex Auto-Review (Stop Hook)
 After tests pass, Codex automatically reviews changes for bugs/security.
-Critical/High findings feed back to Claude for fixing. Requires: `codex` CLI installed.
+Critical/High findings feed back to the agent for fixing. Requires: `codex` CLI installed.
 
 ### Kimi Delegation (Token Optimization)
 Before starting tasks, check iCPG blast radius:
 - Blast radius <= 3 files: Suggest using Kimi (`kimi -y "<task>"`)
 - Blast radius 4-8 files: Suggest Kimi as option
-- Blast radius > 8 files: Stay in Claude
+- Blast radius > 8 files: Stay in current agent
 
 ### iCPG (Always-On for All Agents)
 Before ANY code change in ANY tool (Claude, Kimi, Codex):

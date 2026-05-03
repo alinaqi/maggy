@@ -438,6 +438,56 @@ quick_validate() {
 # ============================================================================
 # MAIN
 # ============================================================================
+test_cross_tool_templates() {
+    header "CROSS-TOOL TEMPLATES"
+
+    # AGENTS.md template
+    if [ -f "$ROOT_DIR/templates/AGENTS.md" ]; then
+        pass "templates/AGENTS.md exists"
+        if grep -q "## Skills" "$ROOT_DIR/templates/AGENTS.md"; then
+            pass "AGENTS.md has Skills section"
+        else
+            fail "AGENTS.md missing Skills section"
+        fi
+    else
+        fail "templates/AGENTS.md missing"
+    fi
+
+    # config.toml template
+    if [ -f "$ROOT_DIR/templates/config.toml" ]; then
+        pass "templates/config.toml exists"
+        if grep -q '\[\[hooks\]\]' "$ROOT_DIR/templates/config.toml"; then
+            pass "config.toml has [[hooks]] sections"
+        else
+            fail "config.toml missing [[hooks]] sections"
+        fi
+    else
+        fail "templates/config.toml missing"
+    fi
+
+    # Cross-tool scripts
+    for script in detect-agents.sh install-skills.sh; do
+        if [ -f "$ROOT_DIR/scripts/$script" ]; then
+            pass "scripts/$script exists"
+            if [ -x "$ROOT_DIR/scripts/$script" ]; then
+                pass "scripts/$script is executable"
+            else
+                fail "scripts/$script is not executable"
+            fi
+        else
+            fail "scripts/$script missing"
+        fi
+    done
+
+    # sync-agents command
+    if [ -f "$ROOT_DIR/commands/sync-agents.md" ]; then
+        pass "commands/sync-agents.md exists"
+    else
+        fail "commands/sync-agents.md missing"
+    fi
+}
+
+# ============================================================================
 show_help() {
     echo "Usage: $(basename "$0") [OPTIONS]"
     echo ""
@@ -499,6 +549,7 @@ main() {
     test_install_script
     test_installed_skills
     test_readme
+    test_cross_tool_templates
 
     header "SUMMARY"
     echo ""

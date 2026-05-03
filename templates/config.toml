@@ -1,0 +1,138 @@
+# Agent CLI Configuration
+# Compatible with Kimi CLI and OpenAI Codex CLI
+# Generated from claude-bootstrap settings.json hooks
+#
+# Kimi: copy to ~/.kimi/config.toml or .kimi/config.toml
+# Codex: copy to ~/.codex/config.toml or .codex/config.toml
+
+# ─── Skills merge (Kimi-specific) ───────────────────────────
+# Kimi reads skills from ~/.kimi/, ~/.claude/, ~/.codex/
+# merge_all_available_skills = true  # default: merge all brands
+
+# ─── Hook: Pre-Compact (Mnemos checkpoint) ──────────────────
+[[hooks]]
+event = "PreCompact"
+command = """
+if [ -x ".claude/scripts/mnemos-pre-compact.sh" ]; then
+  exec ".claude/scripts/mnemos-pre-compact.sh"
+fi
+if [ -x "$HOME/.claude/templates/mnemos-pre-compact.sh" ]; then
+  exec "$HOME/.claude/templates/mnemos-pre-compact.sh"
+fi
+exit 0
+"""
+timeout = 8
+
+# ─── Hook: Pre-Edit (Mnemos fatigue + intent check) ────────
+[[hooks]]
+event = "PreToolUse"
+matcher = "Edit|Write|StrReplaceFile|WriteFile"
+command = """
+if [ -x ".claude/scripts/mnemos-pre-edit.sh" ]; then
+  exec ".claude/scripts/mnemos-pre-edit.sh"
+fi
+if [ -x "$HOME/.claude/templates/mnemos-pre-edit.sh" ]; then
+  exec "$HOME/.claude/templates/mnemos-pre-edit.sh"
+fi
+exit 0
+"""
+timeout = 5
+
+# ─── Hook: Post-Compact Restore ────────────────────────────
+[[hooks]]
+event = "PreToolUse"
+command = """
+if [ -x ".claude/scripts/mnemos-post-compact-inject.sh" ]; then
+  exec ".claude/scripts/mnemos-post-compact-inject.sh"
+fi
+if [ -x "$HOME/.claude/templates/mnemos-post-compact-inject.sh" ]; then
+  exec "$HOME/.claude/templates/mnemos-post-compact-inject.sh"
+fi
+exit 0
+"""
+timeout = 2
+
+# ─── Hook: Post-Tool (Mnemos logging) ──────────────────────
+[[hooks]]
+event = "PostToolUse"
+command = """
+if [ -x ".claude/scripts/mnemos-post-tool.sh" ]; then
+  exec ".claude/scripts/mnemos-post-tool.sh"
+fi
+if [ -x "$HOME/.claude/templates/mnemos-post-tool.sh" ]; then
+  exec "$HOME/.claude/templates/mnemos-post-tool.sh"
+fi
+exit 0
+"""
+timeout = 1
+
+# ─── Hook: TDD Loop Check (Stop) ───────────────────────────
+[[hooks]]
+event = "Stop"
+command = """
+if [ -x ".claude/scripts/tdd-loop-check.sh" ]; then
+  exec ".claude/scripts/tdd-loop-check.sh"
+fi
+if [ -x "$HOME/.claude/templates/tdd-loop-check.sh" ]; then
+  exec "$HOME/.claude/templates/tdd-loop-check.sh"
+fi
+exit 0
+"""
+timeout = 60
+
+# ─── Hook: Codex Auto-Review (Stop) ──────────────────────────
+[[hooks]]
+event = "Stop"
+command = """
+if command -v codex &>/dev/null; then
+  if [ -x ".claude/scripts/codex-auto-review.sh" ]; then
+    exec ".claude/scripts/codex-auto-review.sh"
+  elif [ -x "$HOME/.claude/templates/codex-auto-review.sh" ]; then
+    exec "$HOME/.claude/templates/codex-auto-review.sh"
+  fi
+fi
+exit 0
+"""
+timeout = 120
+
+# ─── Hook: ICPG Stop Record ────────────────────────────────
+[[hooks]]
+event = "Stop"
+command = """
+if [ -x ".claude/scripts/icpg-stop-record.sh" ]; then
+  exec ".claude/scripts/icpg-stop-record.sh"
+fi
+if [ -x "$HOME/.claude/templates/icpg-stop-record.sh" ]; then
+  exec "$HOME/.claude/templates/icpg-stop-record.sh"
+fi
+exit 0
+"""
+timeout = 5
+
+# ─── Hook: Mnemos Stop Checkpoint ──────────────────────────
+[[hooks]]
+event = "Stop"
+command = """
+if [ -x ".claude/scripts/mnemos-stop-checkpoint.sh" ]; then
+  exec ".claude/scripts/mnemos-stop-checkpoint.sh"
+fi
+if [ -x "$HOME/.claude/templates/mnemos-stop-checkpoint.sh" ]; then
+  exec "$HOME/.claude/templates/mnemos-stop-checkpoint.sh"
+fi
+exit 0
+"""
+timeout = 5
+
+# ─── Hook: Session Start (Mnemos restore) ──────────────────
+[[hooks]]
+event = "SessionStart"
+command = """
+if [ -x ".claude/scripts/mnemos-session-start.sh" ]; then
+  exec ".claude/scripts/mnemos-session-start.sh"
+fi
+if [ -x "$HOME/.claude/templates/mnemos-session-start.sh" ]; then
+  exec "$HOME/.claude/templates/mnemos-session-start.sh"
+fi
+exit 0
+"""
+timeout = 5

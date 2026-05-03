@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
-echo "Installing Claude Bootstrap v3.0.0..."
+echo "Installing Claude Bootstrap v3.6.0..."
 echo ""
 
 # Save bootstrap directory location for other scripts
@@ -39,6 +39,19 @@ for skill_dir in "$SCRIPT_DIR/skills"/*/; do
 done
 echo "✓ Installed $skill_count skills (folder/SKILL.md structure)"
 
+# Cross-tool skill installation (Kimi CLI, Codex CLI)
+DETECTED_AGENTS=$("$SCRIPT_DIR/scripts/detect-agents.sh" 2>/dev/null || true)
+
+if echo "$DETECTED_AGENTS" | grep -q "kimi"; then
+    "$SCRIPT_DIR/scripts/install-skills.sh" "$HOME/.kimi/skills" "$SCRIPT_DIR/skills"
+    echo "  Also installed skills to ~/.kimi/skills/ (Kimi CLI)"
+fi
+
+if echo "$DETECTED_AGENTS" | grep -q "codex"; then
+    "$SCRIPT_DIR/scripts/install-skills.sh" "$HOME/.codex/skills" "$SCRIPT_DIR/skills"
+    echo "  Also installed skills to ~/.codex/skills/ (Codex CLI)"
+fi
+
 # Copy conditional rules
 echo ""
 echo "Installing conditional rules..."
@@ -67,7 +80,24 @@ mkdir -p "$CLAUDE_DIR/templates"
 cp "$SCRIPT_DIR/templates/"* "$CLAUDE_DIR/templates/" 2>/dev/null || true
 chmod +x "$CLAUDE_DIR/templates/tdd-loop-check.sh" 2>/dev/null || true
 chmod +x "$CLAUDE_DIR/templates/pre-compact.sh" 2>/dev/null || true
-echo "✓ Installed templates (CLAUDE.md, CLAUDE.local.md, settings.json, tdd-loop-check.sh, pre-compact.sh)"
+chmod +x "$CLAUDE_DIR/templates/codex-auto-review.sh" 2>/dev/null || true
+echo "✓ Installed templates (CLAUDE.md, AGENTS.md, CLAUDE.local.md, settings.json, config.toml)"
+
+# Cross-tool config installation
+if echo "$DETECTED_AGENTS" | grep -q "kimi"; then
+    mkdir -p "$HOME/.kimi"
+    cp "$SCRIPT_DIR/templates/config.toml" "$HOME/.kimi/config.toml.bootstrap" 2>/dev/null || true
+    echo "  Kimi: hooks template at ~/.kimi/config.toml.bootstrap"
+fi
+
+if echo "$DETECTED_AGENTS" | grep -q "codex"; then
+    mkdir -p "$HOME/.codex"
+    cp "$SCRIPT_DIR/templates/AGENTS.md" "$HOME/.codex/templates/AGENTS.md" 2>/dev/null || {
+        mkdir -p "$HOME/.codex/templates"
+        cp "$SCRIPT_DIR/templates/AGENTS.md" "$HOME/.codex/templates/AGENTS.md"
+    }
+    echo "  Codex: AGENTS.md template at ~/.codex/templates/"
+fi
 
 # Copy hook installer script
 cp "$SCRIPT_DIR/scripts/install-hooks.sh" "$CLAUDE_DIR/" 2>/dev/null || true
@@ -91,34 +121,39 @@ if [ -f "$SCRIPT_DIR/tests/validate-structure.sh" ]; then
 fi
 
 echo ""
-echo "════════════════════════════════════════════════════════════════"
-echo "  Installation complete! (v3.0.0)"
-echo "════════════════════════════════════════════════════════════════"
+echo "================================================================"
+echo "  Installation complete! (v3.6.0)"
+echo "================================================================"
 echo ""
-echo "What's new in v3.0.0:"
-echo "  • Stop hooks for TDD loops (replaces Ralph Wiggum plugin)"
-echo "  • @include directives in CLAUDE.md"
-echo "  • Conditional rules with paths: frontmatter"
-echo "  • Pre-configured permissions in settings.json"
-echo "  • Agent definitions with proper frontmatter"
-echo "  • CLAUDE.local.md for private overrides"
+echo "What's new in v3.6.0:"
+echo "  - Cross-tool support: Claude Code + Kimi CLI + Codex CLI"
+echo "  - AGENTS.md template for Codex compatibility"
+echo "  - config.toml hooks for Kimi/Codex compatibility"
+echo "  - /sync-agents command for cross-tool sync"
 echo ""
 echo "Usage:"
 echo "  1. Open any project folder"
-echo "  2. Run: claude"
+echo "  2. Run: claude (or kimi, or codex)"
 echo "  3. Type: /initialize-project"
 echo ""
 echo "Commands installed:"
 echo "  /initialize-project   - Full project setup"
-echo "  /spawn-team           - Spawn agent team for parallel development"
+echo "  /spawn-team           - Spawn agent team"
+echo "  /sync-agents          - Sync config between Claude/Kimi/Codex"
 echo "  /check-contributors   - Team coordination"
 echo "  /update-code-index    - Regenerate code index"
 echo ""
-echo "New in this version:"
-echo "  Conditional rules:  ~/.claude/rules/ (auto-activate by file path)"
-echo "  Settings template:  ~/.claude/templates/settings.json"
-echo "  TDD loop script:    ~/.claude/templates/tdd-loop-check.sh"
-echo "  Local overrides:    ~/.claude/templates/CLAUDE.local.md"
+echo "Cross-tool compatibility:"
+if echo "$DETECTED_AGENTS" | grep -q "kimi"; then
+    echo "  [OK] Kimi CLI  - skills + hooks installed"
+else
+    echo "  [--] Kimi CLI  - not found (curl -L code.kimi.com/install.sh | bash)"
+fi
+if echo "$DETECTED_AGENTS" | grep -q "codex"; then
+    echo "  [OK] Codex CLI - skills + AGENTS.md installed"
+else
+    echo "  [--] Codex CLI - not found (npm i -g @openai/codex)"
+fi
 echo ""
 echo "Git Hooks (per-project):"
 echo "  cd your-project && ~/.claude/install-hooks.sh"

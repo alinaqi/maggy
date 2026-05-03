@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [3.6.0] - 2026-05-03
+
+### Added
+
+#### Cross-Tool Compatibility (Claude + Kimi + Codex)
+- **`scripts/detect-agents.sh`** — Detects installed AI CLI tools (Claude Code, Kimi CLI, Codex CLI)
+- **`scripts/install-skills.sh`** — Reusable skill copier for any target directory
+- **`templates/AGENTS.md`** — Codex project instructions template (mirrors CLAUDE.md with `.agents/skills/` paths)
+- **`templates/config.toml`** — Hooks in TOML format for Kimi/Codex compatibility
+- **`scripts/convert-hooks-to-toml.sh`** — JSON to TOML hook converter (requires jq)
+- **`commands/sync-agents.md`** — `/sync-agents` command for cross-tool config sync
+- **`install.sh`** auto-detects and installs skills to `~/.kimi/skills/` and `~/.codex/skills/`
+- **`/initialize-project`** question 9: "Which AI CLI tools do you use?" with auto-detection
+- Cross-tool directories (`.kimi/`, `.codex/`, `.agents/`) added to `.gitignore` template
+
+#### Cross-Agent Intelligence
+- **`templates/codex-auto-review.sh`** — Stop hook that auto-runs Codex review on changed files
+  - Checks for Critical/High severity issues only
+  - Exit 0 = pass, Exit 2 = feed findings back to Claude for fixing
+  - Truncates diff to 8000 chars to prevent Codex token overflow
+  - Gracefully skips if Codex CLI not installed
+- **`skills/cross-agent-delegation/SKILL.md`** — Delegation skill with:
+  - Tool detection (checks `command -v` for each CLI)
+  - iCPG blast radius rules for Kimi delegation (<=3 files suggest Kimi, 4-8 offer option, 9+ stay Claude)
+  - iCPG mandatory pre-task queries for all agents (prior, constraints, risk)
+  - Mnemos mandatory memory lifecycle for all agents (goals, checkpoints, fatigue)
+  - 10-step cross-agent workflow summary
+- **Codex auto-review Stop hook** added to `settings.json` (after TDD, before iCPG record, 120s timeout)
+- **Codex auto-review TOML hook** added to `config.toml` for Kimi/Codex compatibility
+- **Cross-Agent Workflow** section added to both `CLAUDE.md` and `AGENTS.md` templates
+- **`cross-agent-delegation/`** added to always-copy skill list in `/initialize-project`
+
+#### Tests
+- **`tests/test_cross_tool.py`** — 12 tests for cross-tool compatibility (detect-agents, install-skills, templates, sync-agents)
+- **`tests/test_cross_agent.py`** — 22 tests for cross-agent intelligence (codex-auto-review, delegation skill, settings.json hook ordering, config.toml, template refs)
+
+### Changed
+- `install.sh` bumped to v3.6.0
+- `install.sh` now makes `codex-auto-review.sh` executable during install
+- `tests/validate-structure.sh` includes cross-tool template validation
+- Total skills increased from 60 to **61 skills**
+- Total tests: 62 pytest + 238 validation checks
+
+---
+
 ## [3.5.2] - 2026-04-22
 
 ### Fixed
