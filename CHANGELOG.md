@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [3.6.1] - 2026-05-04
+
+### Changed
+- **Complexity-based delegation replaces file-count heuristic** (`skills/cross-agent-delegation/SKILL.md`) — Kimi delegation now scored on 5 dimensions (cyclomatic depth, fan-out, security boundary, concurrency, domain invariants) × 0-2 each, sourced from iCPG signals + Claude reasoning. Routing: 0-3 → Kimi solo, 4-6 → Kimi + Codex auto-review, 7-10 → Claude direct. Adds trivial-case shortcut (<2 files + no risk keywords → auto-Kimi without scoring) and single-dimension override (7+ in any one dim keeps Claude). PR #16.
+
+---
+
 ## [3.6.0] - 2026-05-03
 
 ### Added
