@@ -1,6 +1,6 @@
 ---
 name: cross-agent-delegation
-description: Cross-agent task routing — Codex auto-review, Kimi delegation by blast radius, iCPG + Mnemos mandatory for all agents
+description: Cross-agent task routing — Codex auto-review, Kimi delegation by complexity score (iCPG + Claude reasoning), iCPG + Mnemos mandatory for all agents
 when-to-use: Always loaded when multiple AI CLI tools are available (Claude, Kimi, Codex)
 user-invocable: false
 effort: medium
@@ -38,23 +38,59 @@ When Codex is installed, a Stop hook reviews code after tests pass:
 
 ## Kimi Delegation (Claude Orchestrates)
 
-When Kimi is installed and blast radius is small, Claude delegates directly — the user does not need to run anything.
+When Kimi is installed and the task complexity is bounded, Claude delegates directly — the user does not need to run anything.
 
-### Step 1: Check Blast Radius
+### Step 1: Score complexity, not file count
+
+File count is a poor proxy for delegation risk. A 1-file change to an authz path is harder than a 12-file rename. Score the task on five dimensions, each 0-2, sourced from iCPG signals plus Claude's semantic reasoning:
+
+| Dimension | 0 (low) | 1 (medium) | 2 (high) | Source |
+|---|---|---|---|---|
+| **Cyclomatic / surface depth** | <10 LOC, no branches | 10-50 LOC, ≤3 branches | 50+ LOC or nested control flow | iCPG `query_graph` over function bodies |
+| **Fan-out (consumer blast radius)** | 0-2 callers | 3-10 callers | 11+ callers | iCPG `trace_path(<symbol>, mode=callers)` |
+| **Crosses a security boundary** (SEC-006, auth, PII, RLS, org-scope, billing, payments) | None | Tangential | Direct read or write | iCPG SEC-* / R-063 tags + grep for `org_id`, `user_id`, `auth`, `pii` |
+| **Concurrency / transactional** | Pure / sync | Async only | Locks, transactions, atomic claims, `FOR UPDATE`, `asyncio.Lock`, `session.begin` | iCPG concurrency flags + grep |
+| **Domain invariants required** | None / well-documented inline | Some implicit (need to read 1-2 files) | Heavy (cross-doc, ADR-bound, RFC-bound) | Claude reasoning + iCPG ADR linkage |
 
 ```bash
-icpg query blast <scope-or-file>
+# Auto-collect signals
+icpg query blast <scope> --format json    # fan-out, async flags, sec tags
+grep -rE "org_id|user_id|auth|pii"  <file>  # cheap sec heuristic if iCPG flags absent
+grep -rE "asyncio.Lock|FOR UPDATE|session.begin" <file>  # concurrency heuristic
 ```
 
-### Step 2: Decide
+### Step 2: Sum → routing
 
-| Blast Radius | Action |
-|-------------|--------|
-| 1-3 files | Claude delegates to Kimi |
-| 4-8 files | Claude asks user: "Delegate to Kimi or handle here?" |
-| 9+ files | Claude handles it (needs full context) |
+| Total score | Route | Rationale |
+|---|---|---|
+| **0-3** | Kimi solo | Bounded surface, no security/concurrency/cross-doc concerns |
+| **4-6** | Kimi → Codex auto-review (no user prompt) | Real risk, but not so high that we need full Claude context — Codex catches what Kimi might miss |
+| **7-10** | Claude handles directly | Cross-cutting / security-critical / concurrency-heavy — needs full context |
 
-### Step 3: Delegate via Bash
+### Step 3: Floor — trivial-case shortcut
+
+To skip iCPG-query cost on truly trivial work:
+
+```bash
+# If <2 files changed AND no SEC/auth/PII/concurrency keyword in diff,
+# → auto-Kimi without scoring.
+FILES=$(git diff --name-only | wc -l)
+HAS_RISK_KEYWORDS=$(git diff | grep -ciE "org_id|auth|pii|asyncio|FOR UPDATE|transaction|session\.begin" || true)
+if [ "$FILES" -lt 2 ] && [ "$HAS_RISK_KEYWORDS" -eq 0 ]; then
+  AUTO_KIMI=true
+fi
+```
+
+This handles the trivial-rename / typo-fix case without paying the iCPG round-trip.
+
+### When NOT to Delegate (overrides scoring)
+
+- User explicitly asked Claude to do it
+- Cross-service changes (API + frontend + database) — needs full context regardless of score
+- Production hotfix on a release branch — cross-tool review latency is too high
+- Score 7+ in any single dimension (one critical axis is enough to keep Claude in the loop)
+
+### Step 4: Delegate via Bash
 
 Claude writes a mnemos checkpoint, then runs Kimi headless:
 
@@ -175,29 +211,40 @@ TASK ARRIVES (user tells Claude)
     |
     v
 [1] Claude: icpg query prior "<goal>"     ← Already done?
-[2] Claude: icpg query blast <scope>       ← How many files?
+[2] Claude: trivial-case shortcut         ← <2 files & no risk keywords?
     |
-    +-- 1-3 files + Kimi installed? -----> DELEGATE PATH
-    |   [a] mnemos checkpoint --force      ← Save context
-    |   [b] kimi --print -y -p "..."       ← Run Kimi headless
-    |   [c] mnemos resume                  ← Read Kimi's work
-    |   [d] git diff                       ← Review changes
-    |   [e] Continue in Claude
+    +-- YES + Kimi installed -----> AUTO-KIMI (no scoring)
     |
-    +-- 4-8 files? -----> Ask user, then delegate or continue
-    +-- 9+ files? -------> DIRECT PATH (Claude handles)
+    +-- NO ↓
+    v
+[3] Claude: score complexity (5 dims × 0-2, iCPG + reasoning)
+    |
+    +-- score 0-3   ----> KIMI SOLO PATH
+    |   [a] mnemos checkpoint --force
+    |   [b] kimi --print -y -p "..."
+    |   [c] mnemos resume + git diff
+    |   [d] Continue in Claude
+    |
+    +-- score 4-6   ----> KIMI + CODEX REVIEW PATH
+    |   [a] mnemos checkpoint --force
+    |   [b] kimi --print -y -p "..."
+    |   [c] codex review --uncommitted    ← Auto-review the diff
+    |   [d] If P0/P1 findings: re-prompt Kimi with findings
+    |   [e] Once clean: continue in Claude
+    |
+    +-- score 7-10  ----> CLAUDE DIRECT PATH (full context)
     |
     v
-[3] icpg query constraints <files>         ← Invariants
-[4] icpg query risk <symbols>              ��� Fragility
-[5] mnemos add goal "<task>"               ← Track in memory
+[4] icpg query constraints <files>         ← Invariants
+[5] icpg query risk <symbols>              ← Fragility
+[6] mnemos add goal "<task>"               ← Track in memory
     |
     v
-[6] IMPLEMENT (TDD: RED -> GREEN)
+[7] IMPLEMENT (TDD: RED -> GREEN)
     |
     v
-[7] Stop: tdd-loop-check.sh               ← Tests pass?
-[8] Stop: codex-auto-review.sh            ← Codex reviews diff
-[9] Stop: icpg-stop-record.sh             ← Record symbols
-[10] Stop: mnemos-checkpoint.sh            ← Save memory
+[8]  Stop: tdd-loop-check.sh               ← Tests pass?
+[9]  Stop: codex-auto-review.sh            ← Codex reviews diff
+[10] Stop: icpg-stop-record.sh             ← Record symbols
+[11] Stop: mnemos-checkpoint.sh            ← Save memory
 ```
