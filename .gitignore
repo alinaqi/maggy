@@ -1,5 +1,4 @@
-scripts/icpg/__pycache__/
-scripts/skill_lint/__pycache__/
-scripts/mnemos/__pycache__/
+__pycache__/
+.DS_Store
 evals/.results/
 .pytest_cache/

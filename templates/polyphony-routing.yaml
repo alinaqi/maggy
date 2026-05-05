@@ -1,0 +1,19 @@
+routing:
+  rules:
+    - match: { task_type: research, requires_web: true }
+      agent: claude-opus
+      fallback: [codex-default]
+
+    - match: { task_type: feature, risk: [low, medium] }
+      agent: codex-default
+      fallback: [claude-opus]
+
+    - match: { task_type: [bugfix, docs], scope: single_file }
+      agent: kimi-default
+
+    - match: { task_type: refactor, risk: high }
+      agent: claude-opus
+
+  default:
+    agent: claude-opus
+    fallback: [codex-default, kimi-default]

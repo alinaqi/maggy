@@ -1,0 +1,22 @@
+FROM python:3.12-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl ca-certificates gnupg && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20 (JS/TS projects)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
+
+# GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | gpg --dearmor -o /usr/share/keyrings/githubcli.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/githubcli.gpg] \
+    https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash worker
+USER worker
+WORKDIR /workspace
+
+# Auth mounted at runtime: -v ~/.claude:/home/worker/.claude:ro
+# Agent CLI installed via volume or ARG at build time

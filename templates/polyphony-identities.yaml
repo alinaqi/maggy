@@ -1,0 +1,7 @@
+identities:
+  - name: protaige
+    volumes:
+      claude: ~/.claude
+      codex: ~/.codex
+      kimi: ~/.kimi
+    cost_ceiling_usd_per_day: 50

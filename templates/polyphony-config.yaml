@@ -1,0 +1,16 @@
+workspace_root: ~/polyphony/workspaces
+mirror_root: ~/polyphony/mirrors
+poll_interval: 30s
+max_concurrent_agents: 8
+event_idle_timeout: 5m
+
+work_sources:
+  - kind: github
+    repo: owner/repo
+    label_filter: "agent-ready"
+  - kind: local
+    db: ~/polyphony/queue.db
+
+identities_file: ~/.polyphony/identities.yaml
+agent_profiles_file: ~/.polyphony/agents.yaml
+routing_file: ~/.polyphony/routing.yaml

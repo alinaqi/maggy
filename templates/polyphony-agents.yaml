@@ -1,0 +1,24 @@
+agents:
+  - name: claude-opus
+    agent_type: claude
+    cli_command: "claude -p"
+    context_window_tokens: 200000
+    strengths: [long_context, research, architecture]
+    event_protocol: stream-json
+    auth_path: ~/.claude
+
+  - name: codex-default
+    agent_type: codex
+    cli_command: "codex exec"
+    context_window_tokens: 192000
+    strengths: [code, testing]
+    event_protocol: ndjson
+    auth_path: ~/.codex
+
+  - name: kimi-default
+    agent_type: kimi
+    cli_command: "kimi --print -y"
+    context_window_tokens: 128000
+    strengths: [code, fast_iteration]
+    event_protocol: ndjson
+    auth_path: ~/.kimi

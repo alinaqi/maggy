@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.0.0] - 2026-05-05
+
+### Added
+
+#### Polyphony — Multi-Agent Orchestration (Core)
+- **`scripts/polyphony/`** — Full multi-agent orchestration package with container-isolated workspaces. Each agent session runs in its own Docker container with independent git branches.
+- **Domain models** (`models.py`) — Task, Identity, AgentProfile, RunSpec, Result dataclasses
+- **Task state machine** (`state_machine.py`) — DISCOVERED -> CLAIMED -> ROUTED -> PROVISIONED -> RUNNING -> VERIFYING -> LANDED with FAILED/BLOCKED paths
+- **SQLite store** (`store.py`) — Persistent CRUD for tasks, run_specs, results with state audit log
+- **YAML config** (`config.py`) — Configuration loading from `~/.polyphony/` with defaults merging
+- **5-dimension complexity scoring** (`scoring.py`) — Cyclomatic depth, fan-out, security boundary, concurrency, domain invariants (0-10 scale)
+- **Pure function router** (`router.py`) — Task x Policy -> RunSpec, first-match rules with fallback chains
+- **Identity broker** (`identity.py`) — Named credential bundles with volume mounts and env overlays
+- **Workspace manager** (`workspace.py`) — Per-task git clone lifecycle with `--reference`/`--dissociate` mirror support
+- **Docker runtime** (`runtime.py`) — Container create/start/stop/wait/logs/rm lifecycle
+- **Event parser** (`events.py`) — NDJSON/stream-json parsing from container stdout
+- **Orchestrator** (`orchestrator.py`) — Supervisor loop: discover -> claim -> route -> provision -> run -> verify -> land
+- **Agent adapters** (`adapters/`) — Claude (`-p --output-format stream-json`), Codex (`exec --full-auto`), Kimi (`--print -y`)
+- **Work sources** (`sources/`) — GitHub Issues via `gh api`, local SQLite task queue
+- **CLI** (`__main__.py`) — `polyphony {init|spawn|status|cleanup}` commands
+- **Skill** (`skills/polyphony/SKILL.md`) — Full documentation for the orchestration system
+- **Commands** — `/polyphony-init`, `/polyphony-spawn`, `/polyphony-status`
+- **Templates** — `Dockerfile.polyphony`, `polyphony-config.yaml`, `polyphony-identities.yaml`, `polyphony-agents.yaml`, `polyphony-routing.yaml`
+- **Spec** (`docs/polyphony-spec.md`) — Full specification reference (12 sections)
+- **173 tests** across 13 test files with full TDD coverage
+
+---
+
 ## [3.6.1] - 2026-05-04
 
 ### Changed
