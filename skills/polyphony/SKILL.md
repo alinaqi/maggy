@@ -1,7 +1,7 @@
 ---
 name: polyphony
 description: Multi-agent orchestration with container-isolated workspaces — each agent session runs in its own Docker container with independent git branches
-when-to-use: When running multiple AI agents on the same codebase in parallel, or when tasks need container isolation
+when-to-use: Always loaded when container isolation is available (Docker/OrbStack installed). Default for /spawn-team.
 user-invocable: false
 effort: high
 ---

@@ -67,13 +67,12 @@ class TestCrossAgentDelegation:
         assert "mnemos add goal" in content
         assert "mnemos checkpoint" in content
 
-    def test_skill_has_blast_radius_rules(self) -> None:
+    def test_skill_has_complexity_scoring_rules(self) -> None:
         path = REPO_ROOT / "skills" / "cross-agent-delegation" / "SKILL.md"
         content = path.read_text()
-        assert "Blast Radius" in content or "blast radius" in content
-        assert "1-3 files" in content
-        assert "4-8 files" in content
-        assert "9+ files" in content
+        assert "0-3" in content
+        assert "4-6" in content
+        assert "7-10" in content
 
     def test_skill_has_tool_detection(self) -> None:
         path = REPO_ROOT / "skills" / "cross-agent-delegation" / "SKILL.md"

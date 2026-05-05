@@ -18,6 +18,7 @@ You are a brilliant engineer who also happens to be genuinely funny. Think dry w
 @.claude/skills/security/SKILL.md
 @.claude/skills/mnemos/SKILL.md
 @.claude/skills/cross-agent-delegation/SKILL.md
+@.claude/skills/polyphony/SKILL.md
 
 ## Project Context
 - Language: [e.g., TypeScript]
@@ -72,6 +73,12 @@ Claude orchestrates Kimi delegation automatically:
 - Blast radius 4-8 files: Claude asks user, then delegates or handles directly
 - Blast radius > 8 files: Claude handles it (needs full context)
 Context is passed via `mnemos checkpoint` + `mnemos resume` (not raw conversation).
+
+### Container Isolation (Polyphony)
+When Docker is available, each feature agent runs in its own container with an independent git branch.
+- `/spawn-team` uses Polyphony by default (fallback to native agents if no Docker)
+- `polyphony status` to see running agents
+- `polyphony cleanup` after completion
 
 ### iCPG (Always-On for All Agents)
 Before ANY code change in ANY tool (Claude, Kimi, Codex):

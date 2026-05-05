@@ -28,7 +28,7 @@ class TestDetectAgents:
             timeout=10,
         )
         assert result.returncode == 0
-        valid_tools = {"claude", "kimi", "codex"}
+        valid_tools = {"claude", "kimi", "codex", "docker", "orbstack", "polyphony"}
         for line in result.stdout.strip().splitlines():
             assert line in valid_tools
 

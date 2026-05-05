@@ -368,6 +368,22 @@ If creating new:
 
 *Auto-detect using `$BOOTSTRAP_DIR/scripts/detect-agents.sh`. Pre-select based on what's installed. If only Claude is detected, skip this question and default to Claude-only.*
 
+### 10. Enable container isolation for parallel agents? (auto-detect)
+- **Yes** (default if Docker/OrbStack detected) — Each feature agent runs in its own container
+- **No** — Agents share the workspace (native Agent tool)
+
+*Auto-detect Docker/OrbStack. If available, default to Yes and skip this question. Only ask if Docker IS available and you want to confirm, or if Docker is NOT available (inform user and default to No).*
+
+```bash
+if echo "$DETECTED_AGENTS" | grep -qE "docker|orbstack"; then
+    echo "Docker detected — container isolation enabled by default"
+    USE_POLYPHONY="true"
+else
+    echo "Docker not found — agents will share the workspace"
+    USE_POLYPHONY="false"
+fi
+```
+
 ---
 
 ## Phase 4: Execute Setup
@@ -466,6 +482,15 @@ fi
 
 **If AI-first:**
 - Copy `llm-patterns/`
+
+**If container isolation enabled (question 10):**
+- Copy `polyphony/`
+
+```bash
+if [ "$USE_POLYPHONY" = "true" ]; then
+    cp -r ~/.claude/skills/polyphony/ .claude/skills/
+fi
+```
 
 **Note:** Skills are always overwritten with the latest version from ~/.claude/skills/. This ensures updates propagate when user updates their global skills.
 
@@ -1376,6 +1401,91 @@ Cross-Tool Compatibility (if selected):
 
 # Start development
 [appropriate command]
+```
+
+---
+
+## Phase 5b: Polyphony Setup (Container Isolation)
+
+**This phase runs automatically when Docker/OrbStack is detected (question 10) and the user hasn't opted out.**
+
+### Step 1: Check prerequisites
+
+```bash
+# Verify Docker is running
+if echo "$DETECTED_AGENTS" | grep -qE "docker|orbstack"; then
+    docker info &>/dev/null && echo "✓ Docker running" || echo "⚠ Docker installed but not running"
+fi
+
+# Check polyphony CLI
+command -v polyphony &>/dev/null && echo "✓ polyphony CLI available" || echo "⚠ polyphony not on PATH"
+```
+
+### Step 2: Initialize Polyphony config (if missing)
+
+```bash
+if [ ! -d "$HOME/.polyphony" ]; then
+    polyphony init
+    echo "✓ Created ~/.polyphony/ config"
+else
+    echo "✓ ~/.polyphony/ already exists"
+fi
+```
+
+### Step 3: Build worker image (if not present)
+
+```bash
+if ! docker image inspect polyphony-worker:latest &>/dev/null 2>&1; then
+    BOOTSTRAP_DIR=$(cat ~/.claude/.bootstrap-dir 2>/dev/null)
+    if [ -f "$BOOTSTRAP_DIR/templates/Dockerfile.polyphony" ]; then
+        echo "Building polyphony-worker image..."
+        docker build -t polyphony-worker:latest -f "$BOOTSTRAP_DIR/templates/Dockerfile.polyphony" "$BOOTSTRAP_DIR"
+        echo "✓ Built polyphony-worker:latest"
+    fi
+else
+    echo "✓ polyphony-worker:latest image exists"
+fi
+```
+
+### Step 4: Add polyphony skill to project
+
+```bash
+# Copy polyphony skill to project
+cp -r ~/.claude/skills/polyphony/ .claude/skills/
+```
+
+Add to CLAUDE.md Skills section:
+```markdown
+- .claude/skills/polyphony/SKILL.md
+```
+
+Add to CLAUDE.md Cross-Agent Workflow section:
+```markdown
+### Container Isolation (Polyphony)
+When Docker is available, each feature agent runs in its own container with an independent git branch.
+- `/spawn-team` uses Polyphony by default (fallback to native agents if no Docker)
+- `polyphony status` to see running agents
+- `polyphony cleanup` after completion
+```
+
+### Step 5: Show Polyphony status in summary
+
+Add to the Phase 5 summary output:
+```
+Container Isolation (Polyphony):
+✓ Docker/OrbStack detected
+✓ polyphony CLI available
+✓ ~/.polyphony/ config ready
+✓ polyphony-worker:latest image built
+✓ Polyphony skill added to project
+→ /spawn-team will use container isolation by default
+```
+
+**If Docker not available:**
+```
+Container Isolation:
+⚠ Docker not found — /spawn-team will use native agents (shared workspace)
+  Install Docker: brew install --cask docker
 ```
 
 ---
