@@ -411,11 +411,39 @@ For existing projects: run `/spawn-team` to spawn the team from existing feature
 
 ---
 
+## Container Isolation (Polyphony)
+
+When Docker/OrbStack is available, feature agents run in Polyphony containers by default. The team lead and shared agents (quality, security, review, merger) still run natively — they only read and coordinate.
+
+### What changes with Polyphony
+
+| Aspect | Without Polyphony | With Polyphony |
+|--------|-------------------|----------------|
+| Feature agents | Shared filesystem | Own container + git branch |
+| File conflicts | Team lead must serialize | Impossible (isolated clones) |
+| Test execution | Shared, can interfere | Independent per container |
+| Branch strategy | Merger agent creates branches | Each container has its own branch |
+
+### How it works
+
+1. `/spawn-team` detects Docker + polyphony CLI
+2. For each feature, runs `polyphony spawn "$FEATURE" --type feature`
+3. Polyphony creates a container with its own git clone + branch
+4. Agent CLI starts inside the container
+5. On completion, changes are on a dedicated branch ready for PR
+
+### Fallback
+
+If Docker is not available, `/spawn-team` falls back to the native Agent tool (shared filesystem). A note is printed:
+> "Running without container isolation (Docker not found). Agents share the workspace."
+
+---
+
 ## Limitations
 
 - **Experimental feature** - Agent teams require the experimental env var
 - **No nested teams** - Teammates cannot spawn sub-teams
 - **One team per session** - Clean up before starting a new team
 - **No session resumption** - If session dies, re-run `/spawn-team` (tasks persist)
-- **File conflicts** - Features sharing files must be serialized by team lead
+- **File conflicts** - Features sharing files must be serialized by team lead (unless using Polyphony containers)
 - **Token cost** - Each agent is a separate Claude instance (5 + N instances)

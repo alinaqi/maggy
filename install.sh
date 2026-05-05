@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
-echo "Installing Claude Bootstrap v3.6.0..."
+echo "Installing Claude Bootstrap v4.0.0..."
 echo ""
 
 # Save bootstrap directory location for other scripts
@@ -107,6 +107,30 @@ chmod +x "$CLAUDE_DIR/install-hooks.sh" 2>/dev/null || true
 cp "$SCRIPT_DIR/scripts/install-graph-tools.sh" "$CLAUDE_DIR/" 2>/dev/null || true
 chmod +x "$CLAUDE_DIR/install-graph-tools.sh" 2>/dev/null || true
 
+# Install Polyphony CLI shim
+POLYPHONY_SRC="$SCRIPT_DIR/scripts/polyphony"
+if [ -f "$POLYPHONY_SRC/__main__.py" ]; then
+    INSTALL_DIR="$HOME/.local/bin"
+    mkdir -p "$INSTALL_DIR"
+    cat > "$INSTALL_DIR/polyphony" << SHIM
+#!/bin/bash
+exec python3 -c "import sys; sys.path.insert(0, '$SCRIPT_DIR/scripts'); from polyphony.__main__ import main; sys.exit(main())" "\$@"
+SHIM
+    chmod +x "$INSTALL_DIR/polyphony"
+    echo ""
+    echo "✓ Installed polyphony CLI shim"
+
+    # Create default config if missing
+    if [ ! -d "$HOME/.polyphony" ]; then
+        mkdir -p "$HOME/.polyphony"
+        cp -n "$SCRIPT_DIR/templates/polyphony-config.yaml" "$HOME/.polyphony/config.yaml" 2>/dev/null || true
+        cp -n "$SCRIPT_DIR/templates/polyphony-identities.yaml" "$HOME/.polyphony/identities.yaml" 2>/dev/null || true
+        cp -n "$SCRIPT_DIR/templates/polyphony-agents.yaml" "$HOME/.polyphony/agents.yaml" 2>/dev/null || true
+        cp -n "$SCRIPT_DIR/templates/polyphony-routing.yaml" "$HOME/.polyphony/routing.yaml" 2>/dev/null || true
+        echo "✓ Created ~/.polyphony/ config"
+    fi
+fi
+
 # Run validation
 echo ""
 echo "Running validation..."
@@ -122,14 +146,14 @@ fi
 
 echo ""
 echo "================================================================"
-echo "  Installation complete! (v3.6.0)"
+echo "  Installation complete! (v4.0.0)"
 echo "================================================================"
 echo ""
-echo "What's new in v3.6.0:"
+echo "What's new in v4.0.0:"
+echo "  - Polyphony: container-isolated parallel agents (Docker/OrbStack)"
+echo "  - /spawn-team now uses Polyphony by default (fallback to native)"
+echo "  - polyphony CLI: init, spawn, status, cleanup"
 echo "  - Cross-tool support: Claude Code + Kimi CLI + Codex CLI"
-echo "  - AGENTS.md template for Codex compatibility"
-echo "  - config.toml hooks for Kimi/Codex compatibility"
-echo "  - /sync-agents command for cross-tool sync"
 echo ""
 echo "Usage:"
 echo "  1. Open any project folder"
@@ -137,11 +161,31 @@ echo "  2. Run: claude (or kimi, or codex)"
 echo "  3. Type: /initialize-project"
 echo ""
 echo "Commands installed:"
-echo "  /initialize-project   - Full project setup"
-echo "  /spawn-team           - Spawn agent team"
+echo "  /initialize-project   - Full project setup (includes Polyphony)"
+echo "  /spawn-team           - Spawn agent team (containers by default)"
 echo "  /sync-agents          - Sync config between Claude/Kimi/Codex"
 echo "  /check-contributors   - Team coordination"
 echo "  /update-code-index    - Regenerate code index"
+echo ""
+echo "Polyphony CLI:"
+echo "  polyphony init        - Create ~/.polyphony/ config"
+echo "  polyphony spawn       - Create and route a task"
+echo "  polyphony status      - Show task states"
+echo "  polyphony cleanup     - Remove completed workspaces"
+echo ""
+echo "Container isolation (Polyphony):"
+if echo "$DETECTED_AGENTS" | grep -q "docker"; then
+    echo "  [OK] Docker    - container isolation available"
+elif echo "$DETECTED_AGENTS" | grep -q "orbstack"; then
+    echo "  [OK] OrbStack  - container isolation available"
+else
+    echo "  [--] Docker    - not found (brew install --cask docker)"
+fi
+if echo "$DETECTED_AGENTS" | grep -q "polyphony"; then
+    echo "  [OK] Polyphony - CLI installed"
+else
+    echo "  [--] Polyphony - CLI shim not on PATH (add ~/.local/bin to PATH)"
+fi
 echo ""
 echo "Cross-tool compatibility:"
 if echo "$DETECTED_AGENTS" | grep -q "kimi"; then

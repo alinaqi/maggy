@@ -34,6 +34,13 @@ main() {
     detect_tool "claude" "claude" "$HOME/.claude"
     detect_tool "kimi" "kimi" "$HOME/.kimi"
     detect_tool "codex" "codex" "$HOME/.codex"
+
+    # Container runtime
+    command -v docker &>/dev/null && echo "docker" || true
+    command -v orbctl &>/dev/null && echo "orbstack" || true
+
+    # Polyphony orchestrator
+    command -v polyphony &>/dev/null && echo "polyphony" || true
 }
 
 main
