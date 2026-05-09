@@ -1817,48 +1817,105 @@ Before deploying a L3/L4 policy change, Maggy can **replay historical tasks** ag
 
 **Backtesting is required for L3 and L4 changes.** L0-L2 changes are reactive (stability and health) and don't need backtesting — they respond to immediate signals. L3-L4 changes are strategic and can be validated against historical data first.
 
-#### Seeding: Bootstrap from Existing Data
+#### Auto-Seeding: Maggy Bootstraps Herself
 
-On first install, Maggy has no task history. But it can **seed the ledger from existing project data**:
+Maggy has Pi agents. She has access to Claude, Codex, Kimi, Qwen — whatever models are configured. There is no reason for a manual `maggy seed` command. The moment a project is registered in `~/.maggy/projects.yaml`, Maggy spawns a Pi agent to analyze the project's history and seed her own databases. No user action required.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  SEED FROM EXISTING DATA                                      │
+│  AUTO-SEED (triggered on project registration)                │
 │                                                               │
-│  Git history:                                                 │
-│    → Parse last 100 PRs: size, review rounds, time-to-merge  │
-│    → Parse CI runs: pass/fail rates per file                  │
-│    → Parse reverts: which PRs were reverted                   │
+│  1. Maggy detects new project in registry                     │
+│     │                                                         │
+│  2. Spawns Pi agent (cheapest available model — qwen/kimi)    │
+│     Task: "Analyze project history and extract patterns"      │
+│     │                                                         │
+│  3. Agent executes via gh CLI + git log:                      │
+│     │                                                         │
+│     ├── gh pr list --state merged --limit 200 --json          │
+│     │   → PR sizes, review rounds, time-to-merge              │
+│     │   → Reviewers, approval patterns                        │
+│     │                                                         │
+│     ├── gh pr view {n} --comments --json                      │
+│     │   → Review comments categorized by pattern              │
+│     │   → CodeRabbit findings by severity + category          │
+│     │   → Bot authors detected (coderabbitai, dependabot)     │
+│     │                                                         │
+│     ├── gh api repos/{owner}/{repo}/actions/runs              │
+│     │   → CI pass/fail rates per workflow                     │
+│     │   → Failure patterns per file                           │
+│     │   → Flaky test detection                                │
+│     │                                                         │
+│     ├── git log --format='%H %s' --since='6 months ago'       │
+│     │   → Revert detection (commit messages with "revert")    │
+│     │   → Commit patterns, branch naming conventions          │
+│     │                                                         │
+│     ├── codebase-memory-mcp: get_architecture + search_graph  │
+│     │   → Module structure, hot files, dependency depth       │
+│     │   → Fan-out scores for initial blast radius calibration │
+│     │                                                         │
+│     └── Environment discovery (Section 5a)                    │
+│         → Ticketing, CI, lint, review process auto-detected   │
 │                                                               │
-│  GitHub API:                                                  │
-│    → PR review comments: categorize by pattern                │
-│    → CodeRabbit history: finding types and frequencies        │
-│    → Actions run history: failure patterns                    │
+│  4. Agent writes structured analysis to Maggy's databases:    │
+│     process_patterns.db: seeded with review comment patterns  │
+│     ci_patterns.db: seeded with CI failure history            │
+│     pr_patterns.db: seeded with merge velocity data           │
+│     task_history.db: synthetic entries from git log           │
+│     environments/{project}.yaml: workflow config              │
 │                                                               │
-│  Result: pre-populated databases                              │
-│    process_patterns.db: seeded with review comment patterns   │
-│    ci_patterns.db: seeded with CI failure history             │
-│    pr_patterns.db: seeded with merge velocity data            │
-│    task_history: synthetic entries from git log                │
+│  5. Agent computes initial policy.yaml from patterns:         │
+│     → "PRs > 400 lines take 3x review rounds → set max 400"  │
+│     → "ruff failures in 40% of PRs → enable pre-check"       │
+│     → "auth files have 0% CI failures → low risk"            │
+│     → "CodeRabbit flags unused imports 60% of PRs → pre-fix" │
 │                                                               │
-│  Cold start eliminated. Maggy knows the project's process     │
-│  health on day 1. Week 1 starts at L2, not L0.               │
+│  6. Maggy logs seed as modification #1 in improvement_ledger  │
+│     config_before: empty (default policy)                     │
+│     config_after: data-derived initial policy                 │
+│     score_before: null (no baseline)                          │
+│     → All future modifications measured against this seed     │
+│                                                               │
+│  Total cost: ~$0.10-0.50 on a cheap model (one-time)          │
+│  Total time: background task, user doesn't wait               │
+│  User action required: zero                                   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-```bash
-# Seed command
-maggy seed --project zensurveys-backend --prs 100 --ci-runs 500
+**Why this works:** The seed analysis is exactly the kind of task cheap models are good at — structured data extraction, pattern counting, statistical aggregation. No creative reasoning needed. Qwen local can do it for free. And the Pi agent already has all the tools: `gh` CLI for GitHub data, `git` for history, codebase-memory-mcp for structural analysis.
 
-# Output:
-# Seeded 847 process patterns from 100 PRs
-# Seeded 312 CI patterns from 500 runs
-# Seeded 100 synthetic task_history entries
-# Computed initial policy.yaml from historical data
-# Ready for L2+ control on day 1
+**Why manual seed is wrong:** Maggy's entire philosophy is autonomous optimization. A `maggy seed --project foo` command implies the user knows they need to seed, knows the right flags, and remembers to run it. That's three failure points. Maggy should behave like a new hire who reads the project's git history on their first day — automatically, without being told.
+
+**Multi-project seed:** When Maggy is first installed with 4 projects in the registry, she spawns 4 seed agents in parallel (one per project, each in its own Polyphony container). All 4 seed concurrently. By the time the user opens the dashboard, Maggy already knows:
+- zensurveys-backend: "PRs to auth/ need 2 reviewers, ruff fails on 40% of pushes"
+- zensurveys-frontend: "CodeRabbit catches unused imports, avg PR is 180 lines"
+- chief-of-staff: "No CI, manual deploys, review optional"
+- rodcast: "New project, minimal history — start with defaults"
+
+**Validation before real work:** The seed data lets Maggy prove her value immediately. On the dashboard, day 1:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  MAGGY — Day 1 Analysis (auto-generated from project history)│
+│                                                               │
+│  zensurveys-backend (200 PRs analyzed):                       │
+│    Current process health:                                    │
+│      CI first-pass rate: 72%                                  │
+│      Avg review rounds: 2.8                                   │
+│      Top review comment: "add error handling" (23 times)      │
+│      Avg time-to-merge: 36h                                   │
+│                                                               │
+│    Predicted improvements if Maggy had been active:           │
+│      CI first-pass rate: 72% → ~94% (pre-lint + pre-type)    │
+│      Review rounds: 2.8 → ~1.4 (auto error handling + tests) │
+│      Time-to-merge: 36h → ~12h (smaller PRs + fewer rounds)  │
+│                                                               │
+│    Based on: patterns from your last 200 PRs                  │
+│    Confidence: high (200+ data points per pattern)            │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-This means you can **validate Maggy's improvement before it writes a single line of code**. Feed it 6 months of PR history, let it compute what policy it would have learned, and compare that policy against what actually happened. If Maggy's predicted policy would have reduced review rounds by 40%, that's validation before deployment.
+That's the mWp for onboarding. Maggy doesn't say "configure me." She says "I already analyzed your project. Here's what I found. Here's what I'll fix. Watch."
 
 #### Ledger Queries — "How Did Maggy Improve Itself?"
 
