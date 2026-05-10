@@ -43,11 +43,21 @@ class TestChatManager:
         from maggy.services.chat import ChatManager
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
-        repo = tmp_path / "other-repo"
-        repo.mkdir()
-        s = mgr.create_session("other-repo", str(repo))
-        assert s.project_key == "other-repo"
-        assert s.working_dir == str(repo)
+        # Subdirectory of configured codebase is allowed
+        sub = tmp_path / "my-project" / "src"
+        sub.mkdir()
+        s = mgr.create_session("my-project", str(sub))
+        assert s.project_key == "my-project"
+        assert s.working_dir == str(sub)
+
+    def test_create_rejects_outside_path(self, tmp_path):
+        from maggy.services.chat import ChatManager
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        outside = tmp_path / "other-repo"
+        outside.mkdir()
+        with pytest.raises(ValueError, match="not inside"):
+            mgr.create_session("other", str(outside))
 
     def test_list_sessions(self, tmp_path):
         from maggy.services.chat import ChatManager
@@ -110,12 +120,19 @@ class TestChatManager:
         mgr = ChatManager(cfg)
         assert mgr.delete_session("nope") is False
 
-    def test_working_dir_security(self, tmp_path):
+    def test_working_dir_security_bad_key(self, tmp_path):
         from maggy.services.chat import ChatManager
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
         with pytest.raises(ValueError, match="not found"):
             mgr.create_session("hacker-repo")
+
+    def test_working_dir_security_bad_path(self, tmp_path):
+        from maggy.services.chat import ChatManager
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        with pytest.raises(ValueError, match="not inside"):
+            mgr.create_session("x", "/etc")
 
 
 class TestAutoConnect:
@@ -147,12 +164,15 @@ class TestAutoConnect:
 
     def test_auto_connect_multiple_projects(self, tmp_path):
         from maggy.services.chat import ChatManager
-        cfg = _make_cfg(tmp_path)
-        mgr = ChatManager(cfg)
         r1 = tmp_path / "proj-a"
         r2 = tmp_path / "proj-b"
         r1.mkdir()
         r2.mkdir()
+        cfg = MaggyConfig(codebases=[
+            CodebaseConfig(path=str(r1), key="proj-a"),
+            CodebaseConfig(path=str(r2), key="proj-b"),
+        ])
+        mgr = ChatManager(cfg)
         active = [
             {"project": "proj-a", "project_path": str(r1)},
             {"project": "proj-b", "project_path": str(r2)},
@@ -166,9 +186,10 @@ class TestAutoConnect:
         from maggy.services.chat import ChatManager
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
+        repo = tmp_path / "my-project"
         active = [
             {"project": "", "project_path": ""},
-            {"project": "valid", "project_path": str(tmp_path)},
+            {"project": "my-project", "project_path": str(repo)},
         ]
         result = mgr.auto_connect(active)
         assert len(result) == 1

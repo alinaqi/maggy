@@ -61,13 +61,32 @@ class ChatManager:
     def __init__(self, cfg: MaggyConfig):
         self.cfg = cfg
         self._sessions: dict[str, ChatSession] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def _validate_path(self, path: str) -> str:
+        """Validate path is inside a configured codebase root."""
+        candidate = Path(path).expanduser().resolve()
+        roots = [
+            Path(c.path).expanduser().resolve()
+            for c in self.cfg.codebases
+        ]
+        for root in roots:
+            try:
+                candidate.relative_to(root)
+                return str(candidate)
+            except ValueError:
+                continue
+        raise ValueError(
+            f"Path {path!r} is not inside any configured "
+            f"codebase. Allowed: {[str(r) for r in roots]}"
+        )
 
     def create_session(
         self, project_key: str, project_path: str | None = None,
     ) -> ChatSession:
         """Create a new chat session for a project."""
         if project_path:
-            wd = str(Path(project_path).expanduser().resolve())
+            wd = self._validate_path(project_path)
             key = project_key or Path(wd).name
         else:
             wd = self._resolve_project(project_key)
@@ -79,6 +98,7 @@ class ChatManager:
             working_dir=wd,
         )
         self._sessions[session.id] = session
+        self._locks[session.id] = asyncio.Lock()
         return session
 
     def find_by_project(self, project_key: str) -> ChatSession | None:
@@ -117,6 +137,7 @@ class ChatManager:
     def delete_session(self, session_id: str) -> bool:
         if session_id in self._sessions:
             del self._sessions[session_id]
+            self._locks.pop(session_id, None)
             return True
         return False
 
@@ -127,53 +148,69 @@ class ChatManager:
         session = self._sessions.get(session_id)
         if not session:
             raise ValueError(f"Session {session_id} not found")
-        session.messages.append(
-            ChatMessage(role="user", content=message)
-        )
-        session.status = "streaming"
-        cmd = self._build_cmd(session, message)
-        response_text = ""
-        try:
-            import os
-            env = {
-                k: v for k, v in os.environ.items()
-                if k != "CLAUDECODE"
-            }
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                cwd=session.working_dir,
-                env=env,
-            )
-            session.pid = proc.pid or 0
-            async for line in proc.stdout:
-                text = line.decode(
-                    "utf-8", errors="replace"
-                ).strip()
-                if not text:
-                    continue
-                chunk = self._parse_chunk(text, session)
-                if chunk:
-                    response_text += chunk.get("content", "")
-                    yield chunk
-            await proc.wait()
-            session.status = "idle"
-        except FileNotFoundError:
-            session.status = "error"
+        lock = self._locks.get(session_id)
+        if lock and lock.locked():
             yield {
                 "type": "error",
-                "content": "claude CLI not found on PATH",
+                "content": "Session is already streaming.",
             }
-        except Exception as e:
-            session.status = "error"
-            yield {"type": "error", "content": str(e)}
-        if response_text:
+            return
+        if not lock:
+            lock = asyncio.Lock()
+            self._locks[session_id] = lock
+        async with lock:
             session.messages.append(
-                ChatMessage(
-                    role="assistant", content=response_text,
-                )
+                ChatMessage(role="user", content=message)
             )
+            session.status = "streaming"
+            cmd = self._build_cmd(session, message)
+            response_text = ""
+            try:
+                import os
+                env = {
+                    k: v for k, v in os.environ.items()
+                    if k != "CLAUDECODE"
+                }
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                    cwd=session.working_dir,
+                    env=env,
+                )
+                session.pid = proc.pid or 0
+                async for line in proc.stdout:
+                    text = line.decode(
+                        "utf-8", errors="replace"
+                    ).strip()
+                    if not text:
+                        continue
+                    chunk = self._parse_chunk(
+                        text, session,
+                    )
+                    if chunk:
+                        response_text += chunk.get(
+                            "content", "",
+                        )
+                        yield chunk
+                await proc.wait()
+                session.status = "idle"
+            except FileNotFoundError:
+                session.status = "error"
+                yield {
+                    "type": "error",
+                    "content": "claude CLI not found",
+                }
+            except Exception as e:
+                session.status = "error"
+                yield {"type": "error", "content": str(e)}
+            if response_text:
+                session.messages.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=response_text,
+                    )
+                )
 
     def _build_cmd(
         self, session: ChatSession, message: str,
