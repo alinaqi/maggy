@@ -11,9 +11,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-import anthropic
-
 from maggy.config import MaggyConfig
+from maggy.services.ai_client import ai_complete
 from maggy.providers.base import IssueTrackerProvider, Task
 
 logger = logging.getLogger(__name__)
@@ -106,53 +105,17 @@ class InboxService:
 
     async def _rank_with_ai(self, tasks: list[Task]) -> list[dict]:
         """Ask Claude to rank tasks by priority. Falls back to date-sorted if AI unavailable."""
-        if not self.cfg.ai.api_key:
-            return [self._task_to_dict(t, rank=i + 1, reason="AI not configured; sorted by recency")
+        prompt = self._build_rank_prompt(tasks)
+        text = await self._call_ai(prompt)
+        if not text:
+            return [self._task_to_dict(t, rank=i + 1, reason="AI not available; sorted by recency")
                     for i, t in enumerate(tasks)]
-
-        # Build ranking prompt
-        okr_block = ""
-        if self.cfg.okrs.source == "yaml" and self.cfg.okrs.items:
-            okr_lines = [f"- {o.id}: {o.title}" for o in self.cfg.okrs.items]
-            okr_block = "## Current OKRs\n" + "\n".join(okr_lines) + "\n"
-
-        task_lines = []
-        for i, t in enumerate(tasks):
-            snippet = (t.description or "")[:200].replace("\n", " ")
-            task_lines.append(f"[{i}] id={t.id} board={t.board} labels={','.join(t.labels[:3])}\n    {t.title}\n    {snippet}")
-
-        prompt = f"""You are the AI triage assistant for {self.cfg.org.name}.
-
-{okr_block}
-Rank the following {len(tasks)} open tasks by priority. Consider:
-- OKR alignment (if OKRs provided)
-- Urgency signals (labels like "bug", "critical", "urgent")
-- Age (older + stale = deprioritize, older + active = maybe important)
-- Dependencies mentioned
-
-Respond with STRICT JSON only:
-{{"rankings": [{{"index": 0, "rank": 1, "reason": "<20 word explanation>"}}, ...]}}
-
-Tasks:
-{chr(10).join(task_lines)}"""
-
         try:
-            # Use AsyncAnthropic so we don't block the event loop during a
-            # multi-second LLM round-trip — this runs inside a FastAPI handler
-            # that serves other requests concurrently.
-            client = anthropic.AsyncAnthropic(api_key=self.cfg.ai.api_key)
-            msg = await client.messages.create(
-                model=self.cfg.ai.model,
-                max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = msg.content[0].text if msg.content else ""
-            # Extract JSON
             start = text.find("{")
             end = text.rfind("}")
             data = json.loads(text[start:end + 1]) if start >= 0 else {"rankings": []}
         except Exception as e:
-            logger.warning("AI ranking failed, falling back to date sort: %s", e)
+            logger.warning("AI ranking parse failed: %s", e)
             return [self._task_to_dict(t, rank=i + 1, reason="AI ranking unavailable")
                     for i, t in enumerate(tasks)]
 
@@ -182,6 +145,34 @@ Tasks:
             ranked.append(self._task_to_dict(t, rank=r["rank"], reason=r["reason"]))
         ranked.sort(key=lambda x: x["rank"])
         return ranked
+
+    def _build_rank_prompt(self, tasks: list[Task]) -> str:
+        """Build the ranking prompt for AI."""
+        okr_block = ""
+        if self.cfg.okrs.source == "yaml" and self.cfg.okrs.items:
+            okr_lines = [f"- {o.id}: {o.title}" for o in self.cfg.okrs.items]
+            okr_block = "## Current OKRs\n" + "\n".join(okr_lines) + "\n"
+        task_lines = []
+        for i, t in enumerate(tasks):
+            snippet = (t.description or "")[:200].replace("\n", " ")
+            task_lines.append(f"[{i}] id={t.id} board={t.board} labels={','.join(t.labels[:3])}\n    {t.title}\n    {snippet}")
+        return f"""You are the AI triage assistant for {self.cfg.org.name}.
+
+{okr_block}
+Rank the following {len(tasks)} open tasks by priority. Consider:
+- OKR alignment (if OKRs provided)
+- Urgency signals (labels like "bug", "critical", "urgent")
+- Age (older + stale = deprioritize, older + active = maybe important)
+
+Respond with STRICT JSON only:
+{{"rankings": [{{"index": 0, "rank": 1, "reason": "<20 word explanation>"}}, ...]}}
+
+Tasks:
+{chr(10).join(task_lines)}"""
+
+    async def _call_ai(self, prompt: str) -> str | None:
+        """Call AI via API key or CLI subscription."""
+        return await ai_complete(prompt, self.cfg)
 
     def _task_to_dict(self, t: Task, rank: int, reason: str) -> dict:
         return {

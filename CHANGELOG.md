@@ -6,6 +6,85 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [5.0.0] - 2026-05-10
+
+### Added
+
+#### Interactive Chat — Session Takeover
+- **`maggy/services/chat.py`** — ChatManager for interactive Claude sessions with SSE streaming
+  - Auto-connects to all active CLI sessions (Claude, Codex, Kimi) via ActivityService process scanning
+  - Session continuity with `--resume <session-id>` for multi-turn conversations
+  - `CLAUDECODE` env var stripping to allow nested Claude subprocess spawning
+  - `--verbose` flag for `--output-format stream-json` compatibility
+  - Deduplication via dict keyed by project name
+- **`maggy/services/chat_context.py`** — Context builder for session enrichment
+  - Path-based history matching (not just exact project name) via `_path_candidates()`
+  - `_SKIP_DIRS` set prevents matching common system directories (Users, Documents, Library)
+  - Recent prompt injection from activity data per project
+  - Claude `session_id` resolution from `~/.claude/history.jsonl` for true `--resume`
+- **`maggy/api/routes_chat.py`** — Chat API (5 endpoints)
+  - `POST /api/chat/auto-connect` — detect all active sessions, enrich with history context
+  - `POST /api/chat/sessions` — create session
+  - `GET /api/chat/sessions` — list sessions
+  - `GET /api/chat/sessions/{id}` — get session + messages
+  - `POST /api/chat/sessions/{id}/send` — send message, stream response via SSE
+  - `DELETE /api/chat/sessions/{id}` — delete session
+- **Chat UI** in `app.js` — full web-based chat interface
+  - Auto-connects on tab load, shows all active project sessions in sidebar
+  - Message thread with user/Claude bubbles
+  - SSE EventSource for real-time streaming
+  - Session history context display
+  - New session creation from active + configured projects
+
+#### Auto-Bootstrap — No Empty Tabs
+- **`_bootstrap()` in `main.py`** — seeds all services on startup
+  - `history.analyze()` — parses CLI sessions immediately (260+ sessions, 11,994 prompts)
+  - `introspector.analyze()` — collects signals, emits events
+  - `_seed_cikg()` — scans configured codebases, creates nodes for repos + detected languages
+
+#### UI Navigation Cleanup
+- **Grouped navigation** — 9 flat tabs reorganized into 3 logical groups:
+  - **Work** (Chat, Tasks, Watching) — things you do
+  - **Intel** (Competitors, Insights) — things you learn
+  - **System** (gear dropdown: Budget, Models, Forge, Settings) — things you configure
+- **Tab renames** — Inbox→Tasks, Followed→Watching, Process→Insights
+- **Chat is default tab** — loads on startup, auto-connects immediately
+- **Gear dropdown** — system tabs collapsed into icon menu, reduces nav clutter
+- **Section labels** — tiny uppercase "WORK" / "INTEL" separators
+
+#### Process Intelligence Tab Enhancement
+- Parallel fetch of activity, history, improve, events, CIKG data
+- Health signals display (routing, memory, reliability, cost percentages)
+- Live activity section showing active sessions + recent prompts
+- Session patterns from history analysis
+- Button spinner feedback + success toast on Analyze History / Self-Improve
+
+#### Infrastructure
+- **No-cache static middleware** — `_NoCacheStatic` adds `Cache-Control: no-store` to `/static`
+- **Cache-busting** — `?v=3` on script tag
+- **`showToast()`** — green success notification for async operations
+
+### Fixed
+- Engram `expire_engrams` referencing `self` outside class context
+- `auto_connect` returning duplicate sessions for same project
+- `CLAUDECODE` env var blocking nested Claude subprocess spawning
+- `--verbose` flag required when using `--output-format stream-json` with `-p`
+- History matching missing projects stored under parent dir name (e.g. "AI-Playground" vs "claude-skills-package")
+- Process tab buttons doing nothing due to browser-cached old JS
+- 500-row limit in history store masking projects — switched to aggregated report data
+
+### Changed
+- Default tab: `inbox` → `chat`
+- Org name in config: `"Your Org"` → read from `~/.maggy/config.yaml`
+- README fully rewritten to reflect current feature set (was still describing MVP)
+
+### Tests
+- `tests/test_chat.py` — 17 tests (ChatManager + AutoConnect)
+- `tests/test_chat_context.py` — 18 tests (path candidates, history matching, prompts, session ID)
+- Total: **466 tests passing**
+
+---
+
 ## [4.0.0] - 2026-05-05
 
 ### Added

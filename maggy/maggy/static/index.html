@@ -38,6 +38,7 @@
   <style>
     body { background:#0b0e14; color:#e6e6e6; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .tab-btn.active { background:#ea580c; color:white; }
+    #system-gear.active { background:#ea580c; color:white; }
     .card { background:#151922; border:1px solid #262b3a; border-radius: 0.5rem; }
     pre { white-space: pre-wrap; word-break: break-word; }
   </style>
@@ -55,19 +56,36 @@
       <button onclick="loadAll()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-sync-alt mr-1"></i>Refresh</button>
     </header>
 
-    <nav class="border-b border-gray-800 px-6 py-2 flex gap-2 bg-black/20">
-      <button class="tab-btn active text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="inbox" onclick="switchTab('inbox')"><i class="fas fa-inbox mr-1"></i>Inbox</button>
-      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="followed" onclick="switchTab('followed')"><i class="fas fa-eye mr-1"></i>Followed</button>
+    <nav class="border-b border-gray-800 px-6 py-2 flex items-center gap-1 bg-black/20">
+      <span class="text-[9px] text-gray-600 uppercase tracking-wider mr-1">Work</span>
+      <button class="tab-btn active text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="chat" onclick="switchTab('chat')"><i class="fas fa-terminal mr-1"></i>Chat</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="inbox" onclick="switchTab('inbox')"><i class="fas fa-list-check mr-1"></i>Tasks</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="followed" onclick="switchTab('followed')"><i class="fas fa-eye mr-1"></i>Watching</button>
+      <span class="mx-2 border-l border-gray-700 h-4 inline-block"></span>
+      <span class="text-[9px] text-gray-600 uppercase tracking-wider mr-1">Intel</span>
       <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="competitors" onclick="switchTab('competitors')"><i class="fas fa-chess mr-1"></i>Competitors</button>
-      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="sessions" onclick="switchTab('sessions')"><i class="fas fa-terminal mr-1"></i>Sessions</button>
-      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="settings" onclick="switchTab('settings')"><i class="fas fa-gear mr-1"></i>Settings</button>
+      <button class="tab-btn text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300" data-tab="process" onclick="switchTab('process')"><i class="fas fa-chart-line mr-1"></i>Insights</button>
+      <div class="flex-1"></div>
+      <div class="relative">
+        <button onclick="toggleSystemMenu()" class="text-xs px-2.5 py-1.5 rounded bg-gray-800 text-gray-400 hover:text-white" id="system-gear"><i class="fas fa-gear"></i></button>
+        <div id="system-menu" class="hidden absolute right-0 top-full mt-1 w-40 rounded border border-gray-700 bg-[#151922] shadow-xl z-30 py-1">
+          <button onclick="switchTab('budget')" class="sys-item w-full text-left text-xs px-3 py-2 text-gray-300 hover:bg-gray-800" data-tab="budget"><i class="fas fa-wallet mr-2 text-gray-500"></i>Budget</button>
+          <button onclick="switchTab('routing')" class="sys-item w-full text-left text-xs px-3 py-2 text-gray-300 hover:bg-gray-800" data-tab="routing"><i class="fas fa-route mr-2 text-gray-500"></i>Models</button>
+          <button onclick="switchTab('forge')" class="sys-item w-full text-left text-xs px-3 py-2 text-gray-300 hover:bg-gray-800" data-tab="forge"><i class="fas fa-hammer mr-2 text-gray-500"></i>Forge</button>
+          <button onclick="switchTab('settings')" class="sys-item w-full text-left text-xs px-3 py-2 text-gray-300 hover:bg-gray-800" data-tab="settings"><i class="fas fa-sliders mr-2 text-gray-500"></i>Settings</button>
+        </div>
+      </div>
     </nav>
 
     <main class="px-6 py-4">
-      <div id="pane-inbox" class="pane"></div>
+      <div id="pane-chat" class="pane"></div>
+      <div id="pane-inbox" class="pane hidden"></div>
       <div id="pane-followed" class="pane hidden"></div>
       <div id="pane-competitors" class="pane hidden"></div>
-      <div id="pane-sessions" class="pane hidden"></div>
+      <div id="pane-budget" class="pane hidden"></div>
+      <div id="pane-routing" class="pane hidden"></div>
+      <div id="pane-process" class="pane hidden"></div>
+      <div id="pane-forge" class="pane hidden"></div>
       <div id="pane-settings" class="pane hidden"></div>
     </main>
 
@@ -80,6 +98,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=3"></script>
 </body>
 </html>

@@ -367,8 +367,7 @@ Updated container architecture. Each feature agent runs Pi in RPC mode inside a 
 Claude Code's native Task tool spawns agents that keep full team coordination (SendMessage, TaskList, UI visibility). Each agent controls a Pi instance inside a Polyphony container via RPC. The agent has Claude's brain for coordination but Pi's body for execution.
 
 **Why this is not a split-brain problem:**
-
-Codex's review flagged this as a "split-brain control model" — two agents maintaining separate state. This concern is addressed by Mnemos, which serves as a **shared memory layer that both sides can read**:
+This concern is addressed by Mnemos, which serves as a **shared memory layer that both sides can read**:
 
 - **Mnemos checkpoint** persists goal, constraints, progress, and working state to disk (`.mnemos/`)
 - **iCPG state** persists intent, constraints, and drift to disk (`.icpg/`)
@@ -649,6 +648,15 @@ Extend the 4-dimension fatigue model with model-relative normalization:
    → Output: blast radius score (0-10)
    │
    ▼
+5.5 LEXON TOOL RESOLUTION (when tool count > 20 — requires Lexon, Section 16)
+    → Structured intent from iCPG fed to Lexon two-tier routing
+    → Tier A: fast LLM router (<300ms) selects from compact tool manifest
+    → Tier B: multilingual semantic retriever (vector search over tool registry)
+    → Union candidates, filter through Terminology Map (user > org > system)
+    → If confidence < 0.82 or top-2 gap < 0.15: trigger clarify_intent
+    → Output: selected tool with confidence score + LexonRecord logged
+   │
+   ▼
 6. MODEL SELECTION (from blast score + budget)
    → Score 0-3: Qwen local / DeepSeek (free tier)
    → Score 4-6: Kimi / Gemini Flash (cheap tier)
@@ -693,6 +701,23 @@ Extend the 4-dimension fatigue model with model-relative normalization:
     → Update process_patterns.db, ci_patterns.db, pr_patterns.db
     → Feed reward registry: +0.5 first-round approval, -0.4 critical finding
     → Adjust policy: add pre-checks, evolve skills, tune PR sizing
+    │
+    ▼
+11.5 ENGRAM PERSISTENCE (async, post-task — requires Engram, Section 15)
+    → Mnemos scans completed task graph for high-confidence memories
+    → Promote to EngramRecord: conventions, patterns, preferences with confidence > 0.8
+    → Namespace-isolate per project (project A's patterns never contaminate project B)
+    → Apply temporal validity windows (patterns expire unless revalidated)
+    → Track Origin: source channel, evidence count, last verified timestamp
+    → Feed Amnesia Score diagnostic: measure retention across 7 dimensions
+    │
+    ▼
+12. MESH SYNC (async, background — requires Maggy Mesh, Section 14)
+    → Broadcast L1 score updates to connected peers (lightweight, one message per task)
+    → Merge incoming peer data: scores weighted by sample count, patterns quarantined
+    → Surface team-wide insights: "3 peers confirm: Claude best for auth"
+    → Propose cross-team policy changes when backtesting passes on team-wide data
+    → New peers receive full sync on connect — instant collective intelligence
 ```
 
 ---
@@ -777,18 +802,39 @@ maggy/
 │   │   ├── fatigue.py            # EXTENDED: model-normalized
 │   │   ├── checkpoint.py         # EXTENDED: cross-model state
 │   │   └── ...
-│   └── cikg/                     # NEW: extracted from chief-of-staff
+│   ├── cikg/                     # NEW: extracted from chief-of-staff
+│   │   ├── __init__.py
+│   │   ├── graph.py              # KnowledgeGraphService
+│   │   ├── models.py             # Node/Edge types
+│   │   └── __main__.py           # CLI: cikg query/traverse/gaps
+│   ├── engram/                   # NEW: cross-session memory persistence
+│   │   ├── __init__.py
+│   │   ├── record.py             # EngramRecord schema
+│   │   ├── store.py              # SQLite persistence + namespace isolation
+│   │   ├── retrieval.py          # Multi-path retrieval (semantic+temporal+causal)
+│   │   └── diagnostics.py        # Amnesia Score computation (7 dimensions)
+│   ├── lexon/                    # NEW: semantic tool binding
+│   │   ├── __init__.py
+│   │   ├── record.py             # LexonRecord schema
+│   │   ├── router.py             # Two-tier routing (fast LLM + vector)
+│   │   ├── terminology.py        # Terminology Map (system/org/user)
+│   │   ├── disambiguate.py       # Confidence-gated clarification (self/user modes)
+│   │   └── personalization.py    # Implicit learning from user behavior
+│   └── event_spine/              # NEW: canonical event flow
 │       ├── __init__.py
-│       ├── graph.py              # KnowledgeGraphService
-│       ├── models.py             # Node/Edge types
-│       └── __main__.py           # CLI: cikg query/traverse/gaps
+│       ├── events.py             # Typed event dataclasses (8 event types)
+│       ├── header.py             # Common EventHeader
+│       ├── emitter.py            # Event emission API (used by all components)
+│       └── store.py              # SQLite append-only event log + archive
 │
 ├── skills/
 │   ├── polyphony/SKILL.md        # Updated for Pi
 │   ├── mnemos/SKILL.md           # Updated for multi-model
 │   ├── icpg/SKILL.md             # Unchanged
 │   ├── code-graph/SKILL.md       # codebase-memory-mcp integration
-│   └── cikg/SKILL.md             # NEW: competitive intelligence skill
+│   ├── cikg/SKILL.md             # NEW: competitive intelligence skill
+│   ├── engram/SKILL.md           # NEW: cross-session memory instructions
+│   └── lexon/SKILL.md            # NEW: tool binding instructions
 │
 ├── templates/
 │   ├── Dockerfile.polyphony      # Updated: includes Pi
@@ -817,6 +863,10 @@ maggy/
 | **Phase 8** | Process intelligence (env discovery + signal collection) | Phase 5 + GitHub API |
 | **Phase 9** | MCP Forge integration (capability expansion) | Phase 5 + mcp_forge |
 | **Phase 10** | Integration testing + docs | All phases |
+| **Phase 11** | Maggy Mesh — P2P team intelligence | Phase 5 + Phase 8 |
+| **Phase 12** | Engram — Cross-session memory persistence | Phase 3 + Phase 5 |
+| **Phase 13** | Lexon — Semantic tool binding | Phase 9 + Phase 12 |
+| **Phase 14** | Event Spine — Canonical event flow | Phase 12 + Phase 13 |
 
 ---
 
@@ -1649,6 +1699,16 @@ exploration_rules:
   policy_history/         # Timestamped snapshots for rollback (also in ledger.db)
   self_eval.jsonl         # Weekly self-evaluation log
   environments/           # Auto-discovered per-project workflow configs
+  mesh.yaml               # Mesh config (org_key, port, manual peers)
+  mesh_state.db           # SQLite: peer registry, sync timestamps, message log
+  peer_id                 # This instance's stable UUID (generated on install)
+  quarantine.db           # Patterns from peers awaiting local validation
+  engram.db               # SQLite: EngramRecords with namespace, origin, confidence, temporal validity
+  engram_namespaces.yaml  # Per-project namespace config (isolation boundaries)
+  lexon.db                # SQLite: LexonRecords, terminology map entries, personalization data
+  lexon_embeddings/       # Tool registry vector index (multilingual)
+  events.db               # SQLite: append-only Event Spine log (all 8 event types)
+  events_archive/         # Compressed JSONL archives for events older than 90 days
 ```
 
 ```yaml
@@ -1999,3 +2059,921 @@ Codex (GPT-5.4) reviewed this architecture. Full review: `docs/codex-review-v5.m
 3. **Vercel deploy frequency** — On every PR, or manual trigger from Maggy?
 4. **Local model quality floor** — Minimum benchmark Qwen must pass before routing low-blast tasks to it?
 5. **Cross-project dependencies** — codebase-memory-mcp can trace HTTP_CALLS across project graphs. When zensurveys-backend changes a Route, should Maggy auto-create a task in zensurveys-frontend? The graph data is there (36 projects indexed); the question is the automation policy.
+6. **Mesh scope** — Should mesh sync extend beyond same-org? An anonymized marketplace of policies and model benchmarks across orgs could be powerful, but raises privacy/competitive concerns.
+7. **Mesh governance** — Who can promote quarantined patterns to active? Auto-promote after N confirmations, or require an explicit team lead role?
+8. **Remote mesh** — For teams without Tailscale/WireGuard, should Maggy offer a lightweight relay service, or is manual peer list + VPN sufficient?
+9. **Engram promotion threshold** — How many Mnemos confirmations before persisting an EngramRecord? Too low = noise (every transient pattern gets persisted), too high = useful conventions lost between sessions.
+10. **Lexon embedding model** — multilingual-e5-large vs paraphrase-multilingual-mpnet-base-v2? Latency vs accuracy tradeoff for the semantic retriever tier. Also: should the vector index run in-process (SQLite + FAISS) or as a sidecar service?
+11. **Engram + Mesh boundary** — Should EngramRecords be mesh-shareable directly, or keep Engram strictly local (per-machine cross-session) and only share distilled typed memory via Mesh? Direct sharing is more powerful but increases the attack surface for data leakage.
+
+---
+
+## 14. Maggy Mesh — Peer-to-Peer Team Intelligence
+
+### 14.1 The Problem
+
+Each developer runs their own Maggy. Each learns independently: model performance scores, process patterns from CI/PR reviews, workflow optimizations. 5 developers = 5 instances independently discovering the same patterns, making the same mistakes, converging on the same policies — separately. That's 5x the learning cost and 5x the time to reach optimal performance.
+
+| Scenario | Without Mesh | With Mesh |
+|----------|-------------|-----------|
+| Ali discovers "Qwen bad at API routes" | Ali knows. Sarah doesn't. | Everyone knows in 15 min. |
+| CI keeps failing on unused imports | Each dev independently adds ruff pre-check | First discovery → team-wide pre-check |
+| New developer joins | Cold start. Learns everything from scratch | Inherits team's proven patterns immediately |
+| PRs > 400 lines get rejected | Each dev discovers independently | Team-wide policy from day one |
+| CodeRabbit flags missing error handling | Each dev gets flagged separately | First dev's fix pattern shared to all |
+
+Maggy Mesh connects instances into a peer-to-peer network where learned intelligence flows between peers — no central server. The collective intelligence of the team accelerates everyone from day one.
+
+### 14.2 Network Topology
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  MAGGY MESH                                                      │
+│                                                                  │
+│  Transport: LAN / Tailscale / WireGuard                         │
+│  Discovery: mDNS (_maggy._tcp.local)                            │
+│  Auth: TLS + org_key challenge-response                          │
+│                                                                  │
+│  ┌──────────┐    bidirectional    ┌──────────┐                  │
+│  │ Ali's    │◄── WebSocket ─────►│ Sarah's  │                  │
+│  │ Maggy    │    (TLS)           │ Maggy    │                  │
+│  │          │                     │          │                  │
+│  │ Projects:│    ┌──────────┐    │ Projects:│                  │
+│  │  api     │◄──►│ Tom's    │◄──►│  web     │                  │
+│  │  mobile  │    │ Maggy    │    │  infra   │                  │
+│  └──────────┘    │          │    └──────────┘                  │
+│                  │ Projects:│                                    │
+│       ┌──────────│  ml      │──────────┐                        │
+│       │          │  data    │          │                        │
+│       │          └──────────┘          │                        │
+│       ▼                               ▼                        │
+│  ┌──────────┐                   ┌──────────┐                   │
+│  │ Priya's  │                   │ Chen's   │                   │
+│  │ Maggy    │                   │ Maggy    │                   │
+│  │ (devops) │                   │ (qa,perf)│                   │
+│  └──────────┘                   └──────────┘                   │
+│                                                                  │
+│  Each peer:                                                      │
+│    Dashboard: 127.0.0.1:8080 (local only)                       │
+│    Mesh port: 0.0.0.0:8089 (LAN/VPN)                           │
+│    Full mesh: every peer connects to every other peer           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 14.3 What Gets Shared
+
+**Shared (with provenance):**
+
+| Data Type | Source DB | What Crosses the Wire | Why It's Valuable |
+|-----------|-----------|----------------------|-------------------|
+| Model scores | `model_scores.db` | `(model, task_type, blast_tier) → reward_avg, n_samples` | "Claude is best for auth code" applies across repos |
+| Process patterns | `process_patterns.db` | `(code_pattern → fix_pattern, frequency)` | "Unused imports trigger CodeRabbit" is universal |
+| CI patterns | `ci_patterns.db` | `(failure_type → remedy, frequency)` | "ruff line-length fails" applies everywhere |
+| PR patterns | `pr_patterns.db` | `(size_bucket → avg_rounds, avg_merge_time)` | "PRs > 400 lines take 2x reviews" is team-wide |
+| Capability gaps | `capability_gaps.db` | `(request_type, frequency)` | If 3 peers need Linear integration, forge it once |
+| Policy proposals | `policy.yaml` | Model routing rules, process pre-checks | Proven optimizations benefit everyone |
+| Improvement ledger summaries | `improvement_ledger.db` | `(category, delta, status)` aggregates | "Switching to Kimi for tests saved +0.3 reward" |
+
+**Never shared:**
+
+| Data | Why Private |
+|------|-------------|
+| API keys / tokens | Security — never leaves the machine |
+| Raw code / PR content / task descriptions | Confidentiality |
+| `~/.maggy/config.yaml` | Per-developer settings |
+| `fatigue_profile.yaml` | Personal cognitive pattern |
+| File paths | Local filesystem |
+| Raw `improvement_ledger.db` entries | Instance-specific, only summaries shared |
+
+### 14.4 Every Memory Has Provenance
+
+Every piece of shared knowledge carries its origin. This prevents context collapse ("works in repo A" wrongly applied to repo B).
+
+```python
+@dataclass
+class SharedMemory:
+    """A unit of shareable knowledge across the mesh."""
+    type: str           # "score", "pattern", "ci_pattern", "pr_pattern", "gap", "proposal"
+    key: str            # unique identifier for merge
+    value: dict         # type-specific payload
+    provenance: Provenance
+    status: str         # "active", "quarantine", "rejected"
+
+@dataclass
+class Provenance:
+    """Who produced this, from what evidence, in what context."""
+    peer_id: str        # which Maggy instance
+    peer_name: str      # human-readable (e.g. "ali-macbook")
+    project_key: str    # which project (not path — just key like "api")
+    language: str       # python, typescript, go, etc.
+    toolchain: str      # ruff+mypy, eslint+tsc, etc.
+    created_at: str     # when first observed
+    evidence_count: int # how many observations back this up
+    last_verified: str  # when evidence was last re-checked
+    confidence: float   # 0.0-1.0, decays with age
+```
+
+When a peer's pattern arrives:
+- Relevant to my project? Check `language` and `toolchain` match
+- Enough evidence? Check `evidence_count >= min_peer_samples`
+- Fresh enough? Check `last_verified` within `trust_decay_days`
+
+If all pass → active. If borderline → quarantine. If wrong context → ignored.
+
+### 14.5 Discovery Protocol
+
+**mDNS (zero-config LAN):**
+
+```
+Service: _maggy._tcp.local
+TXT records:
+  org=<SHA256(org_key)[:16]>    # only peers with same org connect
+  version=0.1.0                  # mesh protocol version
+  peer_id=<stable-uuid>          # per-install identity
+  name=<hostname>                # human-readable
+  projects=3                     # number of registered projects
+```
+
+Peers with matching `org` hash auto-connect. Different org = ignored.
+
+**For remote teams (not on same LAN):**
+
+Tailscale/WireGuard puts everyone on the same virtual network. mDNS works over Tailscale natively — zero additional config.
+
+**Manual fallback:** `~/.maggy/mesh.yaml`:
+
+```yaml
+mesh:
+  enabled: true
+  org_key: "shared-secret-set-during-maggy-init"
+  port: 8089
+  name: "ali-macbook"
+  peers:
+    # Only needed if mDNS doesn't work
+    - host: 192.168.1.42
+    - host: sarah-laptop.tailnet.ts.net
+    - host: tom-desktop.local
+```
+
+### 14.6 Transport + Auth
+
+**WebSocket over TLS.** Not libp2p (heavyweight Go/Rust dependency, overkill for 3-15 person team). Python's `websockets` library is async, works with FastAPI, and is all we need.
+
+**Connection handshake:**
+
+```
+Ali's Maggy                           Sarah's Maggy
+    │                                      │
+    ├─── WSS connect to :8089 ────────────►│
+    │                                      │
+    │◄── challenge: {nonce, peer_id,       │
+    │     org_hash: SHA256(org_key)}        │
+    │                                      │
+    ├─── response: {nonce, peer_id,        │
+    │     hmac: HMAC-SHA256(nonce,org_key)} │
+    │                                      │
+    │◄── verify HMAC, accept ──────────────│
+    │                                      │
+    │◄──────── bidirectional sync ─────────►│
+```
+
+If `org_hash` doesn't match → connection rejected immediately.
+First time seeing a `peer_id` → dashboard notification: "New peer 'sarah-laptop' connected."
+
+### 14.7 Message Protocol
+
+```python
+@dataclass
+class MeshMessage:
+    type: str           # message type (see table below)
+    peer_id: str        # sender's stable UUID
+    peer_name: str      # human-readable sender name
+    timestamp: str      # ISO 8601
+    payload: dict       # type-specific data
+    signature: str      # HMAC-SHA256(json(payload), org_key)
+```
+
+| Type | Direction | Payload | Trigger |
+|------|-----------|---------|---------|
+| `heartbeat` | broadcast | `{peer_id, projects, uptime, policy_version, patterns_count}` | Every 60s |
+| `score_update` | broadcast | `{model, task_type, blast_tier, reward_delta, n_new_samples}` | L1: after task completion |
+| `pattern_share` | broadcast | `{pattern_key, type, value, provenance}` | When new pattern reaches 5+ local observations |
+| `sync_request` | peer→peer | `{tables: [...], since: timestamp}` | On connect + every 15 min |
+| `sync_response` | peer→peer | `{table, rows: [...]}` | Response to sync_request |
+| `policy_proposal` | broadcast | `{rule, evidence, confidence, backtest_delta}` | L3/L4: when backtest passes |
+| `gap_report` | broadcast | `{gap_type, description, occurrences}` | When capability gap hits threshold |
+| `peer_announce` | broadcast | `{event: "join"\|"leave", peer_info}` | On connect/disconnect |
+
+### 14.8 Sync + Merge Algorithm
+
+**Score merge — weighted average by sample count:**
+
+```python
+def merge_model_score(local: ModelScore, remote: ModelScore) -> ModelScore:
+    """More data = higher confidence. Simple, effective, no politics."""
+    total = local.n_samples + remote.n_samples
+    return ModelScore(
+        model=local.model,
+        task_type=local.task_type,
+        blast_tier=local.blast_tier,
+        reward_avg=(local.reward_avg * local.n_samples +
+                    remote.reward_avg * remote.n_samples) / total,
+        n_samples=total,
+        updated_at=max(local.updated_at, remote.updated_at),
+    )
+```
+
+**Pattern merge — union with frequency counting:**
+
+If Ali's Maggy says "unused imports → ruff fix" with 23 occurrences and Sarah's says the same with 15, merged = 38 occurrences. Higher frequency = higher confidence = more likely to be auto-applied as a pre-check.
+
+**Policy merge — NEVER auto-applied:**
+
+Policy proposals go into a queue. Before activation:
+1. Backtest against local `task_history.db` (does this policy improve *my* projects?)
+2. If backtest delta > +0.1 → auto-apply with rollback guard
+3. If backtest delta between -0.1 and +0.1 → queue for exploration (try on 10% of tasks)
+4. If backtest delta < -0.1 → reject (notify peer: "Your proposal doesn't work for my projects")
+
+**Conflict resolution:** Higher sample count wins. If my 200-sample score says "Kimi is better for API routes" and a peer's 8-sample score disagrees, the 200-sample data dominates. This naturally solves cold start: new team members absorb collective knowledge immediately without their sparse data overriding established patterns.
+
+### 14.9 Quarantine System
+
+Patterns from peers don't become active blindly. New incoming patterns start in quarantine:
+
+```
+incoming pattern
+    │
+    ├── language/toolchain matches my projects?
+    │   ├── NO → ignore (eslint patterns for Python project = useless)
+    │   └── YES ↓
+    │
+    ├── evidence_count >= min_peer_samples (default 10)?
+    │   ├── NO → ignore (too little evidence)
+    │   └── YES ↓
+    │
+    ├── contradicts my local data?
+    │   ├── YES → reject (my 200 samples say otherwise)
+    │   └── NO ↓
+    │
+    └── QUARANTINE
+        │
+        ├── Self-confirmed: I observe the same pattern locally → ACTIVE
+        ├── Crowd-confirmed: 3+ peers report same pattern → ACTIVE
+        ├── Time-expired: 30 days without confirmation → DROPPED
+        └── Human override: user clicks Accept/Reject in dashboard
+```
+
+**Poisoning defense:** If a peer suddenly sends data that contradicts 5+ other peers, or sends 10x normal volume, flag as suspicious. Don't merge. Dashboard shows: "⚠ Anomalous data from tom-desktop — 47 patterns contradict team consensus."
+
+### 14.10 Integration with Self-Improvement Loops
+
+Mesh plugs into the existing 5-level closed-loop control system:
+
+| Control Level | Without Mesh | With Mesh |
+|---------------|-------------|-----------|
+| **L0** (seconds) | React to own task failures | Same — L0 is too fast for network |
+| **L1** (minutes) | Update own model/task scores | + Broadcast `score_update` to peers |
+| **L2** (hours) | Check own daily health | + Merge peer scores; promote/drop quarantine |
+| **L3** (days) | Optimize own policy | + Backtest against **team-wide data** (higher N = better backtest) |
+| **L4** (weeks) | Recalibrate own signals | + Propose cross-team policy changes; vote on peer proposals |
+
+The mesh makes L3/L4 decisions **dramatically more reliable** because backtesting draws from the team's combined `task_history` (500+ tasks) instead of just one developer's (100 tasks). More data → better predictions → fewer rollbacks.
+
+### 14.11 Cold Start — New Developer Joins the Team
+
+```
+1. Developer installs Maggy, runs /maggy-init
+   → Sets org_key (same as team)
+   → Generates peer_id
+   → Auto-seed runs on their projects (Section 11)
+
+2. Maggy starts, announces on mDNS (_maggy._tcp.local)
+   → Discovers 4 peers on the mesh
+
+3. Full sync: sends sync_request{tables: all, since: epoch}
+   → Receives: 500+ model scores, 200+ process patterns, 150+ CI patterns
+   → All incoming data → quarantine (except scores, which auto-merge)
+
+4. As new developer works their first tasks:
+   → Local observations match quarantined patterns → auto-promote
+   → "Ah, ruff catches unused imports here too" → promoted to active
+   → "Qwen is bad at API routes? Let me try..." → confirmed → active
+
+5. Dashboard after day 1:
+   ┌──────────────────────────────────────────────────────────────┐
+   │  MESH — New Member Onboarding                                │
+   │                                                               │
+   │  Connected to: 4 peers (Protaigé org)                        │
+   │  Inherited: 847 patterns                                      │
+   │    Active: 312 (self-confirmed or crowd-confirmed)            │
+   │    Quarantine: 535 (awaiting local validation)                │
+   │                                                               │
+   │  Model routing: inherited team-wide scores                    │
+   │    → Claude for auth (team avg: +0.82, n=89)                 │
+   │    → Kimi for tests (team avg: +0.71, n=134)                 │
+   │    → Qwen for docs (team avg: +0.65, n=67)                   │
+   │                                                               │
+   │  Top patterns auto-promoted today:                            │
+   │    ✓ "ruff pre-check eliminates 40% of CI failures" (5 peers)│
+   │    ✓ "PRs > 400 lines → split" (4 peers, 200+ observations) │
+   │    ✓ "mypy strict mode catches type bugs" (3 peers)          │
+   └──────────────────────────────────────────────────────────────┘
+```
+
+The new developer's Maggy doesn't start from zero. It starts with the collective intelligence of the team. No ramp-up period. No re-learning.
+
+### 14.12 Dashboard — Mesh Tab
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  MESH                                                             │
+│                                                                   │
+│  Peers: 4 connected  │  Last sync: 2 min ago  │  Org: Protaigé  │
+│                                                                   │
+│  ┌─ Ali ──────────────── ● online ───────────────────────────────┐│
+│  │ Projects: api, mobile  │  Policy v47  │  312 active patterns  ││
+│  │ Last contribution: "Route blast 1-2 to qwen" (+0.18 delta)   ││
+│  └───────────────────────────────────────────────────────────────┘│
+│  ┌─ Sarah ────────────── ● online ───────────────────────────────┐│
+│  │ Projects: web, infra   │  Policy v31  │  189 active patterns  ││
+│  │ Last contribution: "mypy pre-check on all Python" (+0.22)    ││
+│  └───────────────────────────────────────────────────────────────┘│
+│  ┌─ Tom ─────────────── ● online ────────────────────────────────┐│
+│  │ Projects: ml, data     │  Policy v22  │  156 active patterns  ││
+│  │ Last contribution: "Gemini Flash for data pipeline tasks"     ││
+│  └───────────────────────────────────────────────────────────────┘│
+│  ┌─ Priya ──────────── ○ offline (2h) ──────────────────────────┐│
+│  │ Projects: devops       │  Policy v18  │  98 active patterns   ││
+│  │ Will sync on reconnect                                        ││
+│  └───────────────────────────────────────────────────────────────┘│
+│                                                                   │
+│  ── Policy Proposals (2) ─────────────────────────────────────── │
+│  │ "Route blast 1-2 to qwen"                                    │
+│  │   From: Ali  │  Evidence: 31 tasks  │  Backtest: +0.18       │
+│  │   Status: auto-applied (delta > +0.1)                        │
+│  │                                                               │
+│  │ "Add security scan pre-commit for auth files"                 │
+│  │   From: Sarah  │  Evidence: 12 PRs flagged  │  Backtest: +0.31│
+│  │   Status: applied on 3/4 peers, pending on Priya (offline)   │
+│  └───────────────────────────────────────────────────────────────┘│
+│                                                                   │
+│  ── Team Intelligence Summary ────────────────────────────────── │
+│  │ Total team patterns: 847 unique                               │
+│  │ Total team task history: 523 tasks across 4 peers             │
+│  │ Team-wide CI first-pass rate: 91% (up from 72% pre-Maggy)    │
+│  │ Team-wide avg review rounds: 1.3 (down from 2.8 pre-Maggy)   │
+│  │ Collective model ranking:                                     │
+│  │   #1 Claude (auth, security, complex) — avg +0.82            │
+│  │   #2 Kimi (tests, API routes, medium) — avg +0.71            │
+│  │   #3 Gemini Flash (data, pipeline) — avg +0.68               │
+│  │   #4 Qwen (docs, config, simple) — avg +0.65                 │
+│  └───────────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 14.13 The Compound Effect
+
+Week 1: 5 Maggy instances learn independently. Each discovers ~20 patterns.
+
+Week 4 (without mesh): Each has ~80 patterns. Significant overlap. Total unique knowledge: ~150 patterns across the org, but no individual has more than 80.
+
+Week 4 (with mesh): Each has ~150 patterns (the full team set). Total unique knowledge: ~150. But every individual has access to all of it. The team is 2x more optimized than any individual would be alone.
+
+Week 12 (with mesh): The compound effect kicks in. Each new discovery is immediately tested across 5 different project contexts. Patterns that work everywhere get high confidence fast. Patterns that are project-specific get properly scoped. The collective model ranking has 500+ data points per model — more reliable than any benchmark.
+
+```
+Without mesh:  knowledge = n_developers × learning_rate × time
+With mesh:     knowledge = n_developers × learning_rate × time × sharing_factor
+               where sharing_factor ≈ n_developers (superlinear)
+```
+
+Each developer's Maggy becomes as smart as the entire team. The team doesn't just add knowledge linearly — it multiplies it. This is the network effect applied to AI engineering intelligence.
+
+### 14.14 Security Model
+
+| Concern | Mitigation |
+|---------|-----------|
+| Unauthorized peer | Org key challenge-response; unknown peers require dashboard acceptance |
+| Data interception | TLS on all WebSocket connections |
+| Poisoning (bad data) | Quarantine system + anomaly detection (Section 14.9) |
+| Stale data | Confidence decay over time; `trust_decay_days` (default 30) |
+| Data leakage | Only aggregated scores/patterns cross the wire — never raw code, PR text, or secrets |
+| Key compromise | Org key rotation: `/maggy mesh rotate-key` regenerates and pushes to all connected peers |
+| Replay attacks | Nonce in handshake; timestamps in messages; reject messages > 5 min old |
+
+### 14.15 Configuration
+
+```yaml
+# Added to ~/.maggy/policy.yaml
+mesh:
+  enabled: true
+  sync_interval_minutes: 15    # full sync frequency
+  min_peer_samples: 10         # ignore peer data with < 10 samples
+  trust_decay_days: 30         # peer data confidence decays over time
+  quarantine_days: 30          # unconfirmed patterns expire
+  auto_promote_threshold: 3    # 3 independent peer confirmations → auto-promote
+  auto_accept_scores: true     # model scores merge automatically (weighted)
+  auto_accept_patterns: true   # patterns merge automatically (with quarantine)
+  auto_accept_policies: true   # policy proposals auto-apply if backtest passes (+0.1)
+  anomaly_threshold: 10        # flag peer sending 10x normal volume
+  broadcast_on_l1: true        # broadcast score updates after each task
+```
+
+Note: `auto_accept_policies: true` — this is the aggressive default. Maggy is autonomous. If a policy proposal passes backtesting with > +0.1 delta, it applies automatically. The improvement ledger tracks everything for rollback. The team lead can override to `false` if they want manual review.
+
+---
+
+## 15. Engram — Cross-Session Memory
+
+### 15.1 The Problem: Agent Amnesia
+
+Maggy's Mnemos handles memory within a task. But when a session ends, everything learned about a project — conventions, reviewer preferences, codebase idioms, tool configurations — evaporates. The next session starts from scratch. This is agent amnesia, and it has seven distinct pathologies:
+
+| Amnesia Type | What Gets Lost | Maggy Example |
+|-------------|---------------|---------------|
+| **Anterograde** | New memories fail to form across sessions | Maggy learns a project uses Zustand, forgets next session |
+| **Retrograde** | Existing memories degrade over time | A CI fix pattern fades after weeks of disuse |
+| **Temporal** | When something happened is lost | "The API was refactored" — but when? Before or after the auth change? |
+| **Source** | Where a fact came from is lost | "Use 4-space indent" — was this from the linter config or user preference? |
+| **Interference** | Memories from one context contaminate another | Project A's React patterns leak into Project B's Vue codebase |
+| **Context-binding** | Right memory, wrong retrieval context | Project has error handling conventions stored under "testing", not found during "API route creation" |
+| **Confabulation** | Inferred patterns presented as confirmed facts | Maggy "remembers" a convention it actually inferred from one example |
+
+Without Engram, Maggy is a perpetual amnesiac — impressive in the moment, but unable to compound learning across sessions.
+
+### 15.2 The EngramRecord
+
+The EngramRecord is the persistence primitive — the unit of cross-session memory.
+
+```python
+@dataclass
+class EngramRecord:
+    engram_id: str              # UUID
+    namespace: str              # Project isolation key
+    memory_type: str            # "convention", "preference", "pattern",
+                                # "tool_config", "reviewer_preference",
+                                # "codebase_idiom", "process_rule"
+    content: str                # The actual memory
+    origin: Origin              # Where this came from
+    confidence: float           # 0.0-1.0
+    evidence_count: int         # How many times confirmed
+    temporal_validity: Validity # When this is valid
+    entity_links: list[str]     # Linked entities (files, functions, people)
+    causal_links: list[str]     # Linked causes/effects
+    created_at: str             # ISO timestamp
+    last_verified: str          # When last confirmed still valid
+    last_accessed: str          # When last retrieved
+
+@dataclass
+class Origin:
+    source_type: str            # "mnemos_task", "user_explicit",
+                                # "process_signal", "mesh_peer"
+    source_id: str              # Task ID, user ID, or peer_id
+    channel: str                # "cli", "dashboard", "mesh"
+    original_evidence: str      # What prompted this memory
+
+@dataclass
+class Validity:
+    valid_from: str             # ISO timestamp
+    valid_until: str | None     # None = no expiry
+    superseded_by: str | None   # engram_id of replacement
+    decay_rate: float           # Confidence decay per day (default 0.001)
+```
+
+### 15.3 Three-Tier Namespace Model
+
+Every EngramRecord belongs to exactly one namespace tier. Three tiers prevent both cross-project contamination and useful-pattern siloing:
+
+```yaml
+# ~/.maggy/engram_namespaces.yaml
+tiers:
+  # Tier 1: LOCAL — project-specific memories
+  local:
+    zensurveys-backend:
+      language: python
+      framework: fastapi
+      isolation: strict        # No cross-namespace retrieval
+    zensurveys-frontend:
+      language: typescript
+      framework: react
+      isolation: strict
+
+  # Tier 2: PORTFOLIO — abstracted cross-project patterns
+  portfolio:
+    python-conventions:
+      scope: language          # All Python projects can read
+      abstraction: required    # Patterns must be de-contextualized
+    api-patterns:
+      scope: framework         # All API projects can read
+      abstraction: required
+    shared-conventions:
+      scope: org               # Org-wide conventions
+      abstraction: optional
+
+  # Tier 3: MESH — peer-derived memories (quarantined)
+  mesh:
+    isolation: quarantine      # Always quarantined on arrival
+    trust_decay_days: 30       # Confidence decays if unvalidated
+    auto_promote_threshold: 3  # 3 local confirmations → promote to portfolio
+```
+
+**Tier 1 (Local)** is project-scoped — a Python FastAPI project's conventions never contaminate a React project's patterns.
+
+**Tier 2 (Portfolio)** holds abstracted patterns that transcend individual projects. When a local pattern proves useful across 3+ projects, it's promoted to portfolio — but only after de-contextualization (stripping project-specific names, paths, and configurations). This prevents the "works everywhere" illusion while enabling genuine cross-project learning.
+
+**Tier 3 (Mesh)** holds peer-derived memories that arrive via Maggy Mesh. These always enter quarantine and must be locally validated before promotion. A mesh pattern from a peer's Python project goes to portfolio-level `python-conventions` only after local confirmation.
+
+Retrieval queries search local first, then portfolio, then mesh — with confidence weighting per tier.
+
+### 15.3.1 Engram as Improvement Substrate
+
+Engram absorbs the improvement ledger. The relationship:
+
+- **Improvement ledger** = the mutation log (what changed, when, who proposed)
+- **Engram** = the memory substrate (persists the "what" across sessions)
+- **Reward registry** = the outcome signal (did the change work?)
+
+Before Engram, the improvement ledger was ephemeral — mutations were logged but lost between sessions. Engram makes the ledger persistent: every L2/L3/L4 mutation becomes an EngramRecord with `memory_type: "mutation"`, carrying the original proposal, the delta metric, and the outcome reward. This means Maggy can remember not just what it learned, but what it tried, what worked, and what failed — the full self-improvement history.
+
+### 15.4 Memory Lifecycle
+
+```
+Mnemos (within-task)
+  → Task completes with high-confidence memories
+  → Promotion filter: confidence > 0.8, evidence_count >= 3
+  │
+  ▼
+Engram (cross-session, per-machine)
+  → EngramRecord created with full Origin + Validity
+  → Namespace-isolated per project
+  → Multi-path retrieval: semantic + temporal + entity links
+  → Confidence decays with age unless revalidated
+  │
+  ▼
+Mesh (cross-machine, per-org) [optional]
+  → High-confidence EngramRecords distilled into Mesh typed memory
+  → Shared with peers as patterns/scores with provenance
+  → Incoming peer patterns enter quarantine (Section 14.9)
+```
+
+### 15.5 Multi-Path Retrieval
+
+Single-path semantic retrieval fails when the retrieval query doesn't match the storage encoding. Engram retrieves across four paths simultaneously:
+
+| Path | What It Finds | Example |
+|------|-------------|---------|
+| **Semantic** | Content-similar memories | Query "API route" finds "REST endpoint conventions" |
+| **Temporal** | Recent or temporally-relevant memories | Query finds patterns from the same sprint/phase |
+| **Causal** | Cause-effect linked memories | "Auth refactor" finds "session middleware change" it caused |
+| **Entity** | Entity-linked memories | Query about `auth.py` finds all conventions touching that file |
+
+Retrieval returns a merged, deduplicated set ranked by `confidence * recency * path_match_score`.
+
+### 15.6 Amnesia Score Diagnostic
+
+Each project gets a 7-dimension Amnesia Score (0.0 = perfect retention, 1.0 = total amnesia):
+
+```python
+@dataclass
+class AmnesiaProfile:
+    anterograde: float    # Are new memories forming across sessions?
+    retrograde: float     # Are old memories degrading?
+    temporal: float       # Is temporal context preserved?
+    source: float         # Is origin attribution maintained?
+    interference: float   # Is cross-namespace contamination occurring?
+    context_binding: float # Are memories retrievable in the right context?
+    confabulation: float  # Are inferred patterns presented as facts?
+
+    @property
+    def overall(self) -> float:
+        return sum(vars(self).values()) / 7
+```
+
+The L3 weekly loop analyzes Amnesia Scores per project and patches memory encoding rules:
+- High anterograde score → lower the promotion threshold (more memories get persisted)
+- High interference score → tighten namespace isolation rules
+- High confabulation score → require higher evidence_count before promotion
+
+### 15.7 Integration with Control Loops
+
+| Level | Engram Integration |
+|-------|-------------------|
+| **L0** | Check if current task context matches any EngramRecords — surface relevant conventions |
+| **L1** | Promote high-confidence task memories to EngramRecords |
+| **L2** | Daily: check for decayed records, run amnesia diagnostics |
+| **L3** | Weekly: analyze Amnesia Scores, adjust promotion thresholds, patch encoding rules |
+| **L4** | Monthly: evaluate whether Engram is reducing session startup time and improving consistency |
+
+---
+
+## 16. Lexon — Semantic Tool Binding
+
+### 16.1 The Problem: Tool Selection Collapses at Scale
+
+At 5-10 tools, models select correctly. At 20-30, confusion between similar-sounding tools emerges. At 50+, accuracy collapses: the model selects plausible-sounding but incorrect tools, hallucinates parameters, or conflates capabilities. This is well-documented in research (RAG-MCP: accuracy drops from 87% to 13% as tools grow from 10 to 100).
+
+Maggy's tool count will grow aggressively:
+- MCP Forge (Phase 9) auto-generates MCP servers from API docs
+- Process Intelligence (Phase 8) adds signal collectors per integration
+- Each project's toolchain adds environment-specific tools
+- Mesh peers may surface tool recommendations
+
+Without Lexon, Maggy's tool accuracy will degrade as it becomes more capable.
+
+### 16.2 The LexonRecord
+
+```python
+@dataclass
+class LexonRecord:
+    lexon_id: str               # UUID
+    phrase: str                 # Original user phrase (pre-translation)
+    phrase_normalized: str      # Post-translation, lowercased
+    language: str               # ISO 639-1 detected language
+    is_mixed: bool              # Code-switching detected
+
+    # Intent source — Lexon binds more than user phrases
+    source_type: str            # "user_phrase" | "reason_node" | "mnemo_node"
+                                # | "process_signal" | "mesh_policy"
+    structured_intent: str | None  # iCPG ReasonNode ref (if source_type != "user_phrase")
+    reason_node_ref: str | None    # Pointer to iCPG ReasonNode that triggered routing
+    engram_refs: list[str]         # EngramRecord IDs used to resolve this binding
+
+    # Routing results
+    candidate_tools: list       # [{tool_name, tool_version, schema_hash, score, source}]
+    selected_tool: str | None   # None if clarification required
+    selected_tool_version: str | None  # Semantic version of selected tool
+    selected_tool_schema_hash: str | None  # Hash of tool's input schema at bind time
+    confidence: float           # 0.0-1.0
+    ambiguity_class: str | None # "near_miss" | "vocabulary_gap" | "context_dependent"
+    negative_bindings: list[str]  # Tool names explicitly excluded (NOT bindings)
+
+    # Disambiguation
+    was_clarified: bool         # Disambiguation was triggered
+    clarify_mode: str           # "self_clarify" | "user_clarify"
+
+    # Outcome tracking
+    correction: str | None      # If user corrected post-execution
+    correction_source: str | None  # "user_explicit" | "ci_failure" | "review_comment"
+    outcome_reward: float | None   # -1.0 to 1.0: did the binding produce good results?
+
+    # Context
+    context_snapshot: str       # Pointer to Mnemos ContextNode
+    user_id: str
+    created_at: str
+```
+
+The enhanced LexonRecord captures not just what was bound, but why (intent source), to which version (tool contract), whether the binding worked (outcome reward), and how errors were detected (correction source). This transforms Lexon from a lookup table into a reward-bearing learning system.
+
+### 16.3 Five-Layer Pipeline
+
+Every tool invocation passes through five layers:
+
+```
+Layer 1: LANGUAGE NORMALIZATION
+  → Detect language (lightweight classifier)
+  → Translate to English for routing only (response stays in user language)
+  → Handle code-switching: extract English anchor terms from mixed-language input
+  │
+  ▼
+Layer 2: TWO-TIER ROUTING
+  → Tier A (fast LLM, <300ms): compact tool manifest (name + 1-line description)
+    Returns 5-7 candidates with rationale. JSON schema constrained to valid tool names.
+  → Tier B (semantic retriever): multilingual embedding search over tool registry
+    Each tool indexed by: description, example queries, learned synonyms
+    Returns 5-7 candidates with cosine similarity scores.
+  → Union + deduplication. Tools in both lists get score bonus.
+  │
+  ▼
+Layer 3: TERMINOLOGY MAP FILTER
+  → Query three-level Terminology Map: user > org > system
+  → Explicit user preferences override everything (confidence 1.0)
+  → NOT bindings: "blast" explicitly does NOT mean "delete_all"
+  → Context-conditioned: "follow up" → different tool depending on active entity
+  │
+  ▼
+Layer 4: DISAMBIGUATION (dual-mode)
+  → If top candidate confidence > 0.82 and gap to #2 > 0.15: proceed
+  → Otherwise: choose clarify mode based on action reversibility:
+
+  → MODE A — self_clarify (default, autonomous):
+    Lexon resolves ambiguity without asking the user by consulting:
+    - iCPG ReasonNode: structured sub-goal narrows candidate set
+    - Mnemos ContextNode: active entity and recent tool history
+    - Engram: past bindings for this phrase in this project
+    - Process history: which tool succeeded last time in similar context
+    - Mesh consensus: what do peers bind this phrase to?
+    If any source resolves confidence above threshold → proceed silently.
+    Logged as self_clarify in LexonRecord for audit.
+
+  → MODE B — user_clarify (irreversible actions only):
+    Triggered only when action is destructive, expensive, or irreversible
+    (delete, deploy, billing, permission changes).
+    Present 2-3 concrete options in user's language.
+    User's selection becomes high-confidence Terminology Map entry.
+
+  → Autonomous agents should almost never trigger user_clarify.
+    The goal: 95%+ resolutions via self_clarify after 50+ interactions.
+  │
+  ▼
+Layer 5: FEEDBACK + PERSONALIZATION
+  → Five implicit learning signals update Terminology Map:
+    1. Correction: user corrects → add NOT binding + positive binding
+    2. Affirmation: user proceeds → increment confidence
+    3. Repetition: same phrase→tool 5+ times → promote to high-confidence synonym
+    4. Disambiguation selection: capture context + choice as user-level binding
+    5. Clarification repetition: same phrase triggers 3+ disambiguations → prompt explicit preference
+  → High-confidence bindings (>0.9, used >10 times) promoted to Engram for cross-session persistence
+```
+
+### 16.4 Terminology Map Structure
+
+```python
+@dataclass
+class TerminologyEntry:
+    phrase: str                 # "blast my list"
+    tool_name: str              # "bulk_email_send"
+    params: dict | None         # Default parameters if applicable
+    NOT: list[str]              # ["delete_all"] — explicitly NOT this tool
+    context: str | None         # "contact_selected" — binding condition
+    level: str                  # "system" | "org" | "user"
+    confidence: float           # 1.0 for explicit, <1.0 for learned
+    user_id: str | None         # None for system/org level
+```
+
+Resolution order: explicit user-level (confidence 1.0) > org-level > system-level > router inference. An explicit user preference is ground truth and bypasses confidence scoring.
+
+### 16.5 Org-Level Terminology via Mesh
+
+The Terminology Map has an org level between system and user. In a Maggy Mesh deployment:
+- Team leads can define shared vocabulary
+- Org-level entries propagate to all peers as default bindings
+- Individual users can override at user level
+- New team members inherit org vocabulary on Mesh cold start
+
+This is a natural extension of Mesh's typed memory: terminology entries are a new type alongside scores, patterns, policies, and gaps.
+
+### 16.6 Integration with RFC Stack
+
+```
+iCPG (structured intent) → Lexon (routes to correct tool)
+                              ↕
+                          Mnemos (tracks tool selection quality via ToolCallNode)
+                              ↕
+                          Engram (persists learned vocabulary across sessions)
+                              ↕
+                          Mesh (shares org-level terminology across machines)
+```
+
+| Component | Lexon Reads From | Lexon Writes To |
+|-----------|-----------------|----------------|
+| **iCPG** | ReasonNode provides structured sub-goal (better routing signal than raw text) | — |
+| **Mnemos** | ContextNode for active entity (disambiguation signal) | ToolCallNode logged per invocation |
+| **Engram** | High-confidence user synonyms from past sessions | Promotes confirmed bindings for persistence |
+| **Mesh** | Org-level terminology entries from peers | Shares learned org-level vocabulary |
+
+### 16.7 Configuration
+
+```yaml
+# Added to ~/.maggy/policy.yaml
+lexon:
+  enabled: true
+  fast_llm_model: "claude-haiku"      # Tier A: speed over depth
+  embedding_model: "multilingual-e5-large"
+  confidence_threshold: 0.82
+  disambiguation_gap: 0.15
+  max_candidates: 7
+  personalization:
+    implicit_learning: true
+    promotion_threshold: 10           # Uses before promoting to Engram
+    correction_weight: 2.0            # Corrections count double
+  terminology_map:
+    system_file: "lexon_system_terms.yaml"
+    org_sync_via_mesh: true           # Share org terms through Mesh
+```
+
+---
+
+## 17. Event Spine — Canonical Event Flow
+
+### 17.1 Why an Event Spine
+
+Maggy's components — iCPG, Mnemos, Lexon, Engram, Process Intelligence, Mesh — each generate their own events in their own formats. Without a canonical event spine, correlating "user said X → Lexon bound tool Y → execution failed → memory Z was created → mutation W was proposed → mesh peer P received it" requires stitching together six different log formats.
+
+The Event Spine defines a single ordered event stream that every component writes to. Each event carries a common header and a typed payload. This enables end-to-end tracing, reward attribution, and replay for debugging.
+
+### 17.2 Event Types
+
+```
+IntentEvent ──► BindingEvent ──► ExecutionEvent ──► MemoryEvent
+                                                       │
+                                                       ▼
+MeshEvent ◄── MutationEvent ◄── OutcomeEvent ◄── PersistenceEvent
+```
+
+| Event | Emitted By | What It Captures |
+|-------|-----------|-----------------|
+| **IntentEvent** | iCPG | Structured sub-goal from ReasonNode decomposition |
+| **BindingEvent** | Lexon | Tool selection: which tool, which version, confidence, clarify mode |
+| **ExecutionEvent** | Pi / Agent | Tool invocation: input, output, duration, exit code |
+| **MemoryEvent** | Mnemos | Within-task memory write: node type, confidence, entity links |
+| **PersistenceEvent** | Engram | Cross-session memory promotion: namespace tier, memory type |
+| **OutcomeEvent** | Process Intelligence | Task outcome: success/failure, metric delta, reward signal |
+| **MutationEvent** | L2/L3/L4 Loops | Self-modification: what changed, why, expected delta |
+| **MeshEvent** | Mesh | Cross-machine sharing: what was sent/received, quarantine status |
+
+### 17.3 Common Event Header
+
+Every event carries a standard header for correlation and audit:
+
+```python
+@dataclass
+class EventHeader:
+    event_id: str           # UUID — unique per event
+    event_type: str         # "intent" | "binding" | "execution" | ...
+    task_id: str            # Links all events in a single task
+    project_id: str         # Engram namespace key
+    agent_id: str           # Which agent (Pi instance) emitted this
+    model_id: str           # Which LLM was active
+    confidence: float       # Event-level confidence (0.0-1.0)
+    namespace: str          # Engram namespace tier (local/portfolio/mesh)
+    policy_version: str     # Which policy.yaml version was active
+    reward_delta: float | None  # Outcome signal (-1.0 to 1.0)
+    timestamp: str          # ISO 8601
+    parent_event_id: str | None  # Causal parent (enables event DAG)
+```
+
+### 17.4 Typed Payloads
+
+```python
+@dataclass
+class IntentEvent:
+    header: EventHeader
+    reason_node_id: str     # iCPG ReasonNode that decomposed this
+    sub_goal: str           # Natural language sub-goal
+    blast_radius: int       # iCPG blast radius estimate
+    drift_score: float      # iCPG drift from original intent
+
+@dataclass
+class BindingEvent:
+    header: EventHeader
+    lexon_record_id: str    # LexonRecord UUID
+    source_type: str        # "user_phrase" | "reason_node" | ...
+    selected_tool: str
+    tool_version: str
+    schema_hash: str
+    clarify_mode: str       # "self_clarify" | "user_clarify"
+    ambiguity_class: str | None
+
+@dataclass
+class OutcomeEvent:
+    header: EventHeader
+    success: bool
+    metric_name: str        # "tests_passed", "ci_green", "pr_merged"
+    metric_before: float
+    metric_after: float
+    reward: float           # Computed reward signal
+```
+
+### 17.5 What the Event Spine Enables
+
+| Capability | How |
+|-----------|-----|
+| **End-to-end tracing** | Follow task_id across all 8 event types |
+| **Reward attribution** | OutcomeEvent.reward propagates back to BindingEvent (was tool selection good?) and MutationEvent (was self-modification good?) |
+| **Replay debugging** | Replay event stream to reproduce failures without re-executing |
+| **Amnesia diagnosis** | Compare MemoryEvent → PersistenceEvent conversion rate per project |
+| **Mesh audit** | Track exactly what crossed the wire and whether quarantine was justified |
+| **Self-improvement validation** | MutationEvent + OutcomeEvent = evidence for whether L3/L4 changes helped |
+
+### 17.6 Storage and Retention
+
+```yaml
+# Added to ~/.maggy/policy.yaml
+event_spine:
+  enabled: true
+  storage: "~/.maggy/events.db"    # SQLite — append-only event log
+  retention_days: 90               # Events older than 90 days → archive
+  archive_format: "jsonl.gz"       # Compressed JSONL for cold storage
+  index_fields:                    # Fields indexed for fast queries
+    - task_id
+    - event_type
+    - project_id
+    - timestamp
+```
+
+### 17.7 Integration Summary
+
+```
+User speaks → IntentEvent (iCPG decomposes)
+           → BindingEvent (Lexon routes to tool)
+           → ExecutionEvent (Pi executes)
+           → MemoryEvent (Mnemos records)
+           → PersistenceEvent (Engram persists)
+           → OutcomeEvent (Process Intelligence scores)
+           → MutationEvent (L2/L3 self-modifies)
+           → MeshEvent (Mesh shares with peers)
+
+Every step is typed, correlated by task_id, and carries a reward signal.
+This is the nervous system of an autonomous engineering agent.
+```
