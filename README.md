@@ -1,10 +1,10 @@
 # Maggy
 
-> An opinionated project initialization system for Claude Code. **Agent teams by default, strict TDD pipeline, multi-engine code review, security-first.**
+> **From opinionated Claude Code setup to autonomous AI engineering platform.**
 
-**The bottleneck has moved from code generation to code comprehension.** AI can generate infinite code, but humans still need to review, understand, and maintain it. Maggy provides guardrails that keep AI-generated code simple, secure, and verifiable.
+Maggy started as an opinionated project initialization system for Claude Code — skills, TDD hooks, quality gates. It has evolved into a full autonomous engineering command center: interactive chat with session takeover, multi-agent orchestration in containers, P2P mesh networking across machines, AI-prioritized task triage, competitor intelligence, and process analytics. The guardrails that keep AI-generated code simple, secure, and verifiable are still the foundation — but now they power an end-to-end autonomous engineering workflow.
 
-**New in v5.0.0:** Interactive Chat with session takeover (`--resume`), Polyphony multi-agent orchestration with container isolation, P2P Mesh networking for cross-machine session sync, auto-bootstrap (no empty tabs), grouped dashboard navigation (Work/Intel/System).
+**v5.0.0** — Interactive Chat (`--resume` session takeover), Polyphony (container-isolated multi-agent orchestration), P2P Mesh (cross-machine session sync), auto-bootstrap, grouped dashboard navigation.
 
 ## Core Philosophy
 
@@ -728,23 +728,33 @@ npm i -g vercel && vercel login
 brew install supabase/tap/supabase && supabase login
 ```
 
-## Key Differences from v2.x
+## Evolution
 
-| Feature | v2.x | v5.0.0 |
-|---------|------|--------|
-| **TDD Loops** | Ralph Wiggum plugin (doesn't exist) | Stop hooks (real Claude Code infra) |
-| **CLAUDE.md** | Lists skills as text | `@include` directives (load at parse time) |
-| **Quality Rules** | In CLAUDE.md as prose | `.claude/rules/` with `paths:` frontmatter |
-| **Agent Teams** | Required env var flag | Native via `.claude/agents/` + Polyphony containers |
-| **Agent Definitions** | Plain markdown | Frontmatter: tools, model, maxTurns, effort |
-| **Permissions** | Manual approval | Pre-configured allow/deny in settings.json |
-| **Framework Rules** | Always loaded (token waste) | Conditional rules activate by file path |
-| **Compaction** | Generic summarization | PreCompact hook + Mnemos typed preservation |
-| **Memory** | Lost on compaction | Mnemos checkpoint/resume across sessions |
-| **Intent Tracking** | None | iCPG links code to reasons, detects drift |
-| **Dashboard** | None | Maggy — chat, tasks, competitors, insights, P2P mesh |
-| **Cross-Agent** | None | Codex auto-review, Kimi delegation, complexity scoring |
-| **Enforcement** | "STRICTLY ENFORCED" prose | Real hooks that run code |
+| Version | Date | What Changed |
+|---------|------|-------------|
+| **v1.0** | Jan 2026 | Initial release — 30+ skills, `/initialize-project`, TDD via Ralph Wiggum loops, Python/TypeScript/React support |
+| **v2.0** | Jan 2026 | Skills restructured (`folder/SKILL.md`), YAML frontmatter, validation tests, 60+ skills across 10 categories |
+| **v3.0** | Mar 2026 | **Real Claude Code infrastructure** — Ralph Wiggum replaced with Stop hooks, `@include` directives, conditional rules (`paths:` frontmatter), agent teams via `.claude/agents/`, pre-configured permissions |
+| **v3.3** | Apr 2026 | Mnemos (task-scoped memory), iCPG (intent tracking + drift detection), Maggy dashboard MVP (inbox, execute, competitors) |
+| **v3.5** | Apr 2026 | PreCompact hook for smarter compaction, fatigue model (4 dimensions), hook error resilience |
+| **v3.6** | May 2026 | Cross-tool compatibility (Claude + Kimi + Codex), cross-agent intelligence (Codex auto-review, Kimi delegation), complexity-based routing |
+| **v4.0** | May 2026 | **Polyphony** — multi-agent orchestration with container isolation, 5-dimension complexity scoring, Docker runtime, 3 agent adapters, state machine task lifecycle |
+| **v5.0** | May 2026 | **Autonomous command center** — Interactive Chat with `--resume` takeover, P2P Mesh networking, process intelligence, auto-bootstrap, grouped UI (Work/Intel/System), 468 tests, security hardening (path validation, streaming lock) |
+
+### Where we started vs where we are
+
+| Area | v1 (Jan 2026) | v5 (May 2026) |
+|------|---------------|---------------|
+| **Scope** | Claude Code project setup tool | Autonomous AI engineering platform |
+| **TDD** | Ralph Wiggum plugin (didn't exist) | Real Stop hooks with iteration tracking |
+| **Skills** | 30 flat `.md` files | 62 skills with `@include`, conditional rules |
+| **Memory** | None (lost on compaction) | Mnemos typed graph + fatigue model |
+| **Intent** | None | iCPG with 6-dimension drift detection |
+| **Agents** | Single Claude session | Polyphony containers + cross-agent delegation |
+| **Models** | Claude only | Claude + Codex + Kimi + complexity routing |
+| **Dashboard** | None | Maggy — chat, tasks, competitors, insights, mesh |
+| **Networking** | None | P2P Mesh (WebSocket sync, org-scoped) |
+| **Tests** | Shell validation script | 468 pytest tests + integration suite |
 
 ## Contributing
 
