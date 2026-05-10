@@ -467,6 +467,64 @@ Execute and Chat both run Claude Code with `--dangerously-skip-permissions` so s
 
 See `maggy/README.md` for the full hardening notes.
 
+### P2P Mesh Network
+
+Multi-node session sync and handoff across machines. Each Maggy instance is a mesh peer that can share memory, discover other nodes, and synchronize state.
+
+| Component | What it does |
+|-----------|-------------|
+| **Peer Discovery** | Registry of known peers with address, org, last-seen tracking |
+| **Git Discovery** | Auto-discovers peers from shared git remotes across configured codebases |
+| **WebSocket Server/Client** | Bidirectional real-time communication between peers |
+| **Mesh Protocol** | 7 message types: `hello`, `share`, `request`, `response`, `quarantine`, `promote`, `heartbeat` |
+| **Quarantine** | Untrusted data from peers is quarantined until reviewed — prevents poisoned memory injection |
+| **Org Scoping** | Peers are filtered by org key so only your team's nodes connect |
+| **Provenance** | Tracks origin of shared data (which peer, when, confidence level) |
+
+Configure in `~/.maggy/config.yaml`:
+
+```yaml
+mesh:
+  enabled: true
+  port: 8080
+  orgs: ["my-team"]
+  git_discovery: true
+  share_interval: 600
+```
+
+### Engram Memory
+
+Persistent memory system with typed records, namespace isolation, and multi-path retrieval. Engrams survive across sessions — they're stored in SQLite, not in-context.
+
+| Field | Purpose |
+|-------|---------|
+| `memory_type` | `fact`, `decision`, `code_ref`, `handoff` |
+| `origin` | `explicit` (user-created), `inferred` (AI-derived), `mesh` (from peer) |
+| `validity` | `active`, `superseded`, `expired` |
+| `confidence` | 0.0-1.0 trust score |
+| `namespace` | Project/session scoping |
+| `expires_at` | Optional TTL for auto-expiry |
+
+Retrieval paths: by namespace, by type, by keyword, by tag, or most recent. The heartbeat scheduler runs periodic expiry to clean stale entries.
+
+### Event Spine
+
+Structured event emission and querying across all Maggy services. Every significant action (task executed, competitor discovered, history analyzed, self-improvement run) emits a typed event with a standard header.
+
+Events are stored in SQLite and queryable via the `/api/events` endpoint. The Insights tab visualizes event streams for debugging and auditing service behavior.
+
+### Other Subsystems
+
+| Subsystem | Purpose |
+|-----------|---------|
+| **CIKG** | Code Intelligence Knowledge Graph — codebase nodes, technology detection, landscape queries |
+| **Forge** | MCP capability gap detection — scans filesystem patterns, suggests MCP tools to fill gaps |
+| **History** | CLI session history parsers for Claude, Codex, and Kimi — topic extraction, session patterns |
+| **Improve** | Self-improvement — signal collection, health scoring, actionable recommendations |
+| **Budget** | Daily token spend limits with per-provider breakdown |
+| **Model Router** | Reward-based heatmap for model selection by task type |
+| **Heartbeat** | Scheduled jobs — history refresh, engram expiry, self-improvement, mesh sync |
+
 ## Pre-configured Permissions
 
 `.claude/settings.json` includes permission rules so users don't get pestered for routine operations:
