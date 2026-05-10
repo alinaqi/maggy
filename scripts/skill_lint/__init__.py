@@ -1,4 +1,4 @@
-"""skill_lint -- Quality gates for Claude Bootstrap skills."""
+"""skill_lint -- Quality gates for Maggy skills."""
 
 from __future__ import annotations
 

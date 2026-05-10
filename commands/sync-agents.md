@@ -11,7 +11,7 @@ Run this after `/initialize-project` or anytime you want to ensure all installed
 ```bash
 BOOTSTRAP_DIR=$(cat ~/.claude/.bootstrap-dir 2>/dev/null)
 if [ -z "$BOOTSTRAP_DIR" ]; then
-    echo "Error: claude-bootstrap not installed. Run install.sh first."
+    echo "Error: Maggy not installed. Run install.sh first."
     exit 1
 fi
 DETECTED=$("$BOOTSTRAP_DIR/scripts/detect-agents.sh" 2>/dev/null || echo "claude")

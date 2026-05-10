@@ -1,10 +1,10 @@
 # Maggy — Generic AI Engineering Command Center
 
-Ships with `claude-bootstrap`. One install, works with any team.
+Ships as a core component of Maggy. One install, works with any team.
 
 ## What Maggy Is
 
-A local, self-improving AI agent that turns your issue tracker into an AI-prioritized inbox with one-click execution. Uses claude-bootstrap's iCPG for codebase intelligence and spawns `claude -p` for implementation.
+A local, self-improving AI agent that turns your issue tracker into an AI-prioritized inbox with one-click execution. Uses Maggy's iCPG for codebase intelligence and spawns `claude -p` for implementation.
 
 Not a cloud service — runs on your machine, talks to your APIs, uses your Claude Code.
 
@@ -30,8 +30,8 @@ That's it. Works the same for any org.
 ## Architecture
 
 ```
-claude-bootstrap/
-├── maggy/                          # NEW — the whole Maggy app
+maggy/
+├── maggy/                          # The Maggy dashboard app
 │   ├── PLAN.md                     # this file
 │   ├── README.md                   # user docs
 │   ├── install.sh                  # one-line install
@@ -121,9 +121,9 @@ class IssueTrackerProvider(Protocol):
 
 `GitHubIssuesProvider` and `AsanaProvider` both implement this. Services call `provider.list_tasks()` — they don't care what's underneath.
 
-### 3. Reuses claude-bootstrap's iCPG
+### 3. Reuses Maggy's iCPG
 
-Don't duplicate iCPG. Maggy shells out to the bootstrap's iCPG CLI:
+Don't duplicate iCPG. Maggy shells out to the iCPG CLI:
 
 ```python
 # executor.py
@@ -136,7 +136,7 @@ async def _get_icpg_context(title: str, notes: str) -> str:
     return format_icpg_block(context)
 ```
 
-This means Maggy automatically benefits from bootstrap's iCPG upgrades. No duplicate symbol indexing.
+This means the dashboard automatically benefits from iCPG upgrades. No duplicate symbol indexing.
 
 ### 4. SQLite-first storage
 
@@ -147,15 +147,15 @@ The zenloop version used Supabase for P2P coordination. For a single-user local 
 
 ### 5. Dashboard is minimal but real
 
-Not a React SPA — Tailwind CDN + vanilla JS. Matches claude-bootstrap's philosophy (no build step, dead simple). Three views:
+Not a React SPA — Tailwind CDN + vanilla JS. Matches Maggy's philosophy (no build step, dead simple). Three views:
 
 1. **Inbox** — AI-prioritized issues with Execute/Plan/Comment buttons
 2. **Competitor News** — daily AI briefing + news feed
 3. **Settings** — view/edit config, health check
 
-### 6. Ships with claude-bootstrap
+### 6. Ships with Maggy
 
-User installs claude-bootstrap, runs `/maggy-init` in Claude Code, and Maggy is configured + running. `/maggy` in any Claude Code session opens the dashboard.
+User installs Maggy, runs `/maggy-init` in Claude Code, and the dashboard is configured + running. `/maggy` in any Claude Code session opens the dashboard.
 
 ## MVP Scope (what I'm building now)
 
@@ -169,7 +169,7 @@ User installs claude-bootstrap, runs `/maggy-init` in Claude Code, and Maggy is 
 - [ ] FastAPI server + 8 endpoints
 - [ ] Minimal HTML dashboard
 - [ ] install.sh + pyproject.toml + README
-- [ ] claude-bootstrap /maggy and /maggy-init commands
+- [ ] /maggy and /maggy-init commands
 - [ ] skills/maggy/SKILL.md
 
 **Deferred to v2 (not MVP):**
@@ -188,7 +188,7 @@ User installs claude-bootstrap, runs `/maggy-init` in Claude Code, and Maggy is 
 After install:
 
 ```bash
-cd ~/Documents/AI-Playground/claude-bootstrap/maggy
+cd ~/Documents/AI-Playground/maggy/maggy
 ./install.sh
 
 # Configure

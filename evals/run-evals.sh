@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run behavioral evals for Claude Bootstrap skills.
+# Run behavioral evals for Maggy skills.
 #
 # Usage:
 #   ./run-evals.sh                   # Run all evals

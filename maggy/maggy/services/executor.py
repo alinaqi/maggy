@@ -1,6 +1,6 @@
 """Executor — TDD pipeline that spawns claude -p with iCPG-enriched prompts.
 
-Reuses claude-bootstrap's iCPG CLI for codebase intelligence. Picks the right
+Reuses Maggy's iCPG CLI for codebase intelligence. Picks the right
 working directory based on ticket keywords and configured codebase paths.
 """
 
@@ -213,7 +213,7 @@ class ExecutorService:
             session["error"] = str(e)
 
     async def _build_icpg_context(self, task: Task, wd: str) -> str:
-        """Query claude-bootstrap's iCPG CLI for symbols/blast radius/prior intents.
+        """Query Maggy's iCPG CLI for symbols/blast radius/prior intents.
 
         Silent fallback if iCPG isn't installed or repo isn't indexed — returns empty string.
 
@@ -262,7 +262,7 @@ class ExecutorService:
 
         return (
             "## iCPG Code Intelligence\n"
-            "Pre-queried from claude-bootstrap's intent code property graph:\n\n"
+            "Pre-queried from Maggy's intent code property graph:\n\n"
             + text[:2000]
             + "\n\n**Use this to target your file reads and avoid searching blind.**"
         )

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Polyphony is a container-isolated multi-agent orchestration system for claude-bootstrap. Each agent session runs in its own Docker container with a full git clone on its own branch, enabling true parallel execution without conflicts.
+Polyphony is a container-isolated multi-agent orchestration system for Maggy. Each agent session runs in its own Docker container with a full git clone on its own branch, enabling true parallel execution without conflicts.
 
 ## Architecture
 

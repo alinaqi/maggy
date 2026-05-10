@@ -1,4 +1,4 @@
-# Contributing to Claude Bootstrap
+# Contributing to Maggy
 
 Thanks for your interest in contributing! This project aims to make AI-assisted development more reliable and consistent.
 

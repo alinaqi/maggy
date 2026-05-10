@@ -9,7 +9,7 @@ effort: high
 # Agent Teams Skill
 
 
-**Purpose:** Every project initialized with claude-bootstrap runs as a coordinated team of AI agents. This is the default workflow, not optional. Teams enforce a strict TDD pipeline where no step can be skipped.
+**Purpose:** Every project initialized with Maggy runs as a coordinated team of AI agents. This is the default workflow, not optional. Teams enforce a strict TDD pipeline where no step can be skipped.
 
 **Setup:** Agent definitions go in `.claude/agents/` with proper frontmatter (name, description, model, tools, disallowedTools, maxTurns, effort). See agent files for the format.
 

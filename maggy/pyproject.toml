@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "maggy"
 version = "0.1.0"
-description = "Generic AI engineering command center — ships with claude-bootstrap"
+description = "Generic AI engineering command center — part of the Maggy platform"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

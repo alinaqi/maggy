@@ -1,6 +1,6 @@
 # /maggy — Launch Maggy Dashboard
 
-Start Maggy (the AI engineering command center that ships with claude-bootstrap) and open the dashboard in a browser.
+Start Maggy (the AI engineering command center) and open the dashboard in a browser.
 
 ---
 
@@ -52,7 +52,7 @@ BOOTSTRAP_DIR=$(cat ~/.claude/.bootstrap-dir 2>/dev/null || echo "")
 MAGGY_DIR="$BOOTSTRAP_DIR/maggy"
 
 if [ ! -d "$MAGGY_DIR" ]; then
-  echo "Maggy not installed. Run: cd <claude-bootstrap>/maggy && ./install.sh"
+  echo "Maggy not installed. Run: cd <maggy>/maggy && ./install.sh"
   exit 1
 fi
 

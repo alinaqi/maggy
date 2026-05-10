@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Claude Bootstrap Installer
+# Maggy Installer
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
-echo "Installing Claude Bootstrap v4.0.0..."
+echo "Installing Maggy v4.0.0..."
 echo ""
 
 # Save bootstrap directory location for other scripts

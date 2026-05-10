@@ -81,7 +81,7 @@ dashboard:
   # "token" = require X-API-Key header matching MAGGY_API_KEY env var.
   auth_mode: "local"
 
-# Paths to claude-bootstrap installation — auto-detected, usually don't touch.
+# Paths to Maggy installation — auto-detected, usually don't touch.
 bootstrap:
   # If omitted, Maggy looks at ~/.claude/.bootstrap-dir written by install.sh
   path: ""

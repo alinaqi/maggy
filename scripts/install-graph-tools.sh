@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             echo "Usage: install-graph-tools.sh [OPTIONS]"
             echo ""
-            echo "Install code graph MCP servers for claude-bootstrap."
+            echo "Install code graph MCP servers for Maggy."
             echo ""
             echo "Options:"
             echo "  (no flags)   Install Tier 1 only (codebase-memory-mcp)"

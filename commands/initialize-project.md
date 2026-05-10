@@ -8,7 +8,7 @@ Full project setup with Claude coding guardrails. Works for both new and existin
 
 ## Phase 0: Validate Bootstrap Installation
 
-**FIRST**, verify claude-bootstrap is properly installed:
+**FIRST**, verify Maggy is properly installed:
 
 ```bash
 # Read bootstrap directory (saved during install)
@@ -1504,7 +1504,7 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 
 Also add to the project's `.env.example` if not present:
 ```
-# Agent Teams (required for claude-bootstrap team workflow)
+# Agent Teams (required for Maggy team workflow)
 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 

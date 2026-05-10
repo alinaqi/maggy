@@ -24,16 +24,13 @@ def _auth(request: Request, x_api_key: str | None) -> None:
 
 
 def _require_configured(request: Request) -> None:
-    """Abort with 503 if Maggy hasn't been configured yet.
-
-    `/api/health` and `/api/config` stay available without this guard so
-    an onboarding UI can detect unconfigured state and drive setup.
-    """
-    if not getattr(request.app.state, "configured", False):
+    """Abort 503 if no provider credentials (Tier 2)."""
+    mode = getattr(request.app.state, "mode", "local")
+    if mode != "full":
         raise HTTPException(
             status_code=503,
-            detail="Maggy is not configured yet. Edit ~/.maggy/config.yaml "
-                   "(see config.example.yaml) and restart.",
+            detail="Provider credentials required. "
+            "Set GITHUB_TOKEN or configure Asana.",
         )
 
 
@@ -42,13 +39,37 @@ def _require_configured(request: Request) -> None:
 @router.get("/health")
 async def health(request: Request) -> dict:
     cfg = request.app.state.cfg
+    mode = getattr(request.app.state, "mode", "local")
     return {
         "status": "ok",
         "version": "0.1.0",
+        "mode": mode,
         "provider": cfg.issue_tracker.provider,
         "org": cfg.org.name,
         "codebases": len(cfg.codebases),
-        "competitors_enabled": bool(cfg.competitors.categories),
+        "competitors_enabled": bool(
+            cfg.competitors.categories,
+        ),
+    }
+
+
+@router.get("/activity")
+async def get_activity(request: Request) -> dict:
+    """Live CLI sessions + recent prompts. No credentials needed."""
+    return request.app.state.activity.get_activity()
+
+
+@router.get("/discovery")
+async def get_discovery(request: Request) -> dict:
+    """Return auto-discovered environment info."""
+    from maggy.discovery import full_discovery
+    result = full_discovery()
+    return {
+        "clis": result.clis,
+        "repos": result.repos,
+        "active_projects": result.active_projects,
+        "tokens": result.tokens,
+        "github_org": result.github_org,
     }
 
 

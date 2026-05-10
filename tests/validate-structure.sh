@@ -1,5 +1,5 @@
 #!/bin/bash
-# validate-structure.sh - Validates claude-bootstrap structure matches Claude Code requirements
+# validate-structure.sh - Validates Maggy structure matches Claude Code requirements
 # Run with: ./tests/validate-structure.sh
 # Exit codes: 0 = all pass, 1 = failures
 
@@ -376,7 +376,7 @@ test_scripts_structure() {
 # ============================================================================
 quick_validate() {
     echo ""
-    echo "🔍 Quick validation of claude-bootstrap installation..."
+    echo "🔍 Quick validation of Maggy installation..."
     echo ""
 
     local errors=0
@@ -491,7 +491,7 @@ test_cross_tool_templates() {
 show_help() {
     echo "Usage: $(basename "$0") [OPTIONS]"
     echo ""
-    echo "Validates claude-bootstrap structure matches Claude Code requirements."
+    echo "Validates Maggy structure matches Claude Code requirements."
     echo ""
     echo "Options:"
     echo "  --quick     Quick validation (for initialize-project)"
@@ -536,7 +536,7 @@ main() {
     # Full validation
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║     CLAUDE-BOOTSTRAP STRUCTURE VALIDATION                  ║"
+    echo "║     MAGGY STRUCTURE VALIDATION                              ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
     echo "Validating: $ROOT_DIR"

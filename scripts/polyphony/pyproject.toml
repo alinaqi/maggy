@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "polyphony"
 version = "0.1.0"
-description = "Multi-agent orchestration for claude-bootstrap"
+description = "Multi-agent orchestration for Maggy"
 requires-python = ">=3.11"
 dependencies = ["pyyaml>=6.0"]
 

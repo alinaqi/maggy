@@ -1,6 +1,6 @@
 # Mnemos Implementation Addendum
 
-Implementation details for the Mnemos RFC (Task-Scoped Memory Lifecycle for Autonomous Agents) as deployed in claude-bootstrap.
+Implementation details for the Mnemos RFC (Task-Scoped Memory Lifecycle for Autonomous Agents) as deployed in Maggy.
 
 ## 1. Signal Access in Claude Code
 

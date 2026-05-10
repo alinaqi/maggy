@@ -1,6 +1,6 @@
 # Agent CLI Configuration
 # Compatible with Kimi CLI and OpenAI Codex CLI
-# Generated from claude-bootstrap settings.json hooks
+# Generated from Maggy settings.json hooks
 #
 # Kimi: copy to ~/.kimi/config.toml or .kimi/config.toml
 # Codex: copy to ~/.codex/config.toml or .codex/config.toml

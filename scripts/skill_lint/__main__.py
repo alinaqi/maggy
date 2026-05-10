@@ -1,4 +1,4 @@
-"""CLI entry point for skill-lint -- Quality gates for Claude Bootstrap skills."""
+"""CLI entry point for skill-lint -- Quality gates for Maggy skills."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def severity_from_str(s: str) -> Severity:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog='skill-lint',
-        description='Quality gates for Claude Bootstrap skills'
+        description='Quality gates for Maggy skills'
     )
     parser.add_argument(
         '--version', action='version', version=f'skill-lint {__version__}'

@@ -1,8 +1,8 @@
-# Claude Bootstrap
+# Maggy
 
 > An opinionated project initialization system for Claude Code. **Agent teams by default, strict TDD pipeline, multi-engine code review, security-first.**
 
-**The bottleneck has moved from code generation to code comprehension.** AI can generate infinite code, but humans still need to review, understand, and maintain it. Claude Bootstrap provides guardrails that keep AI-generated code simple, secure, and verifiable.
+**The bottleneck has moved from code generation to code comprehension.** AI can generate infinite code, but humans still need to review, understand, and maintain it. Maggy provides guardrails that keep AI-generated code simple, secure, and verifiable.
 
 **New in v3.6.0:** Cross-agent intelligence — Codex auto-reviews your code via Stop hook, Kimi handles small-blast-radius tasks to save tokens, iCPG + Mnemos mandatory across all three tools. Cross-tool compatibility with Claude Code, Kimi CLI, and Codex CLI.
 
@@ -51,8 +51,8 @@
 
 ```bash
 # Clone and install (clone anywhere you like)
-git clone https://github.com/alinaqi/claude-bootstrap.git
-cd claude-bootstrap && ./install.sh
+git clone https://github.com/alinaqi/maggy.git
+cd maggy && ./install.sh
 
 # In any project directory
 claude
@@ -71,7 +71,7 @@ Claude will:
 
 ## Cross-Tool Compatibility (Claude + Kimi + Codex)
 
-Claude Bootstrap works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**. All three use the same `SKILL.md` format.
+Maggy works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**. All three use the same `SKILL.md` format.
 
 | Feature | Claude Code | Kimi CLI | Codex CLI |
 |---------|-------------|----------|-----------|
@@ -88,8 +88,8 @@ Claude Bootstrap works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CL
 curl -L code.kimi.com/install.sh | bash     # Kimi
 npm i -g @openai/codex                       # Codex
 
-# Reinstall bootstrap to pick up new tools
-cd claude-bootstrap && ./install.sh
+# Reinstall to pick up new tools
+cd maggy && ./install.sh
 
 # In any project, sync cross-tool config
 claude
@@ -98,7 +98,7 @@ claude
 
 ## Cross-Agent Intelligence
 
-When multiple AI CLI tools are installed, claude-bootstrap enables intelligent collaboration between them.
+When multiple AI CLI tools are installed, Maggy enables intelligent collaboration between them.
 
 ### Codex Auto-Review (Stop Hook)
 
@@ -363,12 +363,12 @@ icpg bootstrap                                    # Infer from git history
 
 **6-Dimension Drift Detection:** spec drift, decision drift, ownership drift, test drift, usage drift, dependency drift.
 
-## Maggy — AI Engineering Command Center (Optional)
+## Maggy Dashboard — AI Engineering Command Center (Optional)
 
-Maggy turns your team's issue tracker into an AI-prioritized inbox with one-click code execution. It's an **optional extension** that ships under `maggy/` — install it when you want a persistent dashboard, skip it if you only need the CLI-based bootstrap.
+Maggy's dashboard turns your team's issue tracker into an AI-prioritized inbox with one-click code execution. It's an **optional extension** that ships under `maggy/` — install it when you want a persistent dashboard, skip it if you only need the CLI-based setup.
 
 ```bash
-cd claude-bootstrap/maggy
+cd maggy/maggy
 ./install.sh
 
 # Edit ~/.maggy/config.yaml — set your org, GitHub repos, codebase paths
@@ -396,8 +396,8 @@ Or from inside any Claude Code session:
 ### Architecture
 
 ```
-claude-bootstrap/
-├── maggy/                           # optional — run ./install.sh to enable
+maggy/
+├── maggy/                           # optional dashboard — run ./install.sh to enable
 │   ├── maggy/                       # Python package (importable as `maggy`)
 │   │   ├── main.py                  # FastAPI entry
 │   │   ├── config.py                # ~/.maggy/config.yaml loader

@@ -214,7 +214,7 @@ _project_specs/workspace/
 # Workspace Topology
 
 Generated: 2026-01-20T14:32:00Z
-Analyzer: claude-bootstrap/workspace-analysis
+Analyzer: maggy/workspace-analysis
 Workspace Type: Monorepo (Turborepo)
 
 ## Overview

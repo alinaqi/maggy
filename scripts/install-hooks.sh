@@ -31,7 +31,7 @@ if [ ! -d "$HOOKS_DIR" ]; then
     if [ -f "$CLAUDE_DIR/.bootstrap-dir" ]; then
         echo "   Run $(cat "$CLAUDE_DIR/.bootstrap-dir")/install.sh first."
     else
-        echo "   Run install.sh from your claude-bootstrap clone first."
+        echo "   Run install.sh from your Maggy clone first."
     fi
     exit 1
 fi

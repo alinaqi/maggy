@@ -1,6 +1,6 @@
 ---
 name: maggy
-description: Maggy is a local AI engineering command center bundled with claude-bootstrap. AI-prioritized inbox across issue trackers (GitHub Issues/Asana), one-click TDD execute with iCPG context enrichment, daily competitor intelligence briefing.
+description: Maggy is a local AI engineering command center. AI-prioritized inbox across issue trackers (GitHub Issues/Asana), one-click TDD execute with iCPG context enrichment, daily competitor intelligence briefing.
 when-to-use: "When you want a persistent dashboard to triage tickets and spawn Claude Code runs against any repo"
 user-invocable: true
 effort: medium
@@ -8,7 +8,7 @@ effort: medium
 
 # Maggy Skill
 
-**Maggy** is a generic, local AI engineering command center that ships with claude-bootstrap. Install once, point it at your team's issue tracker and codebases, and get:
+**Maggy** is a generic, local AI engineering command center. Install once, point it at your team's issue tracker and codebases, and get:
 
 - **AI-prioritized inbox** — ranks open issues by urgency, OKR alignment, and recency
 - **One-click Execute** — spawns Claude Code locally with iCPG context injected
@@ -37,11 +37,11 @@ authors you trust.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  claude-bootstrap  ──────────────┐                           │
+│  maggy               ──────────────┐                          │
 │  ├── skills/         ← installed globally → ~/.claude/       │
 │  ├── commands/       ← installed globally → ~/.claude/       │
 │  ├── scripts/icpg/   ← used by Maggy for context enrichment  │
-│  └── maggy/          ← OPTIONAL: run `./install.sh` to use   │
+│  └── maggy/          ← dashboard: run `./install.sh` to use  │
 │      ├── src/                                                │
 │      │   ├── providers/   ← GitHub / Asana / Linear          │
 │      │   ├── services/    ← inbox, competitor, executor      │
@@ -104,7 +104,7 @@ The same inbox, Execute pipeline, and Competitor features work with any provider
 
 When you click Execute on a ticket:
 
-1. Maggy queries the configured iCPG (from claude-bootstrap) for relevant symbols, blast radius, and prior intents
+1. Maggy queries the configured iCPG for relevant symbols, blast radius, and prior intents
 2. Picks the right working directory based on ticket keywords + configured codebases
 3. Spawns `claude -p --dangerously-skip-permissions` in that directory
 4. Runs analyze → write failing tests → implement

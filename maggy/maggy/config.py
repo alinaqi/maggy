@@ -101,6 +101,51 @@ class BootstrapConfig:
 
 
 @dataclass
+class ModelTierConfig:
+    name: str = ""
+    provider: str = ""
+    model: str = ""
+    complexity_range: list[int] = field(default_factory=lambda: [0, 10])
+    strengths: list[str] = field(default_factory=list)
+    cost_per_1k: float = 0.0
+
+
+@dataclass
+class BudgetConfig:
+    daily_limit_usd: float = 10.0
+    warning_threshold: float = 0.8
+
+
+@dataclass
+class RoutingConfig:
+    mode: str = "dynamic"
+    tiers: list[ModelTierConfig] = field(default_factory=list)
+
+
+@dataclass
+class MeshConfig:
+    enabled: bool = False
+    peer_id: str = ""
+    port: int = 8080
+    org_key_secret: str = ""
+    orgs: list[str] = field(default_factory=list)
+    exclude_orgs: list[str] = field(default_factory=list)
+    manual_peers: list[str] = field(default_factory=list)
+    tunnel_url: str = ""
+    git_discovery: bool = True
+    share_interval: int = 600
+
+
+@dataclass
+class HeartbeatConfig:
+    enabled: bool = True
+    history_interval: int = 1800
+    engram_interval: int = 3600
+    improve_interval: int = 3600
+    mesh_interval: int = 300
+
+
+@dataclass
 class MaggyConfig:
     org: OrgConfig = field(default_factory=OrgConfig)
     issue_tracker: IssueTrackerConfig = field(default_factory=IssueTrackerConfig)
@@ -111,13 +156,17 @@ class MaggyConfig:
     storage: StorageConfig = field(default_factory=StorageConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     bootstrap: BootstrapConfig = field(default_factory=BootstrapConfig)
+    budget: BudgetConfig = field(default_factory=BudgetConfig)
+    routing: RoutingConfig = field(default_factory=RoutingConfig)
+    mesh: MeshConfig = field(default_factory=MeshConfig)
+    heartbeat: HeartbeatConfig = field(default_factory=HeartbeatConfig)
 
     def codebase_paths(self) -> dict[str, Path]:
         """Return {key: expanded_path} for all configured codebases."""
         return {c.key: Path(c.path).expanduser() for c in self.codebases}
 
     def resolve_bootstrap_path(self) -> Path | None:
-        """Find claude-bootstrap install. Checks config, then ~/.claude/.bootstrap-dir."""
+        """Find Maggy install. Checks config, then ~/.claude/.bootstrap-dir."""
         if self.bootstrap.path:
             return Path(self.bootstrap.path).expanduser()
         marker = Path.home() / ".claude" / ".bootstrap-dir"
@@ -129,11 +178,21 @@ class MaggyConfig:
 def _merge_env(cfg: MaggyConfig) -> MaggyConfig:
     """Override config with env vars where defined. Env wins over file."""
     cfg.issue_tracker.github.token = os.environ.get("GITHUB_TOKEN", cfg.issue_tracker.github.token)
+    # Fall back to git credential helper if no env var
+    if not cfg.issue_tracker.github.token:
+        cfg.issue_tracker.github.token = _git_credential_token()
     cfg.issue_tracker.asana.token = os.environ.get("ASANA_API_KEY", cfg.issue_tracker.asana.token)
     cfg.issue_tracker.linear.token = os.environ.get("LINEAR_API_KEY", cfg.issue_tracker.linear.token)
     cfg.ai.api_key = os.environ.get("ANTHROPIC_API_KEY", cfg.ai.api_key)
     cfg.dashboard.api_key = os.environ.get("MAGGY_API_KEY", cfg.dashboard.api_key)
+    cfg.mesh.org_key_secret = os.environ.get("MAGGY_MESH_SECRET", cfg.mesh.org_key_secret)
     return cfg
+
+
+def _git_credential_token() -> str:
+    """Read GitHub token from git credential helper."""
+    from maggy.discovery import discover_git_token
+    return discover_git_token()
 
 
 def _from_dict(data: dict[str, Any]) -> MaggyConfig:
@@ -152,6 +211,15 @@ def _from_dict(data: dict[str, Any]) -> MaggyConfig:
         items=[OKRItem(**item) for item in (okr_raw.get("items") or [])],
     )
 
+    routing_raw = data.get("routing") or {}
+    routing = RoutingConfig(
+        mode=routing_raw.get("mode", "dynamic"),
+        tiers=[
+            ModelTierConfig(**t)
+            for t in (routing_raw.get("tiers") or [])
+        ],
+    )
+
     return MaggyConfig(
         org=OrgConfig(**(data.get("org") or {})),
         issue_tracker=tracker,
@@ -162,10 +230,74 @@ def _from_dict(data: dict[str, Any]) -> MaggyConfig:
         storage=StorageConfig(**(data.get("storage") or {})),
         dashboard=DashboardConfig(**(data.get("dashboard") or {})),
         bootstrap=BootstrapConfig(**(data.get("bootstrap") or {})),
+        budget=BudgetConfig(**(data.get("budget") or {})),
+        routing=routing,
+        mesh=MeshConfig(**(data.get("mesh") or {})),
+        heartbeat=HeartbeatConfig(**(data.get("heartbeat") or {})),
     )
 
 
 _CACHED: MaggyConfig | None = None
+
+
+def _has_provider_credentials(cfg: MaggyConfig) -> bool:
+    """Check if config has full provider credentials."""
+    if cfg.issue_tracker.provider == "github":
+        gh = cfg.issue_tracker.github
+        return bool(gh.org and gh.repos and gh.token)
+    if cfg.issue_tracker.provider == "asana":
+        az = cfg.issue_tracker.asana
+        return bool(az.workspace_id and az.token)
+    return False
+
+
+def _has_cli_history(
+    home: Path | None = None,
+) -> bool:
+    """Check if any CLI data directories exist."""
+    root = home or Path.home()
+    for d in (".claude", ".codex", ".kimi"):
+        if (root / d).exists():
+            return True
+    return False
+
+
+def auto_configure(
+    home: Path | None = None,
+    persist: bool = True,
+) -> MaggyConfig:
+    """Build config from auto-discovery."""
+    from maggy.discovery import full_discovery, infer_github_org
+    result = full_discovery(home)
+    cfg = MaggyConfig(
+        codebases=[
+            CodebaseConfig(path=r["path"], key=r["key"])
+            for r in result.repos
+        ],
+    )
+    if result.github_org:
+        cfg.issue_tracker.github.org = result.github_org
+    # Auto-populate repos matching the primary org
+    if result.github_org:
+        cfg.issue_tracker.github.repos = _repos_for_org(
+            result.repos, result.github_org,
+        )
+    if persist:
+        save(cfg)
+    return _merge_env(cfg)
+
+
+def _repos_for_org(
+    repos: list[dict], org: str,
+) -> list[str]:
+    """Filter repo names belonging to a GitHub org."""
+    from maggy.discovery import infer_github_org
+    matched: list[str] = []
+    for repo in repos:
+        repo_org = infer_github_org(Path(repo["path"]))
+        if repo_org == org:
+            matched.append(repo["key"])
+    return matched
 
 
 def load(refresh: bool = False) -> MaggyConfig:
@@ -175,7 +307,6 @@ def load(refresh: bool = False) -> MaggyConfig:
         return _CACHED
 
     if not CONFIG_PATH.exists():
-        # Empty config — caller will get defaults. Useful for init flow.
         _CACHED = _merge_env(MaggyConfig())
         return _CACHED
 
@@ -203,22 +334,15 @@ def save(cfg: MaggyConfig) -> None:
 
 
 def is_configured() -> bool:
-    """Check if Maggy has been set up (config file + minimum fields + provider token).
+    """Check if Maggy has enough to be useful.
 
-    Forces a refresh so we don't trust a stale empty cache from an earlier
-    load() that ran before the file existed. Also requires provider credentials
-    — without them, the app would claim to be configured but every API call
-    would immediately 401.
+    Full mode: provider credentials present.
+    Local mode: CLI history dirs exist (zero-config).
     """
-    if not CONFIG_PATH.exists():
-        return False
-    cfg = load(refresh=True)
-    if cfg.issue_tracker.provider == "github":
-        gh = cfg.issue_tracker.github
-        return bool(gh.org and gh.repos and gh.token)
-    if cfg.issue_tracker.provider == "asana":
-        az = cfg.issue_tracker.asana
-        return bool(az.workspace_id and az.token)
-    # NOTE: provider="linear" is a stub — providers.build() raises for it.
-    # Don't mark it as configured, or create_app() will crash at startup.
+    if CONFIG_PATH.exists():
+        cfg = load(refresh=True)
+        if _has_provider_credentials(cfg):
+            return True
+    if _has_cli_history():
+        return True
     return False

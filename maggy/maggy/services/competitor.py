@@ -16,8 +16,9 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
-import anthropic
 import feedparser
+
+from maggy.services.ai_client import ai_complete
 import httpx
 
 from maggy.config import MaggyConfig
@@ -164,8 +165,6 @@ class CompetitorService:
 
         Stores results in ~/.maggy/competitors.json (merges with existing).
         """
-        if not self.cfg.ai.api_key:
-            return {"error": "ANTHROPIC_API_KEY not set", "added": 0}
         if not self.cfg.competitors.categories:
             return {"error": "No competitor categories configured", "added": 0}
 
@@ -200,15 +199,9 @@ Format (STRICT JSON):
 ]}}"""
 
         try:
-            # Use async client so the event loop isn't blocked during
-            # a multi-second LLM round-trip.
-            client = anthropic.AsyncAnthropic(api_key=self.cfg.ai.api_key)
-            msg = await client.messages.create(
-                model=self.cfg.ai.model,
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = msg.content[0].text if msg.content else ""
+            text = await ai_complete(prompt, self.cfg)
+            if not text:
+                return {"error": "No AI provider available", "added": 0}
             start = text.find("{")
             end = text.rfind("}")
             data = json.loads(text[start:end + 1])
@@ -407,9 +400,6 @@ Format (STRICT JSON):
         news = self.get_news(limit=80)
         if not news:
             return {"date": today, "summary": "No competitor news yet. Run a scan first.", "total_signals": 0}
-        if not self.cfg.ai.api_key:
-            return {"date": today, "summary": "AI not configured — add ANTHROPIC_API_KEY to generate briefings.", "total_signals": len(news)}
-
         digest = [f"[{n['event_type']}] {n['competitor_name']}: {n['title']}" for n in news[:50]]
         domain = self.cfg.org.domain or "our domain"
 
@@ -427,13 +417,9 @@ Signals ({len(digest)} total):
 {chr(10).join(digest)}"""
 
         try:
-            client = anthropic.AsyncAnthropic(api_key=self.cfg.ai.api_key)
-            msg = await client.messages.create(
-                model=self.cfg.ai.model,
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            summary = msg.content[0].text if msg.content else ""
+            summary = await ai_complete(prompt, self.cfg)
+            if not summary:
+                return {"date": today, "summary": "No AI provider available for briefing.", "total_signals": len(news)}
         except Exception as e:
             return {"date": today, "summary": f"Failed to generate briefing: {e}", "total_signals": len(news)}
 

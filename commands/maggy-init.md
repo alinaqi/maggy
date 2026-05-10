@@ -16,7 +16,7 @@ Interactive wizard that configures Maggy for the user's org, issue tracker, and 
 
 - Python 3.11+ available
 - `claude` CLI on PATH (warn but don't block)
-- claude-bootstrap installed (check `~/.claude/.bootstrap-dir`)
+- Maggy installed (check `~/.claude/.bootstrap-dir`)
 
 ### 2. Run installer
 
