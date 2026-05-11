@@ -16,11 +16,11 @@ DEFAULT_TIERS: list[ModelTier] = [
     ModelTier(
         name="local",
         provider="ollama",
-        model="qwen2.5-coder:32b",
+        model="qwen3-coder:30b-a3b-q8_0",
         cost_rank=1,
         complexity_min=0,
-        complexity_max=2,
-        strengths=["formatting", "simple_edits"],
+        complexity_max=3,
+        strengths=["formatting", "simple_edits", "crud"],
     ),
     ModelTier(
         name="kimi",

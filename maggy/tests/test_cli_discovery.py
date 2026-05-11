@@ -94,17 +94,17 @@ def test_ollama_discovered():
     assert p.installed is True
     assert p.uses_run_subcommand is True
     assert p.prompt_is_positional is True
-    assert "qwen2.5-coder" in p.run_model
+    assert "qwen" in p.run_model and "coder" in p.run_model
 
 
 def test_ollama_build_command():
     p = CliProfile(
         name="ollama", binary="ollama", installed=True,
-        uses_run_subcommand=True, run_model="qwen2.5-coder:32b",
+        uses_run_subcommand=True, run_model="qwen3-coder:30b-a3b-q8_0",
         prompt_is_positional=True,
     )
     cmd = p.build_command("do stuff", "/tmp/repo", 5)
-    assert cmd[:4] == ["ollama", "run", "qwen2.5-coder:32b", "do stuff"]
+    assert cmd[:4] == ["ollama", "run", "qwen3-coder:30b-a3b-q8_0", "do stuff"]
     assert "--output-format" not in cmd
 
 

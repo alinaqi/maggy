@@ -200,9 +200,11 @@ def _detect_ollama_model(profile: CliProfile) -> str:
         )
         text = out.stdout.lower()
     except (subprocess.TimeoutExpired, OSError):
-        return "qwen2.5-coder:32b"
-    # Prefer coding models, then general, by size
+        return "qwen3-coder:30b-a3b-q8_0"
+    # Prefer Qwen3-Coder (MoE, 3.3B active), then older models
     prefs = [
+        "qwen3-coder:30b-a3b-q8_0",
+        "qwen3-coder:30b",
         "qwen2.5-coder:32b", "qwen2.5-coder:14b",
         "qwen2.5-coder:7b", "deepseek-coder-v2",
         "codellama:34b", "codellama:13b",
@@ -215,7 +217,7 @@ def _detect_ollama_model(profile: CliProfile) -> str:
     lines = out.stdout.strip().splitlines()
     if len(lines) > 1:
         return lines[1].split()[0]
-    return "qwen2.5-coder:32b"
+    return "qwen3-coder:30b-a3b-q8_0"
 
 
 def _has(text: str, pattern: str) -> bool:

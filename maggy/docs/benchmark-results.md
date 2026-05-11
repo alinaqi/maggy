@@ -206,6 +206,7 @@ Standalone generation speed measured with identical prompts across all four mode
 | Model | Run 1 | Run 2 | Run 3 | Avg tok/s | Notes |
 |-------|-------|-------|-------|-----------|-------|
 | **Ollama qwen2.5-coder:32b** | 22.3 | 21.8 | 22.1 | **22.1** | Local GPU (M4 Max), consistent across runs |
+| **Ollama qwen3-coder:30b-a3b-q8_0** | TBD | TBD | TBD | **TBD** | MoE (3.3B active/30B total), Q8_0, pending benchmark |
 | **Claude (claude -p)** | 44.6 (API) / 18.6 (wall) | 41.9 / 14.3 | 25.7 / 6.8 | **37.4 API / 13.2 wall** | API time excludes network overhead; wall-clock includes CLI startup |
 | **Kimi (kimi CLI)** | ~1.8 | ~2.8 | ~3.3 | **~2.6** | Agentic mode — writes files, runs tools; tok/s reflects execution time |
 | **Codex (codex exec)** | ~0.8 | ~0.7 | ~0.6 | **~0.7** | Agentic mode — full-auto file creation; tok/s reflects execution time |
@@ -220,7 +221,7 @@ Standalone generation speed measured with identical prompts across all four mode
 
 | Tier | Model | tok/s | Cost | Best For |
 |------|-------|-------|------|----------|
-| Local | Ollama qwen2.5-coder:32b | 22 | Free | Blast 1-2: docs, simple scaffolding |
+| Local | Ollama qwen3-coder:30b-a3b-q8_0 | TBD | Free | Blast 1-3: docs, simple edits, CRUD |
 | Mid | Kimi | 2.6 (agentic) | Cheap | Blast 3-4: schema design, CRUD |
 | Premium-Auto | Codex | 0.7 (agentic) | Mid | Blast 5-6: feature implementation |
 | Premium | Claude | 37 (API) | High | Blast 7+: security, architecture, TDD |

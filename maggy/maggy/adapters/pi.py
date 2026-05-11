@@ -38,7 +38,7 @@ class ModelEntry:
 
 
 DEFAULT_MODELS: list[ModelEntry] = [
-    ModelEntry("local", "ollama", "qwen2.5-coder:32b", "local", 0.0, 0.0, "ollama", 32_000),
+    ModelEntry("local", "ollama", "qwen3-coder:30b-a3b-q8_0", "local", 0.0, 0.0, "ollama", 32_000),
     ModelEntry("kimi", "moonshot", "kimi-k2", "cheap", 0.001, 10.0, "kimi", 128_000),
     ModelEntry("deepseek", "deepseek", "deepseek-v3", "cheap", 0.002, 10.0, "deepseek", 128_000),
     ModelEntry("gpt", "openai", "gpt-4o", "medium", 0.01, 20.0, "codex", 128_000),
