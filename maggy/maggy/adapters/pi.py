@@ -1,14 +1,26 @@
-"""Unified adapter for CLI prompts and Pi RPC control."""
+"""Unified adapter for CLI prompts and Pi RPC control.
+
+Auto-discovers installed AI CLIs and their flags at init time
+so Maggy can orchestrate any subscription-based tool (claude,
+codex, kimi, etc.) without hardcoded command templates.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import AsyncIterator
+
+from maggy.adapters.cli_discovery import (
+    CliProfile,
+    DiscoveryResult,
+    discover_all,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +38,7 @@ class ModelEntry:
 
 
 DEFAULT_MODELS: list[ModelEntry] = [
+    ModelEntry("local", "ollama", "qwen2.5-coder:32b", "local", 0.0, 0.0, "ollama", 32_000),
     ModelEntry("kimi", "moonshot", "kimi-k2", "cheap", 0.001, 10.0, "kimi", 128_000),
     ModelEntry("deepseek", "deepseek", "deepseek-v3", "cheap", 0.002, 10.0, "deepseek", 128_000),
     ModelEntry("gpt", "openai", "gpt-4o", "medium", 0.01, 20.0, "codex", 128_000),
@@ -53,13 +66,19 @@ class PiAdapter:
         self,
         models: list[ModelEntry] | None = None,
         rpc_command: str = "pi",
+        discovery: DiscoveryResult | None = None,
     ):
         entries = models or DEFAULT_MODELS
         self._models = {entry.name: entry for entry in entries}
-        self._fallback_order = [entry.name for entry in sorted(entries, key=lambda m: m.cost_per_1k)]
+        self._fallback_order = [
+            entry.name for entry in sorted(entries, key=lambda m: m.cost_per_1k)
+        ]
         self._rpc_command = rpc_command
         self._rpc_process: subprocess.Popen[str] | None = None
         self._streaming = False
+        self._discovery = discovery or discover_all()
+        self._profiles: dict[str, CliProfile] = self._discovery.profiles
+        self._log_discovery()
 
     def get_model(self, name: str) -> ModelEntry | None:
         return self._models.get(name)
@@ -142,17 +161,13 @@ class PiAdapter:
         finally:
             self._streaming = False
 
-    def _build_command(self, model: ModelEntry, prompt: str, max_turns: int) -> list[str]:
-        cmd = [model.cli_command, "-p", prompt]
-        if model.cli_command == "claude":
-            cmd += [
-                "--output-format",
-                "text",
-                "--max-turns",
-                str(max_turns),
-                "--dangerously-skip-permissions",
-            ]
-        return cmd
+    def _build_command(
+        self, model: ModelEntry, prompt: str, max_turns: int, wd: str,
+    ) -> list[str]:
+        profile = self._profiles.get(model.cli_command)
+        if profile and profile.installed:
+            return profile.build_command(prompt, wd, max_turns)
+        return [model.cli_command, "-p", prompt]
 
     def _detect_quota(self, text: str) -> bool:
         return any(marker in text.lower() for marker in QUOTA_MARKERS)
@@ -167,12 +182,24 @@ class PiAdapter:
         max_turns: int,
         working_dir: str,
     ) -> asyncio.subprocess.Process:
+        env = os.environ.copy()
+        env.pop("CLAUDECODE", None)
         return await asyncio.create_subprocess_exec(
-            *self._build_command(model, prompt, max_turns),
+            *self._build_command(model, prompt, max_turns, working_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=working_dir,
+            env=env,
         )
+
+    def _log_discovery(self) -> None:
+        for name, p in self._profiles.items():
+            level = logging.INFO if p.installed else logging.DEBUG
+            logger.log(level, "CLI %s: %s v%s", "OK" if p.installed else "missing", name, p.version)
+
+    @property
+    def discovered_profiles(self) -> dict[str, CliProfile]:
+        return dict(self._profiles)
 
     def _prompt_result(self, model_name: str, code: int, stdout: bytes) -> RunResult:
         text = stdout.decode("utf-8", errors="replace")

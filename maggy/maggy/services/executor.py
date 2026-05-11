@@ -15,10 +15,17 @@ from pathlib import Path
 
 from maggy.adapters.pi import PiAdapter, RunResult
 from maggy.budget import BudgetManager
+from maggy.checkpoint import CheckpointManager
 from maggy.config import MaggyConfig
+from maggy.coordination.lock_manager import LockManager
+from maggy.escalation.protocol import Escalator
+from maggy.mnemos.fatigue import FatigueTracker
+from maggy.mnemos.signals import SignalLog
 from maggy.process.model_router import RoutingDecision
 from maggy.providers.base import IssueTrackerProvider, Task
+from maggy.recovery.rollback import RollbackManager
 from maggy.routing import RoutingContext, RoutingService
+from maggy.services.planner import DualPlanner
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +40,15 @@ class ExecutorService:
         self._routing = RoutingService(cfg)
         self._budget = BudgetManager(cfg)
         self._sessions: dict[str, dict] = {}
-        # Hold strong refs to in-flight background tasks — asyncio.create_task
-        # returns a weakly-held Task, so without storing it the garbage collector
-        # can kill our TDD pipeline mid-run.
         self._bg_tasks: set[asyncio.Task] = set()
+        db_dir = Path(cfg.storage.path).expanduser().parent
+        self._fatigue = FatigueTracker()
+        self._signals = SignalLog(db_dir / "signals.jsonl")
+        self._locks = LockManager(db_dir / "locks.db")
+        self._rollback = RollbackManager()
+        self._checkpoint = CheckpointManager(db_dir / "checkpoints")
+        self._escalator = Escalator(db_dir / "escalations.db")
+        self._planner = DualPlanner(self._pi)
 
     async def start(self, task_id: str, mode: str = "tdd", working_dir: str | None = None) -> str:
         """Spawn a Claude Code session for this task. Returns session_id.
@@ -68,8 +80,8 @@ class ExecutorService:
             "output": "",
         }
         self._sessions[session_id] = session
+        self._locks.acquire(wd, session_id)
 
-        # Run in background. Keep a strong reference or Python can GC it.
         bg = asyncio.create_task(self._run(session_id, task, wd, mode))
         self._bg_tasks.add(bg)
         bg.add_done_callback(self._bg_tasks.discard)
@@ -152,6 +164,10 @@ class ExecutorService:
             logger.exception("Execution failed")
             session["status"] = "failed"
             session["error"] = str(e)
+        finally:
+            self._locks.release_all(session_id)
+            cp_id = task.id.replace("/", "-")
+            self._checkpoint.delete(cp_id)
 
     async def _run_plan(
         self, session: dict, task: Task, wd: str, icpg_ctx: str,
@@ -170,6 +186,9 @@ class ExecutorService:
     async def _run_tdd(
         self, session: dict, task: Task, wd: str, icpg_ctx: str,
     ) -> None:
+        blast = self._blast_score(task)
+        if blast >= 7:
+            await self._dual_plan(session, task, wd)
         ok, analysis = await self._run_step(
             session, "ANALYZE", self._analysis_prompt(task, icpg_ctx),
             task, wd, 5,
@@ -184,12 +203,14 @@ class ExecutorService:
         if not ok:
             session["error"] = f"Write-tests step failed: {output[:300]}"
             return
+        await self._save_rollback(session["id"], wd)
         ok, output = await self._run_step(
             session, "IMPLEMENT", self._impl_prompt(task, icpg_ctx),
             task, wd, 25,
         )
         if not ok:
-            session["error"] = f"Implement step failed: {output[:300]}"
+            await self._try_rollback(session["id"], wd)
+            self._maybe_escalate(session, task)
             return
         session["status"] = "completed"
         session["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -205,6 +226,7 @@ class ExecutorService:
     ) -> tuple[bool, str]:
         result = await self._run_model(task, prompt, wd, max_turns)
         session["output"] += f"\n=== {label} ===\n{result.output[:2000]}\n"
+        self._log_signal(session["id"], label, result)
         if not result.success:
             session["status"] = "failed"
         return result.success, result.output
@@ -214,9 +236,15 @@ class ExecutorService:
     ) -> RunResult:
         decision = self._route_model(task)
         model_name = self._model_name(decision.primary)
+        self._write_checkpoint(task, model_name)
         result = await self._pi.send_with_fallback(
             model_name, prompt, wd, max_turns,
         )
+        if result.model != model_name:
+            model_entry = self._pi.get_model(result.model)
+            if model_entry:
+                self._fatigue.on_model_switch(model_entry.context_window)
+        self._track_fatigue(result)
         if result.cost_usd > 0:
             self._budget.record_spend(
                 decision.primary.provider,
@@ -249,6 +277,10 @@ class ExecutorService:
             return bool(raw["security_sensitive"])
         return task_type in {"security", "auth", "billing"}
 
+    def _blast_score(self, task: Task) -> int:
+        raw = task.raw if isinstance(task.raw, dict) else {}
+        return self._int_value(raw.get("blast_score"))
+
     def _int_value(self, value: object) -> int:
         try:
             return int(value)
@@ -259,6 +291,55 @@ class ExecutorService:
         if isinstance(primary, str):
             return primary
         return str(primary.name)
+
+    async def _dual_plan(self, session: dict, task: Task, wd: str) -> None:
+        try:
+            result = await self._planner.dual_plan(
+                task.title, task.description[:1500], wd,
+            )
+            session["dual_plan"] = result.primary_plan[:2000]
+            if result.conflicts:
+                session["plan_conflicts"] = result.conflicts
+        except Exception as exc:
+            logger.warning("DualPlanner failed: %s", exc)
+
+    async def _save_rollback(self, sid: str, wd: str) -> None:
+        try:
+            await self._rollback.create_savepoint(sid, wd)
+        except Exception as exc:
+            logger.warning("Savepoint failed: %s", exc)
+
+    async def _try_rollback(self, sid: str, wd: str) -> None:
+        try:
+            await self._rollback.rollback(sid, wd)
+        except Exception as exc:
+            logger.warning("Rollback failed: %s", exc)
+
+    def _maybe_escalate(self, session: dict, task: Task) -> None:
+        failures = session.get("_fail_count", 0) + 1
+        session["_fail_count"] = failures
+        if failures >= 3:
+            self._escalator.escalate(
+                session["id"], "repeated_failure",
+                {"task_id": task.id, "failures": failures},
+            )
+
+    def _track_fatigue(self, result: RunResult) -> None:
+        load = min(len(result.output) / 50_000, 1.0)
+        self._fatigue.record("context_load", load)
+
+    def _log_signal(self, sid: str, label: str, result: RunResult) -> None:
+        self._signals.append({
+            "session_id": sid, "step": label,
+            "model": result.model, "success": result.success,
+        })
+
+    def _write_checkpoint(self, task: Task, model: str) -> None:
+        self._checkpoint.write(task.id.replace("/", "-"), {
+            "goal": task.title,
+            "model_history": [model],
+            "current_subgoal": "executing",
+        })
 
     def _plan_prompt(self, task: Task, icpg_ctx: str) -> str:
         return (

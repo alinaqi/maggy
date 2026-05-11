@@ -35,6 +35,9 @@ from maggy.api.routes_planning import router as planning_router
 from maggy.api.routes_process import router as process_router
 from maggy.api.routes_routing import router as routing_router
 from maggy.api.routes_chat import router as chat_router
+from maggy.api.routes_escalation import router as escalation_router
+from maggy.api.routes_observability import router as observability_router
+from maggy.api.routes_projects import router as projects_router
 from maggy.api.routes_setup import router as setup_router
 from maggy.mesh.ws_server import router as ws_mesh_router
 from maggy.budget import BudgetManager
@@ -50,7 +53,7 @@ from maggy.services.inbox import InboxService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("maggy")
 
-_TIER1_ATTRS = ("budget", "routing", "events", "cikg", "planning", "deploy", "forge", "engram", "lexon", "mesh", "activity")
+_TIER1_ATTRS = ("budget", "routing", "events", "cikg", "planning", "deploy", "forge", "engram", "lexon", "mesh", "activity", "registry", "escalator", "observability")
 _TIER2_ATTRS = ("provider", "inbox", "competitors", "executor", "process")
 
 
@@ -80,6 +83,12 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     app.state.introspector = Introspector(app.state)
     from maggy.services.chat import ChatManager
     app.state.chat = ChatManager(cfg)
+    from maggy.registry import ProjectRegistry
+    app.state.registry = ProjectRegistry(cfg)
+    from maggy.escalation.protocol import Escalator
+    app.state.escalator = Escalator(db_dir / "escalations.db")
+    from maggy.observability.collector import ObservabilityCollector
+    app.state.observability = ObservabilityCollector(db_dir / "observability.db")
 
 
 def _init_mesh(app: FastAPI, cfg) -> None:
@@ -122,12 +131,13 @@ async def _start_heartbeat(app: FastAPI) -> None:
         app.state.heartbeat = None
         return
     from maggy.heartbeat.scheduler import HeartbeatScheduler
-    from maggy.heartbeat.jobs import refresh_history, expire_engrams, self_improve, mesh_heartbeat
+    from maggy.heartbeat.jobs import refresh_history, expire_engrams, self_improve, mesh_heartbeat, collect_signals
     from functools import partial
     sched = HeartbeatScheduler()
     sched.register("refresh_history", partial(refresh_history, app), cfg.heartbeat.history_interval)
     sched.register("expire_engrams", partial(expire_engrams, app), cfg.heartbeat.engram_interval)
     sched.register("self_improve", partial(self_improve, app), cfg.heartbeat.improve_interval)
+    sched.register("collect_signals", partial(collect_signals, app), cfg.heartbeat.improve_interval)
     if cfg.mesh.enabled:
         sched.register("mesh_heartbeat", partial(mesh_heartbeat, app), cfg.heartbeat.mesh_interval)
     await sched.start()
@@ -249,11 +259,12 @@ class _NoCacheStatic(BaseHTTPMiddleware):
 
 _ROUTERS = (
     api_router, budget_router, chat_router, cikg_router,
-    deploy_router, engram_router, events_router, forge_router,
-    heartbeat_router, history_router, improve_router,
-    lexon_router, mesh_router, mesh_admin_router,
-    planning_router, process_router, routing_router,
-    setup_router, ws_mesh_router,
+    deploy_router, engram_router, escalation_router,
+    events_router, forge_router, heartbeat_router,
+    history_router, improve_router, lexon_router,
+    mesh_router, mesh_admin_router, observability_router,
+    planning_router, process_router, projects_router,
+    routing_router, setup_router, ws_mesh_router,
 )
 
 

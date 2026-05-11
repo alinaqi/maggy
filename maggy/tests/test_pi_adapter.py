@@ -15,7 +15,7 @@ from maggy.adapters.pi import (
 class TestModelRegistry:
     def test_default_models_loaded(self):
         adapter = PiAdapter()
-        assert len(adapter.list_models()) == 5
+        assert len(adapter.list_models()) == 6
 
     def test_get_known_model(self):
         adapter = PiAdapter()
@@ -50,7 +50,7 @@ class TestFallbackChain:
     def test_unknown_start_returns_all(self):
         adapter = PiAdapter()
         chain = adapter.fallback_chain("nonexistent")
-        assert len(chain) == 5
+        assert len(chain) == 6
 
 
 class TestQuotaDetection:
@@ -71,8 +71,8 @@ class TestBuildCommand:
     def test_claude_command_format(self):
         adapter = PiAdapter()
         model = adapter.get_model("claude")
-        cmd = adapter._build_command(model, "hello", 5)
-        assert cmd[0] == "claude"
+        cmd = adapter._build_command(model, "hello", 5, "/tmp")
+        assert "claude" in cmd[0]
         assert "-p" in cmd
         assert "--dangerously-skip-permissions" in cmd
 
@@ -82,8 +82,8 @@ class TestBuildCommand:
             cli_command="kimi",
         )
         adapter = PiAdapter(models=[entry])
-        cmd = adapter._build_command(entry, "hello", 5)
-        assert cmd[0] == "kimi"
+        cmd = adapter._build_command(entry, "hello", 5, "/tmp")
+        assert "kimi" in cmd[0]
         assert "--dangerously-skip-permissions" not in cmd
 
 

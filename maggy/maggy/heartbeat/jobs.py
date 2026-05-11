@@ -84,3 +84,17 @@ async def mesh_heartbeat(app) -> None:
     except Exception as exc:
         logger.warning("mesh_heartbeat failed: %s", exc)
         raise
+
+
+async def collect_signals(app) -> None:
+    """Record periodic observability signals."""
+    obs = getattr(app.state, "observability", None)
+    cfg = getattr(app.state, "cfg", None)
+    if not obs or not cfg:
+        return
+    try:
+        for cb in cfg.codebases:
+            obs.record_signal(cb.key, "heartbeat", 1.0)
+    except Exception as exc:
+        logger.warning("collect_signals failed: %s", exc)
+        raise
