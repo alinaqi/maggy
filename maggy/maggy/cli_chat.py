@@ -10,6 +10,8 @@ from rich.markdown import Markdown
 from rich.prompt import Prompt
 from rich.table import Table
 
+from maggy.services.session_detect import detect_all
+
 console = Console()
 
 
@@ -19,18 +21,20 @@ def detect_project(client) -> str | None:
 
 
 def run_chat(
-    client, project: str,
-    routed: bool = True,
+    client, project: str, routed: bool = True,
 ) -> None:
-    """Main chat REPL loop."""
-    session = client.chat_create(project)
+    """Main chat REPL loop with session resume."""
+    session, resumed = _find_or_create(client, project)
     sid = session.get("id", "?")
     wd = session.get("working_dir", "?")
+    label = "Resuming" if resumed else "New session"
+    n = session.get("messages", 0)
+    suffix = f", {n} msgs" if resumed else ""
     console.print(
-        f"Connected to [bold]{project}[/bold] "
-        f"(session {sid})",
+        f"{label} [bold]{project}[/bold] ({sid}{suffix})",
     )
     console.print(f"Working dir: {wd}")
+    _show_resume_info(client, sid, wd)
     mode = "routed" if routed else "direct"
     console.print(
         f"[dim]Mode: {mode} | "
@@ -38,6 +42,42 @@ def run_chat(
     )
     _repl_loop(client, sid, routed)
     console.print("[dim]Session saved. Bye.[/dim]")
+
+
+def _find_or_create(
+    client, project: str,
+) -> tuple[dict, bool]:
+    """Find existing session or create new one."""
+    for s in client.chat_sessions():
+        if s.get("project_key") == project:
+            return s, True
+    return client.chat_create(project), False
+
+
+def _show_resume_info(
+    client, sid: str, wd: str,
+) -> None:
+    """Show detected CLI sessions and recent messages."""
+    detected = detect_all(wd)
+    if detected.sessions:
+        parts = [
+            f"{s.cli}({s.session_id[:8]})"
+            for s in detected.sessions
+        ]
+        console.print(
+            f"[dim]Prior: {', '.join(parts)}[/dim]",
+        )
+    data = client.chat_history(sid)
+    msgs = data.get("messages", [])[-3:]
+    if not msgs:
+        return
+    console.print("[dim]--- Recent ---[/dim]")
+    for msg in msgs:
+        role = msg.get("role", "?")
+        text = msg.get("content", "")[:120]
+        tag = "[cyan]You[/cyan]" if role == "user" else "[green]Maggy[/green]"
+        console.print(f"  {tag}: {text}")
+    console.print()
 
 
 def _repl_loop(
@@ -69,12 +109,14 @@ def _repl_loop(
             blast_override = _parse_blast(stripped)
             continue
         if routed:
-            _stream_routed(
-                client, session_id, stripped,
-                blast_override,
+            chunks = client.chat_send_routed(
+                session_id, stripped, blast=blast_override,
             )
         else:
-            _stream_response(client, session_id, stripped)
+            chunks = client.chat_send_stream(
+                session_id, stripped,
+            )
+        _stream_chunks(chunks)
         blast_override = None
 
 
@@ -83,11 +125,8 @@ def _parse_blast(text: str) -> int | None:
     parts = text.split()
     if len(parts) >= 2:
         try:
-            val = int(parts[1])
-            val = max(1, min(10, val))
-            console.print(
-                f"[dim]Blast override set to {val}[/dim]",
-            )
+            val = max(1, min(10, int(parts[1])))
+            console.print(f"[dim]Blast override: {val}[/dim]")
             return val
         except ValueError:
             pass
@@ -95,79 +134,43 @@ def _parse_blast(text: str) -> int | None:
     return None
 
 
-def _stream_routed(
-    client, session_id: str, message: str,
-    blast: int | None = None,
-) -> None:
-    """Stream via routed endpoint, show model info."""
-    full_text = ""
-    error_text = ""
+def _stream_chunks(chunks) -> None:
+    """Stream and display response chunks from any model."""
+    full, err = "", ""
     try:
         with Live(
             Markdown(""), console=console,
             refresh_per_second=8,
         ) as live:
-            for chunk in client.chat_send_routed(
-                session_id, message, blast=blast,
-            ):
-                ctype = chunk.get("type", "")
-                if ctype == "routing":
-                    model = chunk.get("model", "?")
-                    blast_v = chunk.get("blast", "?")
-                    reason = chunk.get("reason", "")
+            for chunk in chunks:
+                ct = chunk.get("type", "")
+                if ct == "routing":
+                    m = chunk.get("model", "?")
+                    b = chunk.get("blast", "?")
+                    r = chunk.get("reason", "")
                     console.print(
-                        f"[dim][{model}] blast={blast_v}"
-                        f" {reason}[/dim]",
+                        f"[dim][{m}] blast={b} {r}[/dim]",
                     )
-                elif ctype in ("text", "result"):
-                    full_text += chunk.get("content", "")
-                    live.update(Markdown(full_text))
-                elif ctype == "error":
-                    error_text = chunk.get("content", "")
-                elif ctype == "done":
+                elif ct in ("text", "result"):
+                    full += chunk.get("content", "")
+                    live.update(Markdown(full))
+                elif ct == "error":
+                    err = chunk.get("content", "")
+                elif ct == "done":
                     break
     except Exception as e:
-        error_text = str(e)
-    if error_text:
-        console.print(f"[red]Error:[/red] {error_text}")
-
-
-def _stream_response(
-    client, session_id: str, message: str,
-) -> None:
-    """Stream plain (non-routed) response."""
-    full_text = ""
-    error_text = ""
-    try:
-        with Live(
-            Markdown(""), console=console,
-            refresh_per_second=8,
-        ) as live:
-            for chunk in client.chat_send_stream(
-                session_id, message,
-            ):
-                ctype = chunk.get("type", "")
-                if ctype in ("text", "result"):
-                    full_text += chunk.get("content", "")
-                    live.update(Markdown(full_text))
-                elif ctype == "error":
-                    error_text = chunk.get("content", "")
-                elif ctype == "done":
-                    break
-    except Exception as e:
-        error_text = str(e)
-    if error_text:
-        console.print(f"[red]Error:[/red] {error_text}")
+        err = str(e)
+    if err:
+        console.print(f"[red]Error:[/red] {err}")
 
 
 def _show_history(client, session_id: str) -> None:
     """Display message history."""
-    data = client.chat_history(session_id)
-    messages = data.get("messages", [])
-    if not messages:
+    msgs = client.chat_history(session_id).get("messages", [])
+    if not msgs:
         console.print("[dim]No messages yet.[/dim]")
         return
-    for msg in messages:
+    for msg in msgs:
         role = msg.get("role", "?")
         content = msg.get("content", "")
         if role == "user":
@@ -190,9 +193,7 @@ def _show_sessions(client) -> None:
     t.add_column("Messages", justify="right")
     for s in sessions:
         t.add_row(
-            s.get("id", "?"),
-            s.get("project_key", "?"),
-            s.get("status", "?"),
-            str(s.get("messages", 0)),
+            s.get("id", "?"), s.get("project_key", "?"),
+            s.get("status", "?"), str(s.get("messages", 0)),
         )
     console.print(t)
