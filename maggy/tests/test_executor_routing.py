@@ -90,7 +90,8 @@ async def test_plan_mode_records_spend_for_selected_model(mock_cfg, tmp_path, mo
 
     await executor._run("session-1", _task(3, "security"), str(tmp_path), "plan")
 
-    assert executor._budget.today_spend("openai") == pytest.approx(1.25)
+    # security tasks are now rule-overridden to claude (anthropic)
+    assert executor._budget.today_spend("anthropic") == pytest.approx(1.25)
 
 
 @pytest.mark.asyncio
@@ -138,3 +139,31 @@ async def test_fatigue_tracked_during_steps(mock_cfg, tmp_path, monkeypatch):
     await executor._run("session-1", _task(3, "docs"), str(tmp_path), "plan")
 
     assert executor._fatigue.dimensions["context_load"] > 0
+
+
+@pytest.mark.asyncio
+async def test_conventions_injected_into_prompts(mock_cfg, tmp_path, monkeypatch):
+    provider = AsyncMock()
+    executor = ExecutorService(mock_cfg, provider)
+    executor._sessions["session-1"] = _session()
+    prompts: list[str] = []
+
+    async def fake_context(task: Task, wd: str) -> str:
+        return ""
+
+    async def fake_send(
+        model_name: str, prompt: str, working_dir: str,
+        max_turns: int = 20, timeout: int = 600,
+    ) -> RunResult:
+        prompts.append(prompt)
+        return RunResult(model=model_name, success=True, output="ok")
+
+    monkeypatch.setattr(executor, "_build_icpg_context", fake_context)
+    monkeypatch.setattr(executor._pi, "send_prompt", fake_send)
+
+    await executor._run(
+        "session-1", _task(5, "feature"), str(tmp_path), "plan",
+    )
+    assert prompts, "At least one prompt should have been sent"
+    assert "Team Conventions" in prompts[0]
+    assert "minimum wowable product" in prompts[0]

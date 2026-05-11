@@ -108,8 +108,9 @@ class TestRoutingAccuracy:
             name = decision.primary if isinstance(decision.primary, str) else decision.primary.name
             results[task.id] = name
 
-        # Low blast (1-3) → cheap tier
-        assert results["T-1"] in ("local", "kimi", "deepseek")
+        # Low blast (1-3) → cheap tier unless rules override
+        # T-1 is docs → rules force claude (local can't do prose)
+        assert results["T-1"] == "claude"
         assert results["T-2"] in ("local", "kimi", "deepseek")
         assert results["T-3"] in ("local", "kimi", "deepseek")
         # Mid blast (4-6) → gpt
@@ -131,7 +132,7 @@ class TestRoutingAccuracy:
         correct = 0
 
         expected_tiers = {
-            "T-1": "cheap", "T-2": "cheap", "T-3": "cheap",
+            "T-1": "premium", "T-2": "cheap", "T-3": "cheap",
             "T-4": "medium", "T-5": "medium",
             "T-6": "medium",  # blast 7 overlaps gpt/claude
             "T-7": "premium", "T-8": "premium",

@@ -192,3 +192,67 @@ This represents ~83% reduction in Claude subscription consumption.
 | Model diversity | 4 models | 1 model | Maggy |
 
 **Summary:** Claude Code is faster and produces marginally higher overall quality (driven by tests and spec). Maggy's multi-model approach provides cost efficiency and subscription risk distribution, plus deeper security review via dedicated model routing. The main gaps to close: add TDD pipeline (test generation step), and improve docs routing (don't send prose tasks to coding-optimized local models).
+
+---
+
+## 9. Post-Benchmark Fixes (Routing Rules + Conventions)
+
+Three systems were built immediately after the benchmark to close the gaps above.
+
+### 9.1 Routing Rules (`~/.maggy/routing-rules.yaml`)
+
+A self-updating YAML config that overrides blast-score routing for specific task types and pipeline phases. Rules are checked **before** the reward table or blast-score tier.
+
+**Task-type overrides seeded from benchmark evidence:**
+
+| Task Type | Forced To | Why |
+|-----------|----------|-----|
+| `docs` | claude | Ollama (code-optimized) produced no spec file |
+| `security` | claude | Security review needs deep reasoning |
+| `tests` | claude | Only claude generated test files in benchmark |
+| `architecture` | claude | Architecture needs cross-context awareness |
+| `planning` | claude | Planning requires structured reasoning |
+
+**Pipeline phase overrides from TDD workflow:**
+
+| Phase | Forced To | Why |
+|-------|----------|-----|
+| `spec` | claude | SPEC phase needs comprehensive docs |
+| `tdd_red` | claude | RED phase needs test design expertise |
+| `tdd_green` | auto | GREEN uses blast-score routing (cheap models can implement) |
+| `review` | claude | Review needs security + architecture depth |
+
+**Self-learning:** `record_outcome()` updates rolling success rates per model. `learn_override()` lets Maggy add new rules when outcome data supports it. Manual YAML edits are preserved.
+
+### 9.2 Team Conventions Injection
+
+Five conventions from claude-bootstrap's CLAUDE.md are embedded in routing rules and injected into every prompt sent to any CLI:
+
+1. **mWP** — Build minimum wowable product. No feature flags, no premature abstractions.
+2. **TDD** — RED → GREEN → VALIDATE. Coverage >= 80%.
+3. **Security** — No secrets in code. Parameterized SQL. Validate input at boundaries.
+4. **Quality gates** — 20 lines/fn, 3 params, 2 nesting levels, 200 lines/file.
+5. **Existing patterns** — Read codebase before changing. Keep changes minimal.
+
+All four executor prompt methods (`_plan_prompt`, `_analysis_prompt`, `_tests_prompt`, `_impl_prompt`) now append matching conventions. This standardizes quality expectations across kimi, codex, ollama, and claude.
+
+### 9.3 Expected Re-run Improvements
+
+| Benchmark Gap | Root Cause | Fix Applied | Expected Result |
+|--------------|-----------|-------------|-----------------|
+| No product spec (EXP-1) | `docs` routed to ollama | `docs → claude` override | Claude generates spec |
+| No tests from any model | No TDD step in pipeline | `tdd_red → claude` + `tests → claude` overrides | Claude writes failing tests |
+| Inconsistent quality across models | No shared standards | Conventions injected into all prompts | mWP + quality gates enforced everywhere |
+| No learning from outcomes | Static routing only | `record_outcome()` + `learn_override()` | Routing improves with each task |
+
+**Projected scores if re-run:**
+
+| Dimension | Before | After (est.) | Change |
+|-----------|--------|-------------|--------|
+| Product spec | 0/10 | 9/10 | `docs → claude` |
+| Test coverage | 0/10 | 8/10 | `tdd_red → claude` |
+| Security | 10/10 | 10/10 | No change (already strong) |
+| Architecture | 8/10 | 9/10 | Conventions enforce patterns |
+| **Weighted avg** | **7.4/10** | **~8.5/10** | **+1.1 points** |
+
+Cost efficiency would remain at ~83% savings — the new overrides only force claude for `docs` (1 task) and `tests` (new TDD step), not for CRUD/API/frontend work.

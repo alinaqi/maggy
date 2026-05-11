@@ -25,6 +25,7 @@ from maggy.process.model_router import RoutingDecision
 from maggy.providers.base import IssueTrackerProvider, Task
 from maggy.recovery.rollback import RollbackManager
 from maggy.routing import RoutingContext, RoutingService
+from maggy.routing_rules import conventions_for
 from maggy.services.planner import DualPlanner
 
 logger = logging.getLogger(__name__)
@@ -342,36 +343,40 @@ class ExecutorService:
         })
 
     def _plan_prompt(self, task: Task, icpg_ctx: str) -> str:
+        conv = self._conventions_block(task)
         return (
             "Create an implementation plan for this ticket. No code changes — just a plan.\n\n"
             f"Ticket: {task.title}\n{task.description[:1500]}"
-            f"{self._icpg_block(icpg_ctx)}\n"
+            f"{self._icpg_block(icpg_ctx)}{conv}\n"
             "Output: numbered steps, files to touch, risks, tests to add."
         )
 
     def _analysis_prompt(self, task: Task, icpg_ctx: str) -> str:
+        conv = self._conventions_block(task)
         return (
             "Analyze this ticket against the codebase and output a concise plan.\n"
             "Identify: files to change, functions affected, tests needed, risks.\n\n"
             f"Ticket: {task.title}\n{task.description[:1500]}"
-            f"{self._icpg_block(icpg_ctx)}"
+            f"{self._icpg_block(icpg_ctx)}{conv}"
         )
 
     def _tests_prompt(self, task: Task, icpg_ctx: str, analysis: str) -> str:
+        conv = self._conventions_block(task)
         return (
             "Write failing test cases for this ticket (TDD — no implementation yet).\n"
             "Use the project's existing test patterns. Commit tests separately.\n\n"
             f"Ticket: {task.title}\n{task.description[:1500]}"
-            f"{self._icpg_block(icpg_ctx)}\n"
+            f"{self._icpg_block(icpg_ctx)}{conv}\n"
             f"Analysis:\n{analysis[:1000]}"
         )
 
     def _impl_prompt(self, task: Task, icpg_ctx: str) -> str:
+        conv = self._conventions_block(task)
         return (
             "Implement the feature to make the failing tests pass.\n"
             "Follow existing code patterns. Keep changes minimal.\n\n"
             f"Ticket: {task.title}\n{task.description[:1500]}"
-            f"{self._icpg_block(icpg_ctx)}\n"
+            f"{self._icpg_block(icpg_ctx)}{conv}\n"
             "Run tests to verify, then commit with a conventional commit message."
         )
 
@@ -379,6 +384,14 @@ class ExecutorService:
         if not icpg_ctx:
             return ""
         return f"\n\n{icpg_ctx}\n"
+
+    def _conventions_block(self, task: Task) -> str:
+        raw = task.raw if isinstance(task.raw, dict) else {}
+        task_type = str(raw.get("task_type") or self._task_type(task))
+        text = conventions_for(self._routing.rules, task_type)
+        if not text:
+            return ""
+        return f"\n\n{text}\n"
 
     async def _post_plan(self, task_id: str, output: str) -> None:
         try:

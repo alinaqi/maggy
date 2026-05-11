@@ -13,8 +13,14 @@ from pathlib import Path
 from maggy.calibration.tracker import CalibrationTracker
 from maggy.config import MaggyConfig
 from maggy.process.model_router import (
+    DEFAULT_TIERS,
     RoutingDecision,
     route_task,
+)
+from maggy.routing_rules import (
+    apply_override,
+    load as load_rules,
+    record_outcome as rules_record,
 )
 from maggy.scores import RewardTable
 
@@ -29,19 +35,29 @@ class RoutingContext:
     task_type: str = "general"
     security_sensitive: bool = False
     project_key: str = ""
+    pipeline_phase: str = ""
 
 
 class RoutingService:
-    """Blast-score aware routing with reward-based learning."""
+    """Blast-score aware routing with rule overrides."""
 
     def __init__(self, cfg: MaggyConfig):
         self.cfg = cfg
         self.rewards = RewardTable(cfg)
         db_dir = Path(cfg.storage.path).expanduser().parent
-        self.calibration = CalibrationTracker(db_dir / "calibration.db")
+        self.calibration = CalibrationTracker(
+            db_dir / "calibration.db",
+        )
+        self.rules = load_rules()
 
     def route(self, ctx: RoutingContext) -> RoutingDecision:
         """Pick the best model for this task context."""
+        forced = apply_override(
+            self.rules, ctx.task_type, ctx.pipeline_phase,
+        )
+        if forced:
+            return self._forced_decision(forced, ctx)
+
         override = self.rewards.best_model(
             ctx.task_type, self._blast_tier(ctx.blast_score),
         )
@@ -50,8 +66,10 @@ class RoutingService:
                 primary=override,
                 validator=None,
                 fallback_chain=[],
-                reason=f"Learned: best for {ctx.task_type} "
-                       f"at blast {ctx.blast_score}",
+                reason=(
+                    f"Learned: best for {ctx.task_type} "
+                    f"at blast {ctx.blast_score}"
+                ),
             )
 
         decision = route_task(
@@ -72,6 +90,12 @@ class RoutingService:
         tier = self._blast_tier(blast_score)
         self.rewards.record(model, task_type, tier, reward)
         self.calibration.record(model, task_type, reward, reward)
+        success = reward > 0.0
+        rules_record(self.rules, model, task_type, success)
+
+    def reload_rules(self) -> None:
+        """Reload rules from disk (after Maggy self-update)."""
+        self.rules = load_rules()
 
     def get_heatmap(self) -> list[dict]:
         """Return reward heatmap data for dashboard."""
@@ -88,6 +112,29 @@ class RoutingService:
         acc = self.calibration.accuracy(model)
         return acc == 0.0 or acc >= MIN_CALIBRATION_ACCURACY
 
+    def _forced_decision(
+        self, model_name: str, ctx: RoutingContext,
+    ) -> RoutingDecision:
+        """Build decision from a rules override."""
+        tier = _find_tier(model_name)
+        if tier is None:
+            return route_task(
+                ctx.blast_score,
+                ctx.task_type,
+                ctx.security_sensitive,
+            )
+        validator = None
+        if ctx.blast_score >= 8 or ctx.security_sensitive:
+            validator = _find_tier("codex")
+        return RoutingDecision(
+            primary=tier,
+            validator=validator,
+            fallback_chain=[],
+            reason=f"Rule override: {ctx.task_type}"
+                   f"{f'/{ctx.pipeline_phase}' if ctx.pipeline_phase else ''}"
+                   f" → {model_name}",
+        )
+
     def _penalize_uncalibrated(
         self, decision: RoutingDecision,
     ) -> RoutingDecision:
@@ -101,3 +148,11 @@ class RoutingService:
                     reason="Calibration penalty",
                 )
         return decision
+
+
+def _find_tier(name: str):
+    """Look up a ModelTier by name from defaults."""
+    for t in DEFAULT_TIERS:
+        if t.name == name:
+            return t
+    return None

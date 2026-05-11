@@ -3036,3 +3036,92 @@ EXP-6 (security, blast 8) → claude 209.5s   ← premium (only when needed)
 | Ollama missed product spec | Coding model assigned prose task | Route `task_type: docs` to kimi/claude regardless of blast |
 | Codex slow on frontend (280s vs 122s) | Codex overhead for complex UI tasks | Consider routing blast 6 frontend to claude |
 | Claude had better architecture | Single model sees full context | Multi-model loses cross-task context — address via checkpoint sharing |
+
+### 18.6 Post-Benchmark Improvements
+
+After the benchmark, three systems were built to close the identified gaps:
+
+#### A. Routing Rules (`maggy/routing_rules.py`)
+
+A YAML-backed self-updating rules file at `~/.maggy/routing-rules.yaml`. Rules are checked **before** blast-score routing, enforcing that specific task types and pipeline phases always use the right model.
+
+**Task-type overrides** (from benchmark evidence):
+
+| Task Type | Forced Model | Confidence | Source |
+|-----------|-------------|-----------|--------|
+| `docs` | claude | 0.9 | benchmark — local models are code-optimized, not prose |
+| `security` | claude | 1.0 | rule — security review needs deep reasoning |
+| `architecture` | claude | 0.8 | rule — architecture needs cross-context awareness |
+| `tests` | claude | 0.9 | benchmark — only claude generated test files |
+| `planning` | claude | 0.8 | rule — planning requires structured reasoning |
+
+**Pipeline phase overrides** (from TDD workflow):
+
+| Phase | Forced Model | Reason |
+|-------|-------------|--------|
+| `spec` | claude | SPEC phase needs comprehensive docs |
+| `tdd_red` | claude | RED phase needs test design expertise |
+| `tdd_green` | auto | GREEN phase uses blast-score routing |
+| `review` | claude | Review needs security + architecture depth |
+
+**Self-learning API:**
+- `record_outcome(rules, model, task_type, success)` — updates rolling success rates from task results
+- `learn_override(rules, task_type, model, reason, confidence)` — Maggy can add new overrides when data supports it
+- Manual edits to the YAML are preserved; Maggy only appends learned entries
+
+This directly addresses:
+- **"Ollama missed product spec"** → `docs` tasks now forced to claude
+- **"No tests generated"** → `tests` and `tdd_red` phases now forced to claude
+
+#### B. Team Conventions (embedded in routing rules)
+
+Conventions from claude-bootstrap's CLAUDE.md and skill files are embedded in the routing rules and injected into every prompt sent to any CLI:
+
+```yaml
+conventions:
+  - text: "Build minimum wowable product (mWP). Ship the smallest thing that makes someone say 'wow'."
+    applies_to: [all]
+    source: claude-bootstrap
+  - text: "Follow TDD: RED → GREEN → VALIDATE. Coverage >= 80%."
+    applies_to: [feature, bug, refactor]
+    source: claude-bootstrap
+  - text: "No secrets in code. Parameterized SQL only. Validate all input at API boundaries."
+    applies_to: [all]
+    source: claude-bootstrap
+  - text: "Quality gates: max 20 lines/function, max 3 params, max 2 nesting levels, max 200 lines/file."
+    applies_to: [all]
+    source: claude-bootstrap
+  - text: "Use existing patterns. Read the codebase before changing it."
+    applies_to: [all]
+    source: claude-bootstrap
+```
+
+Every executor prompt method (`_plan_prompt`, `_analysis_prompt`, `_tests_prompt`, `_impl_prompt`) now calls `conventions_for(rules, task_type)` and appends the matching conventions block. This means kimi, codex, ollama, and claude all receive the same team rules — standardizing quality expectations across all models.
+
+#### C. Routing Rules + Conventions Flow
+
+```
+Task arrives → apply_override(task_type, phase)
+                ↓ forced?
+              ┌─YES─→ use forced model
+              └─NO──→ reward table → blast-score routing
+                        ↓
+              build prompt + conventions_for(task_type)
+                        ↓
+              send to CLI with team conventions embedded
+                        ↓
+              record_outcome() → update YAML success rates
+```
+
+#### D. Expected Impact on Re-run
+
+If the benchmark were re-run with these improvements:
+
+| Gap (Before) | Expected Result (After) |
+|-------------|----------------------|
+| No product spec from ollama | EXP-1 (`docs`) now routes to claude → spec generated |
+| No tests from any model | TDD pipeline with `tdd_red` → claude → tests generated |
+| Inconsistent quality | All models receive team conventions (mWP, quality gates, security rules) |
+| No self-improvement | Outcome recording feeds back into routing rules YAML |
+
+**Net effect:** Quality score expected to converge with Claude Code's 7.8+ while maintaining the 83% cost reduction.

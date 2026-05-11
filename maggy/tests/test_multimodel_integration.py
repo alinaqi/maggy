@@ -81,7 +81,8 @@ class TestRoutingDecisions:
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         for blast in (1, 2):
-            ctx = RoutingContext(blast_score=blast, task_type="docs")
+            # Use "formatting" — "docs" is now rules-overridden
+            ctx = RoutingContext(blast_score=blast, task_type="formatting")
             decision = svc.route(ctx)
             assert decision.primary.cost_rank <= 2, (
                 f"blast={blast} should route to cheap tier"
