@@ -218,14 +218,20 @@ class MaggyClient:
                     yield json.loads(line[6:])
 
     def detect_project(self, cwd: str) -> str | None:
-        """Match cwd against configured codebases."""
+        """Match cwd (or any parent) against configured codebases."""
+        from pathlib import Path
         try:
             cfg = self.config()
         except Exception:
             return None
+        cwd_path = Path(cwd).resolve()
         for cb in cfg.get("codebases", []):
-            if cwd.startswith(cb.get("path", "")):
+            root = Path(cb.get("path", "")).expanduser().resolve()
+            try:
+                cwd_path.relative_to(root)
                 return cb.get("key")
+            except ValueError:
+                continue
         return None
 
     # ── Session management ─────────────────────────
