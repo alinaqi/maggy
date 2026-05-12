@@ -100,6 +100,9 @@ class TestRoutedEndpoint:
         with patch(
             "maggy.services.intent_classifier.classify_intent",
             new=AsyncMock(return_value="security"),
+        ), patch(
+            "maggy.services.intent_classifier.classify_blast",
+            new=AsyncMock(return_value=8),
         ):
             decision = await rc.decide("design auth system", None, None)
         assert decision is not None

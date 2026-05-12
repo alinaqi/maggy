@@ -446,6 +446,7 @@ function renderChatUI(pane) {
   html += `</div>`;
   pane.innerHTML = html;
   if (CHAT_SESSION_ID) loadChatMessages(CHAT_SESSION_ID);
+  setTimeout(refreshSuggestion, 100);
 }
 
 function renderChatSidebar(sessions) {
@@ -475,9 +476,12 @@ function renderChatMain() {
   if (CHAT_SESSION_ID) {
     html += `<div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-3"></div>`;
     html += `<div class="shrink-0 flex gap-2">
-      <input id="chat-input" type="text" placeholder="Type a message to Claude…"
-        class="flex-1 bg-gray-900 text-sm text-white rounded px-3 py-2 border border-gray-700 focus:border-orange-500 outline-none"
-        onkeydown="if(event.key==='Enter')sendChatMessage()" />
+      <div class="flex-1 relative">
+        <div id="chat-ghost" class="absolute inset-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
+        <input id="chat-input" type="text" placeholder="Type a message to Claude…"
+          class="w-full bg-gray-900 text-sm text-white rounded px-3 py-2 border border-gray-700 focus:border-orange-500 outline-none relative bg-transparent"
+          onkeydown="handleChatKeydown(event)" oninput="updateGhostText()" />
+      </div>
       <button onclick="sendChatMessage()" class="px-4 py-2 rounded bg-orange-600 hover:bg-orange-700 text-white text-sm"><i class="fas fa-paper-plane"></i></button>
     </div>`;
   } else {
@@ -651,13 +655,81 @@ function stopJokeRotation() {
   if (_jokeTimer) { clearInterval(_jokeTimer); _jokeTimer = null; }
 }
 
+// ── Ghost-text suggestions ───────────────────────────────────────────
+let _chatHistory = [];
+let _lastResponse = '';
+let _currentSuggestion = '';
+
+const SUGGESTION_RULES = [
+  { after: /\b(fix|bug|error|broke)\b/i, suggest: 'now run the tests to verify the fix' },
+  { after: /\b(test|tests|spec)\b/i, suggest: 'check coverage and fix any failures' },
+  { after: /\b(review|PR|validate)\b/i, suggest: 'use claude and review the implementation' },
+  { after: /\b(implement|feature|add)\b/i, suggest: 'write tests for the new feature' },
+  { after: /\b(deploy|release|ship)\b/i, suggest: 'run the full test suite first' },
+  { after: /\b(refactor|cleanup|clean)\b/i, suggest: 'verify nothing broke after the refactor' },
+  { after: /\b(security|auth|csrf)\b/i, suggest: 'use claude and audit the security flow' },
+  { after: /\b(docs|readme|documentation)\b/i, suggest: 'review the docs for accuracy' },
+  { after: /\b(style|css|layout|ui)\b/i, suggest: 'check the layout on mobile' },
+  { after: /\b(database|schema|migration)\b/i, suggest: 'verify the migration runs cleanly' },
+  { after: /\b(api|endpoint|route)\b/i, suggest: 'test the endpoint with sample requests' },
+  { after: /\b(config|env|setup)\b/i, suggest: 'verify the config changes work' },
+  { after: /\b(performance|slow|optimize)\b/i, suggest: 'profile and measure the improvement' },
+  { after: /\b(lint|format|ruff)\b/i, suggest: 'commit the formatting changes' },
+];
+
+function getSuggestion() {
+  const context = (_chatHistory.slice(-3).join(' ') + ' ' + _lastResponse).toLowerCase();
+  for (const rule of SUGGESTION_RULES) {
+    if (rule.after.test(context)) return rule.suggest;
+  }
+  if (_chatHistory.length === 0) return 'describe what you want to build or fix';
+  return '';
+}
+
+function updateGhostText() {
+  const input = document.getElementById('chat-input');
+  const ghost = document.getElementById('chat-ghost');
+  if (!input || !ghost) return;
+  const val = input.value;
+  if (val.length > 0 && _currentSuggestion.toLowerCase().startsWith(val.toLowerCase())) {
+    ghost.textContent = _currentSuggestion;
+    ghost.style.color = '';
+  } else if (val.length === 0 && _currentSuggestion) {
+    ghost.textContent = _currentSuggestion;
+    ghost.style.color = '';
+  } else {
+    ghost.textContent = '';
+  }
+}
+
+function handleChatKeydown(event) {
+  if (event.key === 'Enter') { sendChatMessage(); return; }
+  if (event.key === 'Tab' && _currentSuggestion) {
+    const input = document.getElementById('chat-input');
+    if (input && (!input.value || _currentSuggestion.toLowerCase().startsWith(input.value.toLowerCase()))) {
+      event.preventDefault();
+      input.value = _currentSuggestion;
+      updateGhostText();
+    }
+  }
+}
+
+function refreshSuggestion() {
+  _currentSuggestion = getSuggestion();
+  updateGhostText();
+}
+
 async function sendChatMessage() {
   const input = document.getElementById('chat-input');
   if (!input) return;
   const message = input.value.trim();
   if (!message || !CHAT_SESSION_ID) return;
+  _chatHistory.push(message);
+  if (_chatHistory.length > 10) _chatHistory.shift();
   input.value = '';
   input.disabled = true;
+  const ghost = document.getElementById('chat-ghost');
+  if (ghost) ghost.textContent = '';
   const el = document.getElementById('chat-messages');
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
   el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[80%] card px-3 py-2">
@@ -674,6 +746,7 @@ async function sendChatMessage() {
   stopJokeRotation();
   input.disabled = false;
   input.focus();
+  refreshSuggestion();
 }
 
 async function streamChatResponse(message, el) {
@@ -702,6 +775,7 @@ async function streamChatResponse(message, el) {
     }
   }
   if (!responseText) streamEl.textContent = '(no response)';
+  _lastResponse = responseText.slice(0, 500);
 }
 
 // ── Settings ────────────────────────────────────────────────────────────

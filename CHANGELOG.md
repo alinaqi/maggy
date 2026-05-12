@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.2.0] - 2026-05-12
+
+### Added
+
+#### Semantic Blast Score
+- **`services/intent_classifier.py`** — `classify_blast()` estimates task complexity (1-10) via local Ollama model instead of keyword matching. Uses same pattern as `classify_intent()`: JSON prompt, `num_predict: 20`, `/no_think` directive. Falls back to keyword `estimate_blast()` on failure. ~200ms warm, 11/12 accuracy on edge cases.
+- **`RoutedChat.decide()`** — now calls `classify_blast()` instead of keyword `estimate_blast()` when no override is provided. Both blast and intent are fully semantic.
+
+#### Ghost-Text Suggestions
+- **`static/app.js`** — Claude Code-style autocomplete suggestions in the chat input. Tracks recent messages and response context, shows a light-colored suggestion based on 14 context-aware rules (e.g., after fixing a bug → "now run the tests to verify the fix"). Tab accepts the suggestion, typing clears it.
+
+### Stats
+- 887 tests passing (881 + 6 new blast classifier tests)
+
+---
+
 ## [6.1.0] - 2026-05-12
 
 ### Added

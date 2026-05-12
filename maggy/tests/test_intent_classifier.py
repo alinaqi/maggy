@@ -9,7 +9,9 @@ import pytest
 
 from maggy.services.intent_classifier import (
     KNOWN_TYPES,
+    classify_blast,
     classify_intent,
+    _parse_blast,
     _parse_response,
 )
 
@@ -88,6 +90,67 @@ async def test_classify_timeout_fallback():
         result = await classify_intent("review the PR")
     # keyword fallback: "review" is in TYPE_KEYWORDS
     assert result == "review"
+
+
+# ── Blast score parsing ──────────────────────────────────────────────
+
+
+def test_parse_blast_valid():
+    """Valid JSON blast score is returned."""
+    assert _parse_blast('{"blast": 7}') == 7
+
+
+def test_parse_blast_clamped_high():
+    """Blast > 10 is clamped to 10."""
+    assert _parse_blast('{"blast": 15}') == 10
+
+
+def test_parse_blast_clamped_low():
+    """Blast < 1 is clamped to 1."""
+    assert _parse_blast('{"blast": 0}') == 1
+
+
+def test_parse_blast_garbage_returns_none():
+    """Non-JSON returns None (triggers fallback)."""
+    assert _parse_blast("not json") is None
+
+
+@pytest.mark.asyncio
+async def test_classify_blast_returns_model_score():
+    """When Ollama responds, use its blast score."""
+    fake_resp = MagicMock()
+    fake_resp.status_code = 200
+    fake_resp.json.return_value = {
+        "message": {"content": '{"blast": 8}'},
+    }
+    with patch(
+        "maggy.services.intent_classifier.httpx.AsyncClient",
+    ) as mock_cls:
+        client = MagicMock()
+        client.post = _async_return(fake_resp)
+        client.__aenter__ = _async_return(client)
+        client.__aexit__ = _async_return(None)
+        mock_cls.return_value = client
+        result = await classify_blast("redesign the auth system")
+    assert result == 8
+
+
+@pytest.mark.asyncio
+async def test_classify_blast_fallback_on_error():
+    """When Ollama is down, fall back to keyword estimation."""
+    import httpx
+
+    with patch(
+        "maggy.services.intent_classifier.httpx.AsyncClient",
+    ) as mock_cls:
+        client = MagicMock()
+        client.post = _async_raise(httpx.ConnectError("down"))
+        client.__aenter__ = _async_return(client)
+        client.__aexit__ = _async_return(None)
+        mock_cls.return_value = client
+        result = await classify_blast("fix typo in readme")
+    assert isinstance(result, int)
+    assert 1 <= result <= 10
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

@@ -4,8 +4,8 @@
 
 Install once, point it at your codebases and issue tracker, and get:
 
-- **Interactive Chat** — auto-connects to all active Claude/Codex/Kimi sessions with multi-model routing
-- **Semantic Intent Classification** — local Ollama model classifies task type (review, security, tests, etc.) instead of brittle keyword matching
+- **Interactive Chat** — auto-connects to all active Claude/Codex/Kimi sessions with multi-model routing and ghost-text suggestions
+- **Semantic Classification** — local Ollama model classifies both task type and blast score semantically, not keyword matching
 - **Inline Model Forcing** — type "use claude" in any message to force a model, no flags needed
 - **Parallel Execution** — Polyphony container orchestration decomposes complex tasks into parallel subtasks
 - **AI-prioritized Tasks** — ranks open issues by urgency + OKR alignment
@@ -163,7 +163,7 @@ Inside the interactive chat:
 
 ## How Routing Works
 
-Every message gets a **blast score** (0-10) based on complexity, then routes to the cheapest model that can handle it:
+Every message gets a **semantic blast score** (1-10) via the local Ollama model, then routes to the cheapest model that can handle it:
 
 | Blast Score | Tier | Models |
 |-------------|------|--------|
@@ -171,9 +171,13 @@ Every message gets a **blast score** (0-10) based on complexity, then routes to 
 | 4-6 | Medium | Codex, Kimi |
 | 7-10 | High | Claude, Codex |
 
-**Semantic intent classification** — the local Ollama model classifies task type (review, security, search, docs, tests, frontend) instead of keyword matching. Falls back to keywords when Ollama is down.
+**Semantic blast score** — the local Ollama model rates task complexity (1-10) semantically instead of keyword matching. Understands nuance: "refactor the entire auth system" → 8, "fix the typo in README" → 2. Falls back to keyword heuristics when Ollama is down.
+
+**Semantic intent classification** — same local model classifies task type (review, security, search, docs, tests, frontend) for routing specialization. Falls back to keywords when Ollama is down.
 
 **Inline model forcing** — type "use claude" / "use codex" / "use kimi" / "use local" anywhere in your message to override routing. The directive is stripped before sending to the model.
+
+**Ghost-text suggestions** — after each response, the chat input shows a context-aware suggestion in gray (like Claude Code). Press Tab to accept. Suggestions are based on the last 10 messages and recent response content.
 
 The router learns from outcomes — every completed task records a reward that shifts future routing decisions. Security-sensitive tasks always route to premium models.
 
@@ -192,7 +196,7 @@ Chat is the default tab — auto-connects to all running CLI sessions on load.
 ## Architecture
 
 - **Provider abstraction** — `IssueTrackerProvider` Protocol (GitHub, Asana)
-- **Multi-model routing** — blast-score + semantic classification + reward learning across 4 tiers
+- **Multi-model routing** — semantic blast-score + intent classification + reward learning across 4 tiers
 - **Polyphony orchestration** — parallel container execution for complex tasks (blast>=7)
 - **Config-driven** — zero hardcoded IDs, orgs, or competitor lists
 - **iCPG integration** — context enrichment from code property graph
@@ -220,7 +224,7 @@ python3 -m pytest tests/ -x --tb=short # with tracebacks
 python3 -m pytest tests/ --cov=maggy   # with coverage
 ```
 
-881 tests, target coverage >= 80%.
+887 tests, target coverage >= 80%.
 
 ## License
 

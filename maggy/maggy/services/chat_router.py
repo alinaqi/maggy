@@ -165,13 +165,17 @@ class RoutedChat:
         Supports inline model forcing: 'use claude/codex/kimi/local'.
         """
         cleaned, forced = parse_model_force(message)
-        blast = blast_override or estimate_blast(cleaned)
+        from maggy.services.intent_classifier import (
+            classify_blast,
+            classify_intent,
+        )
+        if blast_override:
+            blast = blast_override
+        else:
+            blast = await classify_blast(cleaned)
         if type_override:
             task_type = type_override
         else:
-            from maggy.services.intent_classifier import (
-                classify_intent,
-            )
             task_type = await classify_intent(cleaned)
         if forced:
             return RouteDecision(
