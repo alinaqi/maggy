@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import random
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from rich.console import Console, Group
@@ -50,7 +51,13 @@ _JOKES = [
 
 @dataclass
 class _StreamState:
-    """Mutable state shared between stream loop and joke thread."""
+    """Mutable state shared between stream loop and joke thread.
+
+    Threading: joke_line is written by the joke thread; all other
+    mutable fields are written only by the main thread.  The lock
+    protects every read/write so the Live auto-refresh thread
+    (which calls __rich__) always sees consistent snapshots.
+    """
 
     console: Console
     model_label: str = ""
@@ -59,6 +66,10 @@ class _StreamState:
     error: str = ""
     stop: threading.Event = field(default_factory=threading.Event)
     lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def __rich__(self) -> Group:
+        """Called by Live on every auto-refresh tick."""
+        return _build_display(self)
 
 
 def _cycle_jokes(state: _StreamState) -> None:
@@ -73,20 +84,22 @@ def _cycle_jokes(state: _StreamState) -> None:
             with state.lock:
                 state.joke_line = line
             state.stop.wait(1.5)
-        idx += 1
+        idx = (idx + 1) % len(order)
 
 
 def _build_display(state: _StreamState) -> Group:
     """Compose spinner/content + model label + joke line."""
+    with state.lock:
+        label = state.model_label
+        content = state.content
+        jl = state.joke_line
     parts: list = []
-    if state.model_label:
-        parts.append(Rule(f" {state.model_label} ", style="dim"))
-    if state.content:
-        parts.append(Markdown(state.content))
+    if label:
+        parts.append(Rule(f" {label} ", style="dim"))
+    if content:
+        parts.append(Markdown(content))
     else:
         parts.append(Spinner("dots", text="Thinking\u2026"))
-    with state.lock:
-        jl = state.joke_line
     if jl:
         parts.append(Text(f"  {jl}", style="dim italic"))
     return Group(*parts)
@@ -96,17 +109,19 @@ def _handle_chunk(state: _StreamState, chunk: dict) -> bool:
     """Process one SSE chunk. Returns False on 'done'."""
     ct = chunk.get("type", "")
     if ct == "routing":
-        m = chunk.get("model", "?")
-        b = chunk.get("blast", "?")
-        state.model_label = f"Working with {m} \u00b7 blast {b}"
+        model = chunk.get("model", "?")
+        blast = chunk.get("blast", "?")
+        with state.lock:
+            state.model_label = f"Working with {model} \u00b7 blast {blast}"
     elif ct == "queued":
-        pos = chunk.get("position", "?")
-        state.model_label = f"Queued (position {pos})"
+        with state.lock:
+            state.model_label = f"Queued (position {chunk.get('position', '?')})"
     elif ct in ("warning", "agent_status"):
         msg = chunk.get("content", chunk.get("status", ""))
         state.console.print(f"[dim]{msg}[/dim]")
     elif ct in ("text", "result"):
-        state.content += chunk.get("content", "")
+        with state.lock:
+            state.content += chunk.get("content", "")
     elif ct == "error":
         state.error = chunk.get("content", "")
     elif ct == "done":
@@ -124,7 +139,9 @@ def _show_error(state: _StreamState) -> None:
         render_switch_guide("anthropic")
 
 
-def stream_chunks(chunks, console: Console) -> None:
+def stream_chunks(
+    chunks: Iterable[dict], console: Console,
+) -> None:
     """Stream SSE chunks with jokes and model label."""
     state = _StreamState(console=console)
     t = threading.Thread(
@@ -132,12 +149,10 @@ def stream_chunks(chunks, console: Console) -> None:
     )
     t.start()
     try:
-        with Live(console=console, refresh_per_second=8) as live:
-            live.update(_build_display(state))
+        with Live(state, console=console, refresh_per_second=8) as live:
             for chunk in chunks:
                 if not _handle_chunk(state, chunk):
                     break
-                live.update(_build_display(state))
             if state.content:
                 live.update(Markdown(state.content))
     except KeyboardInterrupt:
