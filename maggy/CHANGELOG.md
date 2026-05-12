@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.6.6 — 2026-05-13
+
+### Changed
+- **Claude Code-style streaming UX** — removed knock-knock jokes and joke thread; display is now a clean spinner ("Thinking...") with markdown output, matching Claude Code's minimal style
+- Model label shown as dim text instead of a Rule separator
+- `/history`, `/sessions`, `/monitor` commands moved to central dispatch in `cli_repl_cmds.py`
+
+### Added
+- **Multi-CLI context injection** — on startup, Maggy gathers recent session history from Claude Code, Codex, and Kimi and injects it into the first message so the LLM knows what you've been working on across tools
+- `cli_context.py` module for history gathering and project matching
+- Server accepts `history_context` on session creation and uses it in the first Claude prompt
+
+### Removed
+- Knock-knock joke cycling thread and all 15 jokes from `cli_stream.py`
+- Threading/lock machinery from `_StreamState`
+- `_show_resume_info` startup dump (replaced by context injection)
+
 ## v0.6.5 — 2026-05-13
 
 ### Changed

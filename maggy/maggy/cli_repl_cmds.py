@@ -47,6 +47,13 @@ def dispatch(cmd: str, client, state: SessionState) -> bool:
         cmd_use(args, state)
     elif name == "/claude-md":
         cmd_claude_md(state)
+    elif name == "/history":
+        cmd_history(client, state)
+    elif name == "/sessions":
+        cmd_sessions(client)
+    elif name == "/monitor":
+        data = _call(client.monitor_status)
+        console.print(f"[dim]Monitors: {data.get('active', 0)} active[/dim]")
     elif name == "/help":
         cmd_help()
     else:
@@ -184,6 +191,34 @@ def cmd_health(client) -> None:
     t.add_row("Engram", f"[{c}]{score:.0%}[/{c}] ({eng.get('active', 0)}/{eng.get('total', 0)})")
     t.add_row("Mnemos", f"{mn.get('state', '?')} ({mn.get('composite', 0):.2f})")
     console.print(Panel(t, title="Health", border_style="green"))
+
+
+def cmd_history(client, state: SessionState) -> None:
+    """Show recent messages in this session."""
+    msgs = _call(
+        lambda: client.chat_history(state.session_id),
+    ).get("messages", [])
+    if not msgs:
+        console.print("[dim]No messages yet.[/dim]")
+        return
+    for msg in msgs:
+        role = msg.get("role", "?")
+        content = msg.get("content", "")
+        tag = "[cyan]You[/cyan]" if role == "user" else "[green]Maggy[/green]"
+        console.print(f"  {tag}: {content[:120]}")
+
+
+def cmd_sessions(client) -> None:
+    """List active chat sessions."""
+    sessions = _call(client.chat_sessions, [])
+    if not sessions:
+        console.print("[dim]No chat sessions.[/dim]")
+        return
+    for s in sessions:
+        sid = s.get("id", "?")[:8]
+        proj = s.get("project_key", "?")
+        n = s.get("messages", 0)
+        console.print(f"  [bold]{sid}[/bold] {proj} ({n} msgs)")
 
 
 _HELP = """\

@@ -23,8 +23,9 @@ CLAUDE_BIN = "claude"
 
 def build_cmd(session: ChatSession, message: str) -> list[str]:
     """Build claude CLI command."""
+    prompt = _with_history_context(session, message)
     cmd = [
-        CLAUDE_BIN, "-p", message,
+        CLAUDE_BIN, "-p", prompt,
         "--output-format", "stream-json",
         "--verbose",
         "--dangerously-skip-permissions",
@@ -32,6 +33,17 @@ def build_cmd(session: ChatSession, message: str) -> list[str]:
     if session.claude_session_id:
         cmd += ["--resume", session.claude_session_id]
     return cmd
+
+
+def _with_history_context(
+    session: ChatSession, message: str,
+) -> str:
+    """Prepend history context on first use, then clear."""
+    ctx = session.history_context
+    if not ctx:
+        return message
+    session.history_context = ""
+    return f"[Context]\n{ctx}\n[/Context]\n\n{message}"
 
 
 def parse_chunk(

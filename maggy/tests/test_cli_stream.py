@@ -1,20 +1,17 @@
-"""Tests for cli_stream — streaming display with jokes + model label."""
+"""Tests for cli_stream — streaming display with model label."""
 from __future__ import annotations
 
 import io
-import threading
 from unittest.mock import patch
 
 from rich.console import Console, Group
 from rich.markdown import Markdown
-from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.text import Text
 
 from maggy.cli_stream import (
     _StreamState,
     _build_display,
-    _cycle_jokes,
     _handle_chunk,
     _show_error,
     stream_chunks,
@@ -34,7 +31,6 @@ def test_handle_chunk_routing_sets_label():
         "type": "routing", "model": "kimi", "blast": 3,
     })
     assert "kimi" in state.model_label
-    assert "3" in state.model_label
 
 
 def test_handle_chunk_text_accumulates():
@@ -86,67 +82,28 @@ def test_build_display_spinner_when_no_content():
     state = _make_state()
     display = _build_display(state)
     assert isinstance(display, Group)
-    # 1 renderable: spinner only (no label, no joke)
     assert len(display.renderables) == 1
     assert isinstance(display.renderables[0], Spinner)
 
 
 def test_build_display_with_model_and_content():
     state = _make_state()
-    state.model_label = "Working with kimi"
+    state.model_label = "kimi"
     state.content = "Hello"
     display = _build_display(state)
     assert len(display.renderables) == 2
-    assert isinstance(display.renderables[0], Rule)
+    assert isinstance(display.renderables[0], Text)
     assert isinstance(display.renderables[1], Markdown)
 
 
-def test_build_display_shows_joke():
+def test_build_display_model_only():
     state = _make_state()
-    state.joke_line = "Knock knock."
+    state.model_label = "claude"
     display = _build_display(state)
-    # spinner + joke text = 2 renderables
+    # model label + spinner
     assert len(display.renderables) == 2
-    assert isinstance(display.renderables[1], Text)
-
-
-def test_build_display_all_zones():
-    state = _make_state()
-    state.model_label = "Working with kimi"
-    state.content = "Hello"
-    state.joke_line = "Who's there?"
-    display = _build_display(state)
-    # rule + markdown + joke = 3
-    assert len(display.renderables) == 3
-
-
-# -- _cycle_jokes tests --
-
-
-def test_cycle_jokes_populates_joke_line():
-    state = _make_state()
-    t = threading.Thread(
-        target=_cycle_jokes, args=(state,), daemon=True,
-    )
-    t.start()
-    # Wait briefly for first joke line
-    t.join(timeout=0.5)
-    state.stop.set()
-    with state.lock:
-        jl = state.joke_line
-    assert jl != ""
-    assert "Knock knock" in jl or "Who's there" in jl
-
-
-def test_cycle_jokes_stops_on_event():
-    state = _make_state()
-    state.stop.set()  # pre-set stop
-    t = threading.Thread(
-        target=_cycle_jokes, args=(state,), daemon=True,
-    )
-    t.start()
-    t.join(timeout=2.0)
-    assert not t.is_alive()
+    assert isinstance(display.renderables[0], Text)
+    assert isinstance(display.renderables[1], Spinner)
 
 
 # -- __rich__ protocol --

@@ -168,10 +168,13 @@ class MaggyClient:
 
     def chat_create(
         self, project_key: str, project_path: str | None = None,
+        history_context: str | None = None,
     ) -> dict:
         body: dict = {"project_key": project_key}
         if project_path:
             body["project_path"] = project_path
+        if history_context:
+            body["history_context"] = history_context
         return self.post("/api/chat/sessions", body)
 
     def chat_sessions(self) -> list:

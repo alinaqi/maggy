@@ -46,6 +46,10 @@ def _no_detect(monkeypatch):
         session_detect, "detect_all",
         lambda wd: session_detect.DetectedSessions(),
     )
+    import maggy.cli_chat as chat_mod
+    monkeypatch.setattr(
+        chat_mod, "gather_cli_context", lambda wd: "",
+    )
 
 
 def _setup_new(mock_client):
@@ -110,6 +114,7 @@ def test_chat_creates_session(mock_client, tmp_path, monkeypatch):
     assert result.exit_code == 0
     mock_client.chat_create.assert_called_once_with(
         tmp_path.name, str(tmp_path.resolve()),
+        history_context="",
     )
 
 
@@ -138,6 +143,7 @@ def test_chat_explicit_project_arg(mock_client, tmp_path, monkeypatch):
     assert result.exit_code == 0
     mock_client.chat_create.assert_called_once_with(
         "my-proj", str(tmp_path.resolve()),
+        history_context="",
     )
 
 

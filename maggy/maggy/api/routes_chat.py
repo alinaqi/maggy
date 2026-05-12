@@ -30,6 +30,7 @@ def _require_chat(request: Request):
 class CreateSessionRequest(BaseModel):
     project_key: str
     project_path: str | None = None
+    history_context: str | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -111,6 +112,8 @@ async def create_session(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    if body.history_context:
+        session.history_context = body.history_context
     return {
         "id": session.id,
         "project_key": session.project_key,
