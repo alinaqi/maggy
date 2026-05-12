@@ -164,7 +164,7 @@ class TestEngramSeed:
         profile = diagnose(store)
         assert profile.health_score >= 0.8
 
-    def test_seed_skips_nonempty(self, tmp_path: Path):
+    def test_seed_fills_missing_types(self, tmp_path: Path):
         from maggy.engram.seed import seed_if_empty
         store = EngramStore(tmp_path / "engram.db")
         store.write(EngramRecord(
@@ -172,4 +172,22 @@ class TestEngramSeed:
             memory_type="fact", content="already here",
         ))
         seed_if_empty(store)
-        assert store.count() == 1
+        profile = diagnose(store)
+        # Original fact kept, missing types seeded
+        assert profile.facts >= 1
+        assert profile.decisions > 0
+        assert profile.code_refs > 0
+        assert profile.handoffs > 0
+
+    def test_seed_skips_when_all_types_present(self, tmp_path: Path):
+        from maggy.engram.seed import seed_if_empty
+        store = EngramStore(tmp_path / "engram.db")
+        for i, mt in enumerate(
+            ["fact", "decision", "code_ref", "handoff"],
+        ):
+            store.write(EngramRecord(
+                engram_id=f"e{i}", namespace="p",
+                memory_type=mt, content=f"c{i}",
+            ))
+        seed_if_empty(store)
+        assert store.count() == 4

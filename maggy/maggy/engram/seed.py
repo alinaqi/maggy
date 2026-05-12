@@ -22,16 +22,24 @@ _SEEDS = [
      "Memory will grow as tasks are completed."),
 ]
 
+_REQUIRED_TYPES = {"fact", "decision", "code_ref", "handoff"}
+
 
 def seed_if_empty(store: EngramStore) -> None:
-    """Write seed engrams only if the store is empty."""
-    if store.count() > 0:
+    """Seed missing memory types for healthy diversity."""
+    existing = {
+        r.memory_type
+        for r in store.query(active_only=True, limit=500)
+    }
+    missing = _REQUIRED_TYPES - existing
+    if not missing:
         return
     for eid, mtype, content in _SEEDS:
-        store.write(EngramRecord(
-            engram_id=eid,
-            namespace="system",
-            memory_type=mtype,
-            content=content,
-            tags=["seed"],
-        ))
+        if mtype in missing:
+            store.write(EngramRecord(
+                engram_id=eid,
+                namespace="system",
+                memory_type=mtype,
+                content=content,
+                tags=["seed"],
+            ))
