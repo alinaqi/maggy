@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import typer
 
+from maggy.cli_analytics import register as _register_analytics
 from maggy.cli_client import MaggyClient
 from maggy.cli_output import (
     console,
     dump_json,
-    render_budget,
-    render_competitors,
     render_health,
     render_inbox,
-    render_models,
-    render_route,
     render_sessions,
 )
 
@@ -53,6 +50,19 @@ def serve() -> None:
     """Start the Maggy server + web dashboard."""
     from maggy.main import main as start_server
     start_server()
+
+
+@app.command()
+def restart() -> None:
+    """Stop and restart the Maggy server."""
+    console.print("[dim]Stopping Maggy server…[/dim]")
+    _client._kill_stale_port()
+    console.print("[dim]Starting Maggy server…[/dim]")
+    if _client.ensure_server():
+        console.print("[green]Maggy restarted.[/green]")
+    else:
+        console.print("[red]Failed to restart.[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -147,66 +157,5 @@ def execute(
     )
 
 
-@app.command()
-def route(
-    blast: int = typer.Argument(..., help="Complexity 1-10"),
-    task_type: str = typer.Option("general", "--type"),
-    json_out: bool = typer.Option(False, "--json"),
-) -> None:
-    """Get routing decision for a complexity score."""
-    _ensure()
-    data = _client.route(blast, task_type)
-    dump_json(data) if json_out else render_route(data)
-
-
-@app.command()
-def budget(json_out: bool = typer.Option(False, "--json")) -> None:
-    """Show per-provider token budget."""
-    _ensure()
-    data = _client.budget_summary()
-    dump_json(data) if json_out else render_budget(data)
-
-
-@app.command()
-def models(json_out: bool = typer.Option(False, "--json")) -> None:
-    """Show model performance heatmap."""
-    _ensure()
-    data = _client.models_heatmap()
-    dump_json(data) if json_out else render_models(data)
-
-
-@app.command()
-def competitors(
-    briefing: bool = typer.Option(False, "--briefing"),
-    json_out: bool = typer.Option(False, "--json"),
-) -> None:
-    """Show competitor intelligence."""
-    _ensure()
-    if briefing:
-        data = _client.competitors_briefing()
-    else:
-        data = _client.competitors_news()
-    if json_out:
-        dump_json(data)
-    elif briefing:
-        console.print(data.get("summary", "No briefing available."))
-    else:
-        render_competitors(data)
-
-
-@app.command()
-def process(
-    project: str = typer.Argument(..., help="Project key"),
-    json_out: bool = typer.Option(False, "--json"),
-) -> None:
-    """Show process health for a project."""
-    _ensure()
-    data = _client.process_health(project)
-    dump_json(data) if json_out else console.print_json(data=data)
-
-
-@app.command()
-def config(json_out: bool = typer.Option(False, "--json")) -> None:
-    """Show current configuration (redacted)."""
-    _ensure()
-    dump_json(_client.config())
+# Register analytics/reporting commands (route, budget, models, etc.)
+_register_analytics(app, _client, _ensure)
