@@ -298,6 +298,7 @@ def _from_dict(data: dict[str, Any]) -> MaggyConfig:
         routing=routing,
         mesh=MeshConfig(**(data.get("mesh") or {})),
         heartbeat=HeartbeatConfig(**(data.get("heartbeat") or {})),
+        orchestrator=OrchestratorConfig(**(data.get("orchestrator") or {})),
     )
 
 

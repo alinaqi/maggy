@@ -32,7 +32,8 @@ async def spawn_team(req: SpawnRequest, request: Request):
     task = await provider.get_task(req.task_id)
     if not task:
         raise HTTPException(404, f"Task {req.task_id} not found")
-    subtasks = await orch.decompose(req.task_id, task.title)
+    desc = getattr(task, "description", "") or ""
+    subtasks = await orch.decompose(task.title, desc)
     session = await orch.spawn_team(req.task_id, subtasks)
     return _summarize(session)
 

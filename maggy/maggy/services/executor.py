@@ -41,6 +41,10 @@ class ExecutorService:
         self._checkpoint = CheckpointManager(db / "checkpoints")
         self._escalator = Escalator(db / "escalations.db")
         self._planner, self._status_cb = DualPlanner(self._pi), status_cb
+        self._orchestrator = None
+        if cfg.orchestrator.enabled:
+            from maggy.services.orchestrator import OrchestratorService
+            self._orchestrator = OrchestratorService(cfg, self._pi)
     async def start(self, task_id: str, mode: str = "tdd",
                     working_dir: str | None = None) -> str:
         if mode not in ("tdd", "plan"):
@@ -71,7 +75,12 @@ class ExecutorService:
             ensure_scanned(self._routing.rules, pk, ctx.wd)
             await ensure_inferred(self._routing.rules, pk, ctx.wd, self._pi)
             ctx.icpg = await H.build_icpg_context(self.cfg, ctx.task)
-            await (self._run_plan(ctx) if mode == "plan" else self._run_tdd(ctx))
+            if mode == "plan":
+                await self._run_plan(ctx)
+            elif self._should_parallel(ctx):
+                await self._run_parallel(ctx)
+            else:
+                await self._run_tdd(ctx)
         except Exception as e:
             logger.exception("Execution failed")
             ctx.session["status"], ctx.session["error"] = "failed", str(e)
@@ -198,3 +207,23 @@ class ExecutorService:
             ctx.session.update(dual_plan=r.primary_plan[:2000], plan_conflicts=r.conflicts or [])
         except Exception as exc:
             logger.warning("DualPlanner failed: %s", exc)
+
+    def _should_parallel(self, ctx: SessionCtx) -> bool:
+        """Check if task warrants parallel container execution."""
+        if not self._orchestrator:
+            return False
+        blast = H.blast_score(ctx.task)
+        raw = ctx.task.raw if isinstance(ctx.task.raw, dict) else {}
+        files = H.int_value(raw.get("file_count", 0))
+        requested = bool(raw.get("parallel"))
+        return H.select_strategy(blast, files, requested) == "parallel"
+
+    async def _run_parallel(self, ctx: SessionCtx) -> None:
+        """Decompose task and run subtasks via orchestrator."""
+        ctx.session["output"] += "\n=== PARALLEL MODE ===\n"
+        desc = ctx.task.description[:1500]
+        subtasks = await self._orchestrator.decompose(ctx.task.title, desc)
+        ctx.session["output"] += f"Decomposed into {len(subtasks)} subtasks\n"
+        session = await self._orchestrator.spawn_team(ctx.task.id, subtasks)
+        ctx.session["team_id"] = session.team_id
+        ctx.session["status"] = "parallel_running"

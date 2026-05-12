@@ -21,9 +21,11 @@ from maggy.orchestrator.async_runtime import (
     async_remove_container,
     container_logs,
 )
+from maggy.orchestrator.decomposer import decompose_task
 from maggy.orchestrator.models import Result, RunSpec, Task
 
 if TYPE_CHECKING:
+    from maggy.adapters.pi import PiAdapter
     from maggy.config import MaggyConfig
 
 logger = logging.getLogger(__name__)
@@ -58,14 +60,22 @@ def route_subtask(subtask: Task) -> RunSpec:
 class OrchestratorService:
     """Manages parallel container teams."""
 
-    def __init__(self, cfg: "MaggyConfig") -> None:
+    def __init__(self, cfg: "MaggyConfig", pi: "PiAdapter | None" = None) -> None:
         self._cfg = cfg
+        self._pi = pi
         orch = cfg.orchestrator
         self._max = orch.max_concurrent
         self._ws_root = Path(orch.workspace_root).expanduser()
         self._timeout = orch.container_timeout
         self._teams: dict[str, TeamSession] = {}
         self._bg: set[asyncio.Task] = set()
+
+    async def decompose(self, title: str, desc: str) -> list[Task]:
+        """Split a task into subtasks via LLM decomposition."""
+        if not self._pi:
+            from maggy.adapters.pi import PiAdapter
+            self._pi = PiAdapter()
+        return await decompose_task(self._pi, title, desc)
 
     async def spawn_team(
         self, task_id: str, subtasks: list[Task],
