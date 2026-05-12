@@ -422,6 +422,7 @@ async function scanCompetitors() {
 // ── Chat ────────────────────────────────────────────────────────────────
 let CHAT_SESSION_ID = null;
 let CHAT_SESSIONS_CACHE = [];
+let CURRENT_MODEL = '';
 
 async function loadChat() {
   const pane = document.getElementById('pane-chat');
@@ -472,14 +473,27 @@ function renderChatSidebar(sessions) {
 }
 
 function renderChatMain() {
-  let html = `<div class="flex-1 flex flex-col pl-4 min-h-0">`;
+  let html = `<div class="flex-1 flex flex-col min-h-0">`;
   if (CHAT_SESSION_ID) {
-    html += `<div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 min-h-0"></div>`;
-    html += `<div class="shrink-0 border-t border-gray-800 pt-3 pb-1 mt-2 sticky bottom-0 bg-[#0b0e14]">
+    // Top progress shimmer bar (hidden by default)
+    html += `<div id="progress-bar" class="hidden h-0.5 w-full overflow-hidden bg-gray-800/50"><div class="progress-shimmer h-full w-1/3"></div></div>`;
+    // Messages scroll area
+    html += `<div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 min-h-0 px-5 py-3"></div>`;
+    // Working zone (hidden by default)
+    html += `<div id="working-zone" class="hidden shrink-0 px-5 py-2 border-t border-gray-700/30">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="inline-block w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+        <span id="model-label" class="text-[11px] text-gray-500"></span>
+      </div>
+      <pre id="joke-text" class="text-[11px] leading-relaxed ml-4 max-h-16 overflow-y-auto"></pre>
+    </div>`;
+    // Divider + input bar + divider
+    html += `<div class="border-t border-gray-700/50"></div>`;
+    html += `<div class="shrink-0 px-5 pt-3 pb-2 bg-[#0b0e14]">
       <div class="flex gap-2">
         <div class="flex-1 relative">
           <div id="chat-ghost" class="absolute inset-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
-          <input id="chat-input" type="text" placeholder="Type a message to Claude…"
+          <input id="chat-input" type="text" placeholder="Type a message..."
             class="w-full text-sm text-white rounded-lg px-3 py-2.5 border border-gray-700 focus:border-orange-500 outline-none relative bg-transparent"
             style="background: #151922;"
             onkeydown="handleChatKeydown(event)" oninput="updateGhostText()" />
@@ -488,6 +502,7 @@ function renderChatMain() {
       </div>
       <div class="text-[9px] text-gray-600 mt-1.5 text-center">Tab to accept suggestion · Enter to send</div>
     </div>`;
+    html += `<div class="border-t border-gray-700/50"></div>`;
   } else {
     html += `<div class="flex-1 flex items-center justify-center">
       <div class="text-center">
@@ -567,16 +582,16 @@ function renderHistoryContext(ctx) {
 }
 
 function renderUserMsg(m) {
-  return `<div class="flex justify-end"><div class="max-w-[80%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
-    <div class="text-xs text-white">${esc(m.content)}</div>
-    <div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>
+  const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
+  return `<div class="flex justify-end"><div class="max-w-[75%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
+    <div class="text-xs text-white">${esc(m.content)}</div>${ts}
   </div></div>`;
 }
 
 function renderAssistantMsg(m) {
-  return `<div class="flex justify-start"><div class="max-w-[80%] card px-3 py-2">
-    <pre class="text-xs text-gray-300 whitespace-pre-wrap">${esc(m.content)}</pre>
-    <div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>
+  const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
+  return `<div class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
+    <pre class="text-xs text-gray-300 whitespace-pre-wrap">${esc(m.content)}</pre>${ts}
   </div></div>`;
 }
 
@@ -659,6 +674,39 @@ function stopJokeRotation() {
   if (_jokeTimer) { clearInterval(_jokeTimer); _jokeTimer = null; }
 }
 
+function showWorking() {
+  const bar = document.getElementById('progress-bar');
+  const zone = document.getElementById('working-zone');
+  const label = document.getElementById('model-label');
+  if (bar) bar.classList.remove('hidden');
+  if (zone) zone.classList.remove('hidden');
+  if (label) label.textContent = 'Thinking…';
+  const jokeEl = document.getElementById('joke-text');
+  if (jokeEl) startJokeRotation(jokeEl);
+}
+
+function hideWorking() {
+  stopJokeRotation();
+  const bar = document.getElementById('progress-bar');
+  const zone = document.getElementById('working-zone');
+  const joke = document.getElementById('joke-text');
+  const label = document.getElementById('model-label');
+  if (bar) bar.classList.add('hidden');
+  if (zone) zone.classList.add('hidden');
+  if (joke) joke.innerHTML = '';
+  if (label) label.textContent = '';
+}
+
+function updateModelLabel(model, blast, taskType) {
+  const label = document.getElementById('model-label');
+  if (!label) return;
+  if (!model) { label.textContent = 'Thinking…'; return; }
+  const parts = [`Working with ${esc(model)}`];
+  if (blast) parts.push(`blast ${blast}`);
+  if (taskType && taskType !== 'general') parts.push(esc(taskType));
+  label.textContent = parts.join(' · ');
+}
+
 // ── Ghost-text suggestions ───────────────────────────────────────────
 let _chatHistory = [];
 let _lastResponse = '';
@@ -736,18 +784,18 @@ async function sendChatMessage() {
   if (ghost) ghost.textContent = '';
   const el = document.getElementById('chat-messages');
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
-  el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[80%] card px-3 py-2">
-    <pre id="stream-text" class="text-xs text-gray-300"></pre>
+  el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
+    <pre id="stream-text" class="text-xs text-gray-300 whitespace-pre-wrap"></pre>
   </div></div>`;
   el.scrollTop = el.scrollHeight;
-  const streamEl = document.getElementById('stream-text');
-  startJokeRotation(streamEl);
+  showWorking();
   try {
     await streamChatResponse(message, el);
   } catch (e) {
+    const streamEl = document.getElementById('stream-text');
     if (streamEl) streamEl.innerHTML = `<span class="text-red-400">Error: ${esc(e.message)}</span>`;
   }
-  stopJokeRotation();
+  hideWorking();
   input.disabled = false;
   input.focus();
   refreshSuggestion();
@@ -755,11 +803,15 @@ async function sendChatMessage() {
 
 async function streamChatResponse(message, el) {
   const apiKey = localStorage.getItem('maggy-api-key') || '';
-  const resp = await fetch(`${API}/chat/sessions/${CHAT_SESSION_ID}/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-API-Key': apiKey } : {}) },
-    body: JSON.stringify({ message }),
+  const headers = { 'Content-Type': 'application/json', ...(apiKey ? { 'X-API-Key': apiKey } : {}) };
+  let resp = await fetch(`${API}/chat/sessions/${CHAT_SESSION_ID}/send-routed`, {
+    method: 'POST', headers, body: JSON.stringify({ message }),
   });
+  if (!resp.ok) {
+    resp = await fetch(`${API}/chat/sessions/${CHAT_SESSION_ID}/send`, {
+      method: 'POST', headers, body: JSON.stringify({ message }),
+    });
+  }
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let responseText = '';
@@ -773,8 +825,13 @@ async function streamChatResponse(message, el) {
       try {
         const data = JSON.parse(line.slice(6));
         if (data.type === 'done') continue;
+        if (data.type === 'routing') {
+          CURRENT_MODEL = data.model || '';
+          updateModelLabel(data.model, data.blast, data.task_type);
+          continue;
+        }
         if (data.type === 'error') { streamEl.innerHTML = `<span class="text-red-400">${esc(data.content)}</span>`; continue; }
-        if (data.content) { if (!responseText) stopJokeRotation(); responseText += data.content; streamEl.textContent = responseText; el.scrollTop = el.scrollHeight; }
+        if (data.content) { responseText += data.content; streamEl.textContent = responseText; el.scrollTop = el.scrollHeight; }
       } catch {}
     }
   }

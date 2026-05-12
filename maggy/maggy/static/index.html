@@ -42,6 +42,8 @@
     .card { background:#151922; border:1px solid #262b3a; border-radius: 0.5rem; }
     pre { white-space: pre-wrap; word-break: break-word; }
     .pane { height: 100%; }
+    @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+    .progress-shimmer { background:linear-gradient(90deg,transparent,#ea580c,transparent); animation:shimmer 1.5s infinite; }
   </style>
 </head>
 <body>
@@ -99,6 +101,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>
