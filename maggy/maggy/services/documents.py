@@ -98,10 +98,8 @@ def _extract_txt(p: Path) -> str:
 
 
 def _extract_excel(p: Path) -> str:
-    try:
-        import openpyxl
-    except ImportError:
-        return "Error: Install openpyxl: pip install openpyxl"
+    from maggy.services.auto_deps import ensure_import
+    openpyxl = ensure_import("openpyxl")
     wb = openpyxl.load_workbook(p, read_only=True)
     lines = []
     for sheet in wb.sheetnames[:3]:
@@ -115,19 +113,15 @@ def _extract_excel(p: Path) -> str:
 
 
 def _extract_docx(p: Path) -> str:
-    try:
-        import docx
-    except ImportError:
-        return "Error: Install python-docx: pip install python-docx"
+    from maggy.services.auto_deps import ensure_import
+    docx = ensure_import("docx", pip_name="python-docx")
     doc = docx.Document(str(p))
     return "\n\n".join(para.text for para in doc.paragraphs)
 
 
 def _extract_pdf(p: Path) -> str:
-    try:
-        import pymupdf
-    except ImportError:
-        return "Error: Install pymupdf: pip install pymupdf"
+    from maggy.services.auto_deps import ensure_import
+    pymupdf = ensure_import("pymupdf")
     doc = pymupdf.open(str(p))
     pages = [doc[i].get_text() for i in range(min(len(doc), 20))]
     doc.close()

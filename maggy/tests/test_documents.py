@@ -87,14 +87,31 @@ class TestExtractText:
         text = extract_text(str(f))
         assert "not supported" in text.lower()
 
-    def test_excel_missing_library(self, tmp_path):
+    def test_excel_auto_installs_openpyxl(self, tmp_path):
         f = tmp_path / "report.xlsx"
         f.write_bytes(b"PK\x03\x04")
-        with patch.dict(
-            "sys.modules", {"openpyxl": None},
+        installed = []
+
+        def fake_pip(name):
+            installed.append(name)
+
+        from maggy.services import auto_deps
+        original = auto_deps.importlib.import_module
+
+        def patched(name):
+            if name == "openpyxl":
+                raise ImportError("no openpyxl")
+            return original(name)
+
+        with patch.object(
+            auto_deps.importlib, "import_module", patched,
+        ), patch(
+            "maggy.services.auto_deps._pip_install",
+            side_effect=fake_pip,
         ):
             text = extract_text(str(f))
-        assert "openpyxl" in text.lower() or "install" in text.lower()
+        assert len(installed) == 1
+        assert installed[0] == "openpyxl"
 
     def test_truncates_large_files(self, tmp_path):
         f = tmp_path / "big.txt"
