@@ -96,3 +96,30 @@ class TestToDict:
         d = to_dict(rules)
         assert "cascade_policy" in d
         assert d["cascade_policy"]["enabled"] is True
+
+
+class TestDefaultTiers:
+    """Default model tiers: no GPT, codex is primary."""
+
+    def test_no_gpt_in_defaults(self):
+        from maggy.process.model_router import DEFAULT_TIERS
+        names = [t.name for t in DEFAULT_TIERS]
+        assert "gpt" not in names
+
+    def test_codex_is_primary(self):
+        from maggy.process.model_router import DEFAULT_TIERS
+        codex = [t for t in DEFAULT_TIERS if t.name == "codex"]
+        assert len(codex) == 1
+        assert codex[0].role == "primary"
+
+    def test_codex_handles_complex(self):
+        from maggy.process.model_router import DEFAULT_TIERS
+        codex = [t for t in DEFAULT_TIERS if t.name == "codex"][0]
+        assert codex.complexity_max >= 8
+
+    def test_local_kimi_handle_simple(self):
+        from maggy.process.model_router import DEFAULT_TIERS
+        local = [t for t in DEFAULT_TIERS if t.name == "local"][0]
+        kimi = [t for t in DEFAULT_TIERS if t.name == "kimi"][0]
+        assert local.complexity_max <= 5
+        assert kimi.complexity_max <= 5

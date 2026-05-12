@@ -44,9 +44,9 @@ _PHASES = {
 
 _PERF = {
     "claude": (["security", "tests", "docs", "architecture"], ["cost"], 6, 1.0),
-    "codex": (["crud", "api_design"], ["frontend_speed", "tests"], 3, 1.0),
-    "kimi": (["schema", "simple_tasks"], ["complex_reasoning"], 1, 1.0),
-    "local": (["code_formatting", "simple_edits"], ["docs", "prose"], 1, 1.0),
+    "codex": (["code_generation", "api_design", "bug", "feature"], ["docs"], 5, 1.0),
+    "kimi": (["schema", "simple_tasks", "docs"], ["complex_reasoning"], 1, 1.0),
+    "local": (["code_formatting", "simple_edits", "feature"], ["docs", "prose"], 1, 1.0),
 }
 
 

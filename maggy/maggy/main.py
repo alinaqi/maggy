@@ -74,6 +74,8 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     app.state.forge = ForgeConnector()
     from maggy.engram.store import EngramStore
     app.state.engram = EngramStore(db_dir / "engram.db")
+    from maggy.engram.seed import seed_if_empty
+    seed_if_empty(app.state.engram)
     from maggy.lexon.router import LexonRouter
     app.state.lexon = LexonRouter()
     _init_mesh(app, cfg)

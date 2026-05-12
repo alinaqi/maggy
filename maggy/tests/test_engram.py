@@ -142,3 +142,34 @@ class TestDiagnostics:
         assert profile.total_memories == 4
         assert profile.active_count == 4
         assert profile.health_score > 0.8
+
+
+class TestEngramSeed:
+    """Seed engrams on first boot for non-zero health."""
+
+    def test_seed_writes_all_types(self, tmp_path: Path):
+        from maggy.engram.seed import seed_if_empty
+        store = EngramStore(tmp_path / "engram.db")
+        seed_if_empty(store)
+        profile = diagnose(store)
+        assert profile.facts > 0
+        assert profile.decisions > 0
+        assert profile.code_refs > 0
+        assert profile.handoffs > 0
+
+    def test_seed_gives_healthy_score(self, tmp_path: Path):
+        from maggy.engram.seed import seed_if_empty
+        store = EngramStore(tmp_path / "engram.db")
+        seed_if_empty(store)
+        profile = diagnose(store)
+        assert profile.health_score >= 0.8
+
+    def test_seed_skips_nonempty(self, tmp_path: Path):
+        from maggy.engram.seed import seed_if_empty
+        store = EngramStore(tmp_path / "engram.db")
+        store.write(EngramRecord(
+            engram_id="existing", namespace="p",
+            memory_type="fact", content="already here",
+        ))
+        seed_if_empty(store)
+        assert store.count() == 1

@@ -27,7 +27,7 @@ class TestRoutingDecisions:
             if isinstance(decision.primary, str)
             else decision.primary.name
         )
-        assert name == "claude"
+        assert name in ("codex", "claude")
 
     def test_security_sensitive_avoids_cheap(self, mock_cfg):
         rs = RoutingService(mock_cfg)
@@ -42,7 +42,7 @@ class TestRoutingDecisions:
             if isinstance(decision.primary, str)
             else decision.primary.name
         )
-        assert name in ("gpt", "claude")
+        assert name in ("codex", "claude")
 
 
 class TestRoutingLearning:
@@ -56,7 +56,7 @@ class TestRoutingLearning:
         rs = RoutingService(mock_cfg)
         # Seed enough data for learning
         for _ in range(MIN_SAMPLES + 1):
-            rs.record_outcome("gpt", "bug", 2, 0.99)
+            rs.record_outcome("codex", "bug", 2, 0.99)
         ctx = RoutingContext(blast_score=2, task_type="bug")
         decision = rs.route(ctx)
         name = (
@@ -64,7 +64,7 @@ class TestRoutingLearning:
             if isinstance(decision.primary, str)
             else decision.primary.name
         )
-        assert name == "gpt"
+        assert name == "codex"
 
     def test_blast_tier_mapping(self, mock_cfg):
         rs = RoutingService(mock_cfg)

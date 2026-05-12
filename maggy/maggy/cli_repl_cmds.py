@@ -12,7 +12,7 @@ from rich.table import Table
 
 console = Console()
 
-_KNOWN_MODELS = ("local", "kimi", "gpt", "claude", "codex")
+_KNOWN_MODELS = ("local", "kimi", "claude", "codex")
 
 
 def _call(fn, d=None):

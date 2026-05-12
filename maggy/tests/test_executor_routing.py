@@ -89,8 +89,8 @@ async def test_plan_mode_routes_high_blast_to_claude(
     task = _task(9, "general")
     ctx = _ctx(session, task, str(tmp_path))
     await executor._run(ctx, "plan")
-    # First call is task execution → claude; "local" is cascade reviewer
-    assert models[0] == "claude"
+    # Blast 9 general → codex (cost_rank=3, covers 4-10)
+    assert models[0] == "codex"
 
 
 @pytest.mark.asyncio
@@ -286,4 +286,4 @@ async def test_status_shows_model_name(
     ctx = _ctx(session, task, str(tmp_path))
     await executor._run(ctx, "plan")
     agents = {s.get("agent") for s in statuses}
-    assert "claude" in agents
+    assert "codex" in agents

@@ -110,22 +110,22 @@ class TestRoutingAccuracy:
             results[task.id] = name
 
         # Low blast (1-3) → cheap tier unless rules override
-        # T-1 is docs → rules force claude (local can't do prose)
+        # T-1 is docs → rules force claude
         assert results["T-1"] == "claude"
-        assert results["T-2"] in ("local", "kimi", "deepseek")
-        assert results["T-3"] in ("local", "kimi", "deepseek")
-        # Blast 5 → local covers it now (0-5), kimi(0-4), gpt(3-7)
-        assert results["T-4"] in ("local", "kimi", "gpt")
-        # Blast 6 → gpt(3-7) or claude(5-10)
-        assert results["T-5"] in ("gpt", "claude")
-        # Blast 7 overlaps gpt(3-7) and claude(5-10); cheapest wins
-        assert results["T-6"] in ("gpt", "claude")
-        # Blast 8+ → only claude covers it
-        assert results["T-7"] == "claude"
-        # Security always premium
+        assert results["T-2"] in ("local", "kimi")
+        assert results["T-3"] in ("local", "kimi")
+        # Blast 5 → local(0-5) cheapest, codex(4-10), claude(5-10)
+        assert results["T-4"] in ("local", "codex")
+        # Blast 6 → codex(4-10) cheapest, claude(5-10)
+        assert results["T-5"] in ("codex", "claude")
+        # Blast 7 → codex or claude
+        assert results["T-6"] in ("codex", "claude")
+        # Blast 8+ → codex or claude (security→claude)
+        assert results["T-7"] in ("codex", "claude")
+        # Security always premium (claude)
         assert results["T-8"] == "claude"
         assert results["T-9"] == "claude"
-        assert results["T-10"] in ("gpt", "claude")  # blast 7 overlap
+        assert results["T-10"] in ("codex", "claude")
 
     def test_routing_accuracy_score(self, tmp_path):
         """Compute accuracy as % of correct routing decisions."""
@@ -135,14 +135,15 @@ class TestRoutingAccuracy:
 
         expected_tiers = {
             "T-1": "premium", "T-2": "cheap", "T-3": "cheap",
-            "T-4": "cheap",  # local now covers 0-5
-            "T-5": "medium",
-            "T-6": "medium",  # blast 7 overlaps gpt/claude
-            "T-7": "premium", "T-8": "premium",
-            "T-9": "premium", "T-10": "premium",
+            "T-4": "cheap",   # local covers 0-5
+            "T-5": "mid",     # codex covers 4-10
+            "T-6": "mid",     # codex covers 4-10
+            "T-7": "mid",     # codex (no security override)
+            "T-8": "premium", "T-9": "premium",
+            "T-10": "mid",    # codex covers 4-10
         }
-        tier_map = {"local": "cheap", "kimi": "cheap", "deepseek": "cheap",
-                     "gpt": "medium", "claude": "premium", "codex": "premium"}
+        tier_map = {"local": "cheap", "kimi": "cheap",
+                     "codex": "mid", "claude": "premium"}
 
         for task in SPRINT_TASKS:
             raw = task.raw or {}
@@ -452,8 +453,8 @@ class TestFullExecutorPipeline:
         unique_models = set(models_used)
         assert len(unique_models) >= 3, f"Only {unique_models} used"
         assert "claude" in unique_models
-        assert "gpt" in unique_models
-        cheap = {"kimi", "local", "deepseek"}
+        assert "codex" in unique_models
+        cheap = {"kimi", "local"}
         assert cheap & unique_models, "No cheap model used"
 
         # Verify fatigue was tracked
@@ -473,7 +474,7 @@ class TestFullExecutorPipeline:
         provider = AsyncMock()
         executor = ExecutorService(cfg, provider)
 
-        cost_map = {"kimi": 0.01, "local": 0.0, "gpt": 0.15, "claude": 0.80, "deepseek": 0.01, "codex": 0.10}
+        cost_map = {"kimi": 0.01, "local": 0.0, "claude": 0.80, "codex": 0.10}
 
         async def fake_send(model, prompt, wd, max_turns=20, timeout=600):
             return RunResult(model=model, success=True, output="ok", cost_usd=cost_map.get(model, 0.05))
