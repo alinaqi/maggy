@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
+import re
 from pathlib import Path
-from typing import Generator
+from typing import AsyncGenerator, Generator
 
 import httpx
 
@@ -20,6 +22,10 @@ _IMAGE_EXTS = frozenset({
 _DEFAULT_PROMPT = (
     "Analyze this screenshot. Describe what you see, "
     "identify any UI issues, and suggest improvements."
+)
+_PATH_RE = re.compile(
+    r"""((?:/|~/)[\w./\- ]+\.(?:png|jpg|jpeg|gif|webp|bmp))""",
+    re.IGNORECASE,
 )
 
 
@@ -81,6 +87,33 @@ def analyze_image(
         yield _err(str(e))
         return
     yield {"type": "done"}
+
+
+def extract_image_path(message: str) -> tuple[str, str] | None:
+    """Extract image path and remaining prompt from message.
+
+    Returns (path, prompt) or None if no image path found.
+    """
+    m = _PATH_RE.search(message)
+    if not m:
+        return None
+    raw = m.group(1).replace("\\ ", " ")
+    resolved = _validate(raw)
+    if not resolved:
+        return None
+    prompt = (message[:m.start()] + message[m.end():]).strip()
+    prompt = re.sub(r"\s{2,}", " ", prompt)
+    return str(resolved), prompt or None
+
+
+async def async_analyze_image(
+    path: str, prompt: str | None = None,
+) -> AsyncGenerator[dict, None]:
+    """Async wrapper around analyze_image for chat service."""
+    for chunk in await asyncio.to_thread(
+        lambda: list(analyze_image(path, prompt)),
+    ):
+        yield chunk
 
 
 def _err(msg: str) -> dict:

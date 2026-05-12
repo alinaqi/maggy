@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from maggy.services.vision import analyze_image
+from maggy.services.vision import analyze_image, extract_image_path
 
 
 @pytest.fixture()
@@ -95,3 +95,39 @@ def test_analyze_ollama_down(png_file: Path):
     assert any(c["type"] == "error" for c in chunks)
     err = next(c for c in chunks if c["type"] == "error")
     assert "refused" in err["content"].lower() or "connect" in err["content"].lower()
+
+
+class TestExtractImagePath:
+    """Image path detection from chat messages."""
+
+    def test_detects_png_path(self, png_file: Path):
+        result = extract_image_path(f"{png_file} review this")
+        assert result is not None
+        assert result[0] == str(png_file)
+        assert result[1] == "review this"
+
+    def test_detects_path_with_prompt(self, png_file: Path):
+        msg = f"can u review {png_file} for UI issues"
+        result = extract_image_path(msg)
+        assert result is not None
+        assert result[1] == "can u review for UI issues"
+
+    def test_no_image_returns_none(self):
+        assert extract_image_path("fix the bug") is None
+
+    def test_nonexistent_file_returns_none(self):
+        assert extract_image_path("/tmp/nope.png") is None
+
+    def test_escaped_spaces(self, tmp_path: Path):
+        d = tmp_path / "My Screenshots"
+        d.mkdir()
+        img = d / "shot.png"
+        img.write_bytes(b"\x89PNG\r\n\x1a\n")
+        result = extract_image_path(str(img) + " describe")
+        assert result is not None
+
+    def test_tilde_path(self, tmp_path: Path, monkeypatch):
+        img = tmp_path / "test.jpg"
+        img.write_bytes(b"\xff\xd8\xff")
+        result = extract_image_path(str(img) + " check")
+        assert result is not None

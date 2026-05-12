@@ -19,6 +19,21 @@ logger = logging.getLogger(__name__)
 MAX_QUEUE = 5
 
 
+def _detect_image(message: str) -> tuple[str, str] | None:
+    """Check if message contains an image file path."""
+    from maggy.services.vision import extract_image_path
+    return extract_image_path(message)
+
+
+async def _stream_vision(
+    path: str, prompt: str | None,
+) -> AsyncGenerator[dict, None]:
+    """Stream vision analysis as chat chunks."""
+    from maggy.services.vision import async_analyze_image
+    async for chunk in async_analyze_image(path, prompt):
+        yield chunk
+
+
 @dataclass
 class ChatMessage:
     """A single message in a chat session."""
@@ -151,10 +166,15 @@ class ChatManager:
             yield {"type": "queued", "position": pos}
             return
         async with lock:
-            async for chunk in stream_message(session, message):
-                yield chunk
-            async for chunk in self._drain_queue(session):
-                yield chunk
+            img = _detect_image(message)
+            if img:
+                async for chunk in _stream_vision(*img):
+                    yield chunk
+            else:
+                async for chunk in stream_message(session, message):
+                    yield chunk
+                async for chunk in self._drain_queue(session):
+                    yield chunk
 
     async def _drain_queue(
         self, session: ChatSession,
