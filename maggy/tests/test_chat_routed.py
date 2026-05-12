@@ -101,3 +101,36 @@ class TestRoutedEndpoint:
         decision = rc.decide("design auth system", None, None)
         assert decision is not None
         mock_routing.route.assert_called_once()
+
+
+class TestRewardRecording:
+    """Reward recording after routed chat completes."""
+
+    def test_success_records_reward(self):
+        """Successful chat records reward=1.0."""
+        from maggy.api.routes_chat import _record_routing_outcome
+        routing = MagicMock()
+        decision = MagicMock(
+            model="local", task_type="general", blast=5,
+        )
+        _record_routing_outcome(routing, decision, had_error=False)
+        routing.record_outcome.assert_called_once_with(
+            "local", "general", 5, 1.0,
+        )
+
+    def test_error_records_zero_reward(self):
+        """Chat with error records reward=0.0."""
+        from maggy.api.routes_chat import _record_routing_outcome
+        routing = MagicMock()
+        decision = MagicMock(
+            model="claude", task_type="security", blast=8,
+        )
+        _record_routing_outcome(routing, decision, had_error=True)
+        routing.record_outcome.assert_called_once_with(
+            "claude", "security", 8, 0.0,
+        )
+
+    def test_no_routing_service_noop(self):
+        """No routing service → no crash."""
+        from maggy.api.routes_chat import _record_routing_outcome
+        _record_routing_outcome(None, None, had_error=False)

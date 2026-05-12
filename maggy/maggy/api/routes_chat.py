@@ -217,6 +217,7 @@ async def send_routed(
 
     async def event_stream():
         from maggy.services.chat_router import RoutedChat
+        decision = None
         if routing:
             rc = RoutedChat(routing, budget)
             decision = rc.decide(
@@ -234,10 +235,16 @@ async def send_routed(
                 "reason": decision.reason,
             }
             yield f"data: {json.dumps(meta)}\n\n"
+        had_error = False
         async for chunk in chat.send(session_id, body.message):
             if budget and chunk.get("type") == "result":
                 _record_chat_spend(budget, chunk)
+            if chunk.get("type") == "error":
+                had_error = True
             yield f"data: {json.dumps(chunk)}\n\n"
+        _record_routing_outcome(
+            routing, decision, had_error=had_error,
+        )
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(
@@ -253,6 +260,17 @@ def _record_chat_spend(budget, chunk: dict) -> None:
     out_t = chunk.get("output_tokens", 0)
     if cost or in_t or out_t:
         budget.record_spend("anthropic", "claude", cost, in_t, out_t)
+
+
+def _record_routing_outcome(routing, decision, *, had_error: bool) -> None:
+    """Record routing reward after chat completes."""
+    if not routing or not decision:
+        return
+    reward = 0.0 if had_error else 1.0
+    routing.record_outcome(
+        decision.model, decision.task_type,
+        decision.blast, reward,
+    )
 
 
 @router.delete("/sessions/{session_id}")
