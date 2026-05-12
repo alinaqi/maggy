@@ -48,8 +48,7 @@ def parse_chunk(
     if msg_type == "assistant":
         return _extract_assistant(data)
     if msg_type == "result":
-        content = data.get("result", "")
-        chunk: dict = {"type": "result", "content": content}
+        chunk: dict = {"type": "result"}
         cost = data.get("cost_usd")
         if cost is not None:
             chunk["cost_usd"] = float(cost)
@@ -110,6 +109,7 @@ async def stream_message(
             stderr=asyncio.subprocess.STDOUT,
             cwd=session.working_dir,
             env=env,
+            limit=1024 * 1024,
         )
         session.pid = proc.pid or 0
         async for line in proc.stdout:

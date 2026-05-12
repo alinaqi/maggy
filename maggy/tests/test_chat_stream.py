@@ -22,7 +22,7 @@ def test_parse_result_extracts_usage():
     })
     chunk = parse_chunk(data, session)
     assert chunk["type"] == "result"
-    assert chunk["content"] == "Done"
+    assert "content" not in chunk
     assert chunk["cost_usd"] == 0.05
     assert chunk["input_tokens"] == 1500
     assert chunk["output_tokens"] == 800
@@ -33,7 +33,7 @@ def test_parse_result_without_usage():
     data = json.dumps({"type": "result", "result": "Done"})
     chunk = parse_chunk(data, session)
     assert chunk["type"] == "result"
-    assert chunk["content"] == "Done"
+    assert "content" not in chunk
     assert "cost_usd" not in chunk
 
 
