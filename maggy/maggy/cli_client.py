@@ -218,20 +218,32 @@ class MaggyClient:
                     yield json.loads(line[6:])
 
     def detect_project(self, cwd: str) -> str | None:
-        """Match cwd (or any parent) against configured codebases."""
+        """Match cwd against configured codebases.
+
+        Phase 1: cwd is inside a codebase (subdirectory).
+        Phase 2: cwd is a sibling — shares a parent dir
+        within 2 levels (e.g. tests/ next to platform/).
+        """
         from pathlib import Path
         try:
             cfg = self.config()
         except Exception:
             return None
         cwd_path = Path(cwd).resolve()
-        for cb in cfg.get("codebases", []):
-            root = Path(cb.get("path", "")).expanduser().resolve()
+        entries = [
+            (cb.get("key"), Path(cb.get("path", "")).expanduser().resolve())
+            for cb in cfg.get("codebases", [])
+        ]
+        for key, root in entries:
             try:
                 cwd_path.relative_to(root)
-                return cb.get("key")
+                return key
             except ValueError:
                 continue
+        for ancestor in list(cwd_path.parents)[:2]:
+            for key, root in entries:
+                if root.parent == ancestor:
+                    return key
         return None
 
     # ── Session management ─────────────────────────
