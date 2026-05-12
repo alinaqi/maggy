@@ -17,8 +17,29 @@ EXIT_WORDS = frozenset({"exit", "bye", "quit", "/exit", "/bye"})
 
 
 def detect_project(client) -> str | None:
-    """Auto-detect project from current working directory."""
-    return client.detect_project(os.getcwd())
+    """Auto-detect project, prompting if ambiguous."""
+    cwd = os.getcwd()
+    exact = client.detect_project(cwd)
+    if exact:
+        return exact
+    candidates = client.detect_candidates(cwd)
+    if not candidates:
+        return None
+    return _pick_project(candidates)
+
+
+def _pick_project(candidates: list[str]) -> str:
+    """Prompt user to select from multiple projects."""
+    console.print("[dim]Multiple projects nearby:[/dim]")
+    for i, key in enumerate(candidates, 1):
+        console.print(f"  [bold]{i}[/bold]. {key}")
+    choice = Prompt.ask(
+        "[bold cyan]Select[/bold cyan]", default="1",
+    )
+    try:
+        return candidates[int(choice) - 1]
+    except (ValueError, IndexError):
+        return candidates[0]
 
 
 def run_chat(
