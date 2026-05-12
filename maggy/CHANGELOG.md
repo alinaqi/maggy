@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.6.4 — 2026-05-12
+
+### Added
+- **Claude Code-style streaming UX** — CLI REPL now shows animated spinner, model label (`Working with <model> · blast N`), and cycling knock-knock jokes during response streaming
+- **Web dashboard 4-zone chat layout** — top progress shimmer, messages scroll, working zone (model label + jokes), sticky input bar with dividers
+
+### Changed
+- Streaming display extracted to `cli_stream.py` for cleaner separation of concerns
+- Web chat switched from `/send` to `/send-routed` to display model metadata during streaming
+- Jokes and response content render in separate DOM elements (web) / Rich Group zones (CLI), fixing invisible jokes
+
 ## v0.6.3 — 2026-05-12
 
 ### Added

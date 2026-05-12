@@ -4,19 +4,16 @@ from __future__ import annotations
 import os
 
 from rich.console import Console
-from rich.live import Live
-from rich.markdown import Markdown
 from rich.prompt import Prompt
-from rich.spinner import Spinner
 
 from maggy.cli_repl_cmds import SessionState, dispatch
+from maggy.cli_stream import stream_chunks
 from maggy.cli_welcome import render_welcome
 from maggy.services.session_detect import detect_all
 
 console = Console()
 
 EXIT_WORDS = frozenset({"exit", "bye", "quit", "/exit", "/bye"})
-_QUOTA_MARKERS = ("rate_limit", "quota", "exceeded", "429")
 
 
 def detect_project(client) -> str | None:
@@ -100,7 +97,7 @@ def _repl_loop(client, state: SessionState, routed: bool) -> None:
             chunks = client.chat_send_stream(
                 state.session_id, stripped,
             )
-        _stream_chunks(chunks)
+        stream_chunks(chunks, console)
         blast_override = None
 
 
@@ -115,40 +112,6 @@ def _parse_blast(text: str) -> int | None:
             pass
     console.print("[dim]Usage: /blast N (1-10)[/dim]")
     return None
-
-
-def _stream_chunks(chunks) -> None:
-    full, err = "", ""
-    try:
-        with Live(
-            Spinner("dots", text="Thinking..."),
-            console=console, refresh_per_second=8,
-        ) as live:
-            for chunk in chunks:
-                ct = chunk.get("type", "")
-                if ct == "routing":
-                    _show_routing(chunk)
-                elif ct == "queued":
-                    pos = chunk.get("position", "?")
-                    live.update(Markdown(f"[dim]Queued (position {pos})[/dim]"))
-                elif ct in ("warning", "agent_status"):
-                    console.print(f"[dim]{chunk.get('content', chunk.get('status', ''))}[/dim]")
-                elif ct in ("text", "result"):
-                    full += chunk.get("content", "")
-                    live.update(Markdown(full))
-                elif ct == "error":
-                    err = chunk.get("content", "")
-                elif ct == "done":
-                    break
-    except KeyboardInterrupt:
-        console.print("\n[dim]Interrupted[/dim]")
-    except Exception as e:
-        err = str(e)
-    if err:
-        console.print(f"[red]Error:[/red] {err}")
-        if any(m in err.lower() for m in _QUOTA_MARKERS):
-            from maggy.services.account_guide import render_switch_guide
-            render_switch_guide("anthropic")
 
 
 def _call_safe(fn, default=None):
@@ -168,11 +131,7 @@ def _handle_screenshot(text: str) -> None:
     path = parts[1]
     prompt = parts[2] if len(parts) > 2 else None
     console.print(f"[dim]Analyzing {path}...[/dim]")
-    _stream_chunks(analyze_image(path, prompt))
-
-
-def _show_routing(chunk: dict) -> None:
-    console.print(f"[dim][{chunk.get('model', '?')}] blast={chunk.get('blast', '?')} {chunk.get('reason', '')}[/dim]")
+    stream_chunks(analyze_image(path, prompt), console)
 
 
 def _show_history(client, session_id: str) -> None:
