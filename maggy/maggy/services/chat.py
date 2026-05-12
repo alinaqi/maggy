@@ -1,26 +1,22 @@
-"""ChatManager — interactive Claude Code sessions from the web UI.
-
-Spawns `claude -p` with --output-format stream-json and uses --resume
-for conversation continuity. Auto-connects to active projects and
-injects session history for context awareness.
-"""
+"""ChatManager — interactive Claude Code sessions with message queue."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator
 
 from maggy.config import MaggyConfig
+from maggy.services.chat_stream import stream_message
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_BIN = "claude"
+MAX_QUEUE = 5
 
 
 @dataclass
@@ -45,7 +41,7 @@ class ChatSession:
     project_key: str
     working_dir: str
     messages: list[ChatMessage] = field(default_factory=list)
-    status: str = "idle"  # "idle" | "streaming" | "error"
+    status: str = "idle"
     created_at: str = field(
         default_factory=lambda: datetime.now(
             timezone.utc
@@ -53,6 +49,17 @@ class ChatSession:
     )
     pid: int = 0
     history_context: str = ""
+    pending_queue: deque = field(
+        default_factory=lambda: deque(maxlen=MAX_QUEUE),
+    )
+
+
+def enqueue_msg(session: ChatSession, message: str) -> int:
+    """Append message to session queue. Returns position or -1."""
+    if len(session.pending_queue) >= MAX_QUEUE:
+        return -1
+    session.pending_queue.append(message)
+    return len(session.pending_queue)
 
 
 class ChatManager:
@@ -62,24 +69,6 @@ class ChatManager:
         self.cfg = cfg
         self._sessions: dict[str, ChatSession] = {}
         self._locks: dict[str, asyncio.Lock] = {}
-
-    def _validate_path(self, path: str) -> str:
-        """Validate path is inside a configured codebase root."""
-        candidate = Path(path).expanduser().resolve()
-        roots = [
-            Path(c.path).expanduser().resolve()
-            for c in self.cfg.codebases
-        ]
-        for root in roots:
-            try:
-                candidate.relative_to(root)
-                return str(candidate)
-            except ValueError:
-                continue
-        raise ValueError(
-            f"Path {path!r} is not inside any configured "
-            f"codebase. Allowed: {[str(r) for r in roots]}"
-        )
 
     def create_session(
         self, project_key: str, project_path: str | None = None,
@@ -101,10 +90,10 @@ class ChatManager:
         self._locks[session.id] = asyncio.Lock()
         return session
 
-    def find_by_project(self, project_key: str) -> ChatSession | None:
+    def find_by_project(self, key: str) -> ChatSession | None:
         """Find existing session for a project key."""
         for s in self._sessions.values():
-            if s.project_key == project_key:
+            if s.project_key == key:
                 return s
         return None
 
@@ -131,8 +120,8 @@ class ChatManager:
             connected[project] = session
         return list(connected.values())
 
-    def get_session(self, session_id: str) -> ChatSession | None:
-        return self._sessions.get(session_id)
+    def get_session(self, sid: str) -> ChatSession | None:
+        return self._sessions.get(sid)
 
     def list_sessions(self) -> list[ChatSession]:
         return list(self._sessions.values())
@@ -151,113 +140,52 @@ class ChatManager:
         session = self._sessions.get(session_id)
         if not session:
             raise ValueError(f"Session {session_id} not found")
-        lock = self._locks.get(session_id)
-        if lock and lock.locked():
-            yield {
-                "type": "error",
-                "content": "Session is already streaming.",
-            }
+        lock = self._locks.setdefault(
+            session_id, asyncio.Lock(),
+        )
+        if lock.locked():
+            pos = enqueue_msg(session, message)
+            if pos < 0:
+                yield {"type": "error", "content": "Queue full."}
+                return
+            yield {"type": "queued", "position": pos}
             return
-        if not lock:
-            lock = asyncio.Lock()
-            self._locks[session_id] = lock
         async with lock:
-            session.messages.append(
-                ChatMessage(role="user", content=message)
-            )
-            session.status = "streaming"
-            cmd = self._build_cmd(session, message)
-            response_text = ""
-            try:
-                import os
-                env = {
-                    k: v for k, v in os.environ.items()
-                    if k != "CLAUDECODE"
-                }
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                    cwd=session.working_dir,
-                    env=env,
-                )
-                session.pid = proc.pid or 0
-                async for line in proc.stdout:
-                    text = line.decode(
-                        "utf-8", errors="replace"
-                    ).strip()
-                    if not text:
-                        continue
-                    chunk = self._parse_chunk(
-                        text, session,
-                    )
-                    if chunk:
-                        response_text += chunk.get(
-                            "content", "",
-                        )
-                        yield chunk
-                await proc.wait()
-                session.status = "idle"
-            except FileNotFoundError:
-                session.status = "error"
-                yield {
-                    "type": "error",
-                    "content": "claude CLI not found",
-                }
-            except Exception as e:
-                session.status = "error"
-                yield {"type": "error", "content": str(e)}
-            if response_text:
-                session.messages.append(
-                    ChatMessage(
-                        role="assistant",
-                        content=response_text,
-                    )
-                )
+            async for chunk in stream_message(session, message):
+                yield chunk
+            async for chunk in self._drain_queue(session):
+                yield chunk
 
-    def _build_cmd(
-        self, session: ChatSession, message: str,
-    ) -> list[str]:
-        """Build claude CLI command."""
-        cmd = [
-            CLAUDE_BIN, "-p", message,
-            "--output-format", "stream-json",
-            "--verbose",
-            "--dangerously-skip-permissions",
+    async def _drain_queue(
+        self, session: ChatSession,
+    ) -> AsyncGenerator[dict, None]:
+        """Process queued messages after current stream."""
+        while session.pending_queue:
+            msg = session.pending_queue.popleft()
+            yield {
+                "type": "queue_next",
+                "content": msg[:80],
+            }
+            async for chunk in stream_message(session, msg):
+                yield chunk
+
+    def _validate_path(self, path: str) -> str:
+        """Validate path is inside a configured codebase root."""
+        candidate = Path(path).expanduser().resolve()
+        roots = [
+            Path(c.path).expanduser().resolve()
+            for c in self.cfg.codebases
         ]
-        if session.claude_session_id:
-            cmd += ["--resume", session.claude_session_id]
-        return cmd
-
-    def _parse_chunk(
-        self, text: str, session: ChatSession,
-    ) -> dict | None:
-        """Parse a stream-json line from Claude."""
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            return {"type": "text", "content": text}
-        if "session_id" in data and not session.claude_session_id:
-            session.claude_session_id = data["session_id"]
-        msg_type = data.get("type", "")
-        if msg_type == "assistant":
-            return self._extract_assistant(data)
-        if msg_type == "result":
-            content = data.get("result", "")
-            return {"type": "result", "content": content}
-        return None
-
-    def _extract_assistant(self, data: dict) -> dict:
-        """Extract text from assistant message."""
-        content = data.get("message", {}).get("content", "")
-        if isinstance(content, list):
-            parts = [
-                b.get("text", "")
-                for b in content
-                if b.get("type") == "text"
-            ]
-            return {"type": "text", "content": "".join(parts)}
-        return {"type": "text", "content": str(content)}
+        for root in roots:
+            try:
+                candidate.relative_to(root)
+                return str(candidate)
+            except ValueError:
+                continue
+        raise ValueError(
+            f"Path {path!r} is not inside any configured "
+            f"codebase. Allowed: {[str(r) for r in roots]}"
+        )
 
     def _resolve_project(self, project_key: str) -> str:
         """Map project_key to validated working directory."""

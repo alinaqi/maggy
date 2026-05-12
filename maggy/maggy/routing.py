@@ -17,11 +17,9 @@ from maggy.process.model_router import (
     RoutingDecision,
     route_task,
 )
-from maggy.routing_rules import (
-    apply_override,
-    load as load_rules,
-    record_outcome as rules_record,
-)
+from maggy.routing_rules import apply_override
+from maggy.routing_rules_io import load as load_rules
+from maggy.routing_rules import record_outcome as rules_record
 from maggy.scores import RewardTable
 
 MIN_CALIBRATION_ACCURACY = 0.5
@@ -36,6 +34,7 @@ class RoutingContext:
     security_sensitive: bool = False
     project_key: str = ""
     pipeline_phase: str = ""
+    stakes: str = "low"
 
 
 class RoutingService:
@@ -76,6 +75,7 @@ class RoutingService:
             ctx.blast_score,
             ctx.task_type,
             ctx.security_sensitive,
+            stakes=ctx.stakes,
         )
         return self._penalize_uncalibrated(decision)
 
@@ -122,9 +122,10 @@ class RoutingService:
                 ctx.blast_score,
                 ctx.task_type,
                 ctx.security_sensitive,
+                stakes=ctx.stakes,
             )
         validator = None
-        if ctx.blast_score >= 8 or ctx.security_sensitive:
+        if ctx.blast_score >= 8 or ctx.security_sensitive or ctx.stakes == "high":
             validator = _find_tier("codex")
         return RoutingDecision(
             primary=tier,

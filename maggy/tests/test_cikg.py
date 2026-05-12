@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from maggy.cikg.graph import KnowledgeGraphService
-from maggy.cikg.models import Edge, MarketScore, Node
+from maggy.cikg.models import Edge, Node
 from maggy.cikg.queries import (
     compare_entities,
     find_gaps,
+    find_gaps_raw,
     get_landscape,
+    get_segment_landscape,
 )
 
 
@@ -164,9 +168,9 @@ class TestServiceQueries:
         g.add_edge(Edge("c1", "c0", "threatens"))
         return g
 
-    def test_find_gaps(self, tmp_path: Path):
+    def test_find_gaps_raw(self, tmp_path: Path):
         g = self._seed_graph(tmp_path)
-        result = g.find_gaps("SSO")
+        result = find_gaps_raw(g, "SSO")
         assert {item["entity"] for item in result} == {
             "Alpha", "Bravo", "Charlie",
         }
@@ -179,17 +183,35 @@ class TestServiceQueries:
 
     def test_compare_entities(self, tmp_path: Path):
         g = self._seed_graph(tmp_path)
-        result = g.compare_entities("c0", "c1")
+        result = compare_entities(g, "c0", "c1")
         assert result["shared"] == ["f1"]
         assert result["only_a"] == []
         assert result["only_b"] == ["f2"]
         assert result["relationships"][0]["edge_type"] == "competes_with"
 
-    def test_get_landscape(self, tmp_path: Path):
+    def test_segment_landscape(self, tmp_path: Path):
         g = self._seed_graph(tmp_path)
-        result = g.get_landscape("SMB")
+        result = get_segment_landscape(g, "SMB")
         assert result["segment"] == "SMB"
         assert result["competitors"] == 2
         assert result["features_tracked"] == 2
         assert result["technologies"] == 1
         assert result["threat_count"] == 1
+
+
+class TestTypeValidation:
+    def test_valid_node_type_accepted(self):
+        node = Node(id="c1", node_type="competitor", name="Test")
+        assert node.node_type == "competitor"
+
+    def test_invalid_node_type_rejected(self):
+        with pytest.raises(ValueError, match="Invalid node_type"):
+            Node(id="c1", node_type="bogus", name="Test")
+
+    def test_valid_edge_type_accepted(self):
+        edge = Edge(source_id="a", target_id="b", edge_type="has_feature")
+        assert edge.edge_type == "has_feature"
+
+    def test_invalid_edge_type_rejected(self):
+        with pytest.raises(ValueError, match="Invalid edge_type"):
+            Edge(source_id="a", target_id="b", edge_type="bogus")

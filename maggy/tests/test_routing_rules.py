@@ -11,12 +11,11 @@ from maggy.routing_rules import (
     PerformanceRecord,
     RoutingRules,
     apply_override,
-    default_rules,
     learn_override,
-    load,
     record_outcome,
-    save,
 )
+from maggy.routing_rules_defaults import default_rules
+from maggy.routing_rules_io import load, save
 
 
 @pytest.fixture()

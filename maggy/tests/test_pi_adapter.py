@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -137,6 +138,43 @@ class TestRpcMode:
             }
         )
 
+class TestPromptResult:
+    def test_parses_json_output(self):
+        adapter = PiAdapter()
+        payload = json.dumps({
+            "result": "All tests pass",
+            "cost_usd": 0.05,
+            "usage": {"input_tokens": 1500, "output_tokens": 800},
+        })
+        r = adapter._prompt_result("claude", 0, payload.encode())
+        assert r.success is True
+        assert r.output == "All tests pass"
+        assert r.cost_usd == 0.05
+        assert r.input_tokens == 1500
+        assert r.output_tokens == 800
+
+    def test_plain_text_fallback(self):
+        adapter = PiAdapter()
+        r = adapter._prompt_result("local", 0, b"Just text output")
+        assert r.success is True
+        assert r.output == "Just text output"
+        assert r.cost_usd == 0.0
+        assert r.input_tokens == 0
+
+    def test_json_error_preserves_usage(self):
+        adapter = PiAdapter()
+        payload = json.dumps({
+            "result": "Error occurred",
+            "cost_usd": 0.01,
+            "usage": {"input_tokens": 500, "output_tokens": 100},
+        })
+        r = adapter._prompt_result("claude", 1, payload.encode())
+        assert r.success is False
+        assert r.cost_usd == 0.01
+        assert r.input_tokens == 500
+
+
+class TestStreaming:
     @pytest.mark.asyncio
     async def test_stream_events_reads_jsonl(self):
         adapter = PiAdapter()

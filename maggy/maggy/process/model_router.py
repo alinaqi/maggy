@@ -19,8 +19,8 @@ DEFAULT_TIERS: list[ModelTier] = [
         model="qwen3-coder:30b-a3b-q8_0",
         cost_rank=1,
         complexity_min=0,
-        complexity_max=3,
-        strengths=["formatting", "simple_edits", "crud"],
+        complexity_max=5,
+        strengths=["formatting", "simple_edits", "crud", "feature"],
     ),
     ModelTier(
         name="kimi",
@@ -77,6 +77,7 @@ def route_task(
     task_type: str = "general",
     security_sensitive: bool = False,
     tiers: list[ModelTier] | None = None,
+    stakes: str = "low",
 ) -> RoutingDecision:
     """Route a task to the optimal model tier.
 
@@ -95,10 +96,10 @@ def route_task(
     ]
 
     primary = _select_primary(
-        complexity_score, task_type, primaries
+        complexity_score, task_type, primaries, stakes,
     )
     validator = _select_validator(
-        complexity_score, security_sensitive, validators
+        complexity_score, security_sensitive, validators, stakes,
     )
     fallback = _build_fallback(primary, primaries)
     reason = _build_reason(
@@ -117,6 +118,7 @@ def _select_primary(
     score: int,
     task_type: str,
     tiers: list[ModelTier],
+    stakes: str = "low",
 ) -> ModelTier:
     """Pick the cheapest tier that handles the complexity."""
     candidates = [
@@ -126,11 +128,14 @@ def _select_primary(
     if not candidates:
         return tiers[-1]  # Fallback to most capable
 
-    # Prefer cheapest that covers the score
     candidates.sort(key=lambda t: t.cost_rank)
 
-    # For security tasks, skip the cheapest tier
-    if task_type in ("security", "auth", "billing"):
+    # High stakes or security: skip cheapest tiers
+    high_risk = (
+        stakes == "high"
+        or task_type in ("security", "auth", "billing")
+    )
+    if high_risk:
         capable = [
             c for c in candidates if c.cost_rank >= 3
         ]
@@ -144,11 +149,12 @@ def _select_validator(
     score: int,
     security_sensitive: bool,
     validators: list[ModelTier],
+    stakes: str = "low",
 ) -> ModelTier | None:
     """Add validation for high-risk tasks."""
     if not validators:
         return None
-    if score >= 8 or security_sensitive:
+    if score >= 8 or security_sensitive or stakes == "high":
         return validators[0]
     return None
 

@@ -25,6 +25,21 @@ from maggy.adapters.cli_discovery import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_usage(raw: str) -> tuple[float, int, int, str]:
+    """Parse JSON CLI output for cost/tokens; fall back to raw text."""
+    try:
+        d = json.loads(raw)
+        u = d.get("usage") or {}
+        return (
+            float(d.get("cost_usd") or 0),
+            int(u.get("input_tokens") or 0),
+            int(u.get("output_tokens") or 0),
+            str(d.get("result", raw)),
+        )
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return 0.0, 0, 0, raw
+
+
 @dataclass
 class ModelEntry:
     name: str
@@ -57,6 +72,8 @@ class RunResult:
     output: str = ""
     error: str = ""
     cost_usd: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
     turns: int = 0
     quota_hit: bool = False
 
@@ -202,13 +219,15 @@ class PiAdapter:
         return dict(self._profiles)
 
     def _prompt_result(self, model_name: str, code: int, stdout: bytes) -> RunResult:
-        text = stdout.decode("utf-8", errors="replace")
-        quota = self._detect_quota(text)
-        if code != 0:
-            return RunResult(
-                model=model_name, success=False, output=text, error=f"Exit code {code}", quota_hit=quota
-            )
-        return RunResult(model=model_name, success=True, output=text, quota_hit=quota)
+        raw = stdout.decode("utf-8", errors="replace")
+        quota = self._detect_quota(raw)
+        cost, in_t, out_t, text = _extract_usage(raw)
+        return RunResult(
+            model=model_name, success=code == 0, output=text,
+            error="" if code == 0 else f"Exit code {code}",
+            quota_hit=quota, cost_usd=cost,
+            input_tokens=in_t, output_tokens=out_t,
+        )
 
     def _ensure_rpc_process(self) -> subprocess.Popen[str]:
         proc = self._rpc_process

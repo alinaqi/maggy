@@ -93,6 +93,35 @@ class TestProviderBudgets:
         assert bm.cheapest_available() == "gpt"
 
 
+class TestTokenTracking:
+    def test_initial_tokens_zero(self, mock_cfg):
+        bm = BudgetManager(mock_cfg)
+        tokens = bm.today_tokens()
+        assert tokens == {"input": 0, "output": 0}
+
+    def test_record_and_read_tokens(self, mock_cfg):
+        bm = BudgetManager(mock_cfg)
+        bm.record_spend("anthropic", "claude", 0.5, 1000, 500)
+        bm.record_spend("openai", "gpt-4o", 0.3, 2000, 800)
+        tokens = bm.today_tokens()
+        assert tokens["input"] == 3000
+        assert tokens["output"] == 1300
+
+    def test_tokens_by_provider(self, mock_cfg):
+        bm = BudgetManager(mock_cfg)
+        bm.record_spend("anthropic", "claude", 0.5, 1000, 500)
+        bm.record_spend("openai", "gpt", 0.3, 2000, 800)
+        tokens = bm.today_tokens("anthropic")
+        assert tokens["input"] == 1000
+
+    def test_budget_status_includes_tokens(self, mock_cfg):
+        bm = BudgetManager(mock_cfg)
+        bm.record_spend("anthropic", "claude", 0.5, 1500, 600)
+        status = bm.budget_status()
+        assert status["input_tokens"] == 1500
+        assert status["output_tokens"] == 600
+
+
 class TestTaskSpendTracker:
     def test_records_total_cost(self) -> None:
         tracker = TaskSpendTracker(5.0)

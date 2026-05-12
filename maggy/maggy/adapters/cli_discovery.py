@@ -60,7 +60,7 @@ class CliProfile:
         if self.afk_flag:
             cmd.append(self.afk_flag)
         if self.output_format_flag:
-            cmd += [self.output_format_flag, "text"]
+            cmd += [self.output_format_flag, "json"]
         if self.max_turns_flag and max_turns > 0:
             cmd += [self.max_turns_flag, str(max_turns)]
         return cmd

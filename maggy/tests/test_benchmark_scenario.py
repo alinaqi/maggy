@@ -39,6 +39,7 @@ from maggy.providers.base import Task
 from maggy.registry import ProjectRegistry
 from maggy.routing import RoutingContext, RoutingService
 from maggy.services.executor import ExecutorService
+from maggy.services.executor_types import SessionCtx
 from maggy.services.planner import DualPlanner
 
 
@@ -113,9 +114,10 @@ class TestRoutingAccuracy:
         assert results["T-1"] == "claude"
         assert results["T-2"] in ("local", "kimi", "deepseek")
         assert results["T-3"] in ("local", "kimi", "deepseek")
-        # Mid blast (4-6) → gpt
-        assert results["T-4"] == "gpt"
-        assert results["T-5"] == "gpt"
+        # Blast 5 → local covers it now (0-5), kimi(0-4), gpt(3-7)
+        assert results["T-4"] in ("local", "kimi", "gpt")
+        # Blast 6 → gpt(3-7) or claude(5-10)
+        assert results["T-5"] in ("gpt", "claude")
         # Blast 7 overlaps gpt(3-7) and claude(5-10); cheapest wins
         assert results["T-6"] in ("gpt", "claude")
         # Blast 8+ → only claude covers it
@@ -133,7 +135,8 @@ class TestRoutingAccuracy:
 
         expected_tiers = {
             "T-1": "premium", "T-2": "cheap", "T-3": "cheap",
-            "T-4": "medium", "T-5": "medium",
+            "T-4": "cheap",  # local now covers 0-5
+            "T-5": "medium",
             "T-6": "medium",  # blast 7 overlaps gpt/claude
             "T-7": "premium", "T-8": "premium",
             "T-9": "premium", "T-10": "premium",
@@ -425,21 +428,25 @@ class TestFullExecutorPipeline:
             models_used.append(model)
             return RunResult(model=model, success=True, output="done", cost_usd=0.10)
 
-        async def fake_ctx(task, wd):
+        async def fake_ctx(cfg, task):
             return ""
 
         executor._pi.send_prompt = fake_send
-        executor._build_icpg_context = fake_ctx
+        from maggy.services import executor_helpers
+        _orig_icpg = executor_helpers.build_icpg_context
+        executor_helpers.build_icpg_context = fake_ctx
 
         for task in SPRINT_TASKS:
             sid = f"s-{task.id}"
-            executor._sessions[sid] = {
+            session = {
                 "id": sid, "task_id": task.id,
                 "task_title": task.title, "mode": "plan",
                 "working_dir": str(tmp_path / "repo"),
                 "status": "running", "started_at": "", "output": "",
             }
-            await executor._run(sid, task, str(tmp_path / "repo"), "plan")
+            executor._sessions[sid] = session
+            ctx = SessionCtx(session, task, str(tmp_path / "repo"))
+            await executor._run(ctx, "plan")
 
         # Verify multi-model distribution
         unique_models = set(models_used)
@@ -471,21 +478,25 @@ class TestFullExecutorPipeline:
         async def fake_send(model, prompt, wd, max_turns=20, timeout=600):
             return RunResult(model=model, success=True, output="ok", cost_usd=cost_map.get(model, 0.05))
 
-        async def fake_ctx(task, wd):
+        async def fake_ctx(cfg, task):
             return ""
 
         executor._pi.send_prompt = fake_send
-        executor._build_icpg_context = fake_ctx
+        from maggy.services import executor_helpers
+        _orig_icpg = executor_helpers.build_icpg_context
+        executor_helpers.build_icpg_context = fake_ctx
 
         for task in SPRINT_TASKS:
             sid = f"s-{task.id}"
-            executor._sessions[sid] = {
+            session = {
                 "id": sid, "task_id": task.id,
                 "task_title": task.title, "mode": "plan",
                 "working_dir": str(tmp_path / "repo"),
                 "status": "running", "started_at": "", "output": "",
             }
-            await executor._run(sid, task, str(tmp_path / "repo"), "plan")
+            executor._sessions[sid] = session
+            ctx = SessionCtx(session, task, str(tmp_path / "repo"))
+            await executor._run(ctx, "plan")
 
         breakdown = executor._budget.by_provider()
         providers = {r["provider"] for r in breakdown}

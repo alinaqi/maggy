@@ -177,9 +177,12 @@ async def send_message(
         raise HTTPException(status_code=404, detail="Session not found")
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message required")
+    budget = getattr(request.app.state, "budget", None)
 
     async def event_stream():
         async for chunk in chat.send(session_id, body.message):
+            if budget and chunk.get("type") == "result":
+                _record_chat_spend(budget, chunk)
             data = json.dumps(chunk)
             yield f"data: {data}\n\n"
         yield "data: {\"type\": \"done\"}\n\n"
@@ -232,6 +235,8 @@ async def send_routed(
             }
             yield f"data: {json.dumps(meta)}\n\n"
         async for chunk in chat.send(session_id, body.message):
+            if budget and chunk.get("type") == "result":
+                _record_chat_spend(budget, chunk)
             yield f"data: {json.dumps(chunk)}\n\n"
         yield 'data: {"type": "done"}\n\n'
 
@@ -239,6 +244,15 @@ async def send_routed(
         event_stream(),
         media_type="text/event-stream",
     )
+
+
+def _record_chat_spend(budget, chunk: dict) -> None:
+    """Record token/cost data from a result chunk."""
+    cost = chunk.get("cost_usd", 0)
+    in_t = chunk.get("input_tokens", 0)
+    out_t = chunk.get("output_tokens", 0)
+    if cost or in_t or out_t:
+        budget.record_spend("anthropic", "claude", cost, in_t, out_t)
 
 
 @router.delete("/sessions/{session_id}")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -187,3 +188,54 @@ def test_server_not_running_starts_it(monkeypatch):
     with patch("maggy.cli_client.httpx.get", return_value=_mock_get(health)):
         result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
+
+
+def test_stale_port_killed_before_start(monkeypatch):
+    """Stale port holder is killed before spawning server."""
+    monkeypatch.undo()
+    calls = {"health": 0, "kill": 0}
+
+    def fake_check(self):
+        calls["health"] += 1
+        return calls["health"] > 2
+
+    monkeypatch.setattr(
+        "maggy.cli_client.MaggyClient._check_health",
+        fake_check,
+    )
+    monkeypatch.setattr(
+        "maggy.cli_client.MaggyClient._start_server",
+        lambda self: None,
+    )
+    monkeypatch.setattr(
+        "maggy.cli_client.MaggyClient._kill_stale_port",
+        lambda self: calls.__setitem__("kill", 1),
+    )
+    health = {
+        "status": "ok", "mode": "local",
+        "org": "T", "codebases": 0,
+    }
+    with patch(
+        "maggy.cli_client.httpx.get",
+        return_value=_mock_get(health),
+    ):
+        result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0
+    assert calls["kill"] == 1
+
+
+def test_server_log_written_to_file(monkeypatch, tmp_path):
+    """Server stdout/stderr go to ~/.maggy/server.log."""
+    monkeypatch.setattr("maggy.cli_client.CONFIG_DIR", tmp_path)
+    captured = {}
+
+    def fake_popen(cmd, **kw):
+        captured.update(kw)
+
+    monkeypatch.setattr(
+        "maggy.cli_client.subprocess.Popen", fake_popen,
+    )
+    from maggy.cli_client import MaggyClient
+    MaggyClient()._start_server()
+    assert captured.get("stdout") is not subprocess.DEVNULL
+    assert (tmp_path / "server.log").exists()

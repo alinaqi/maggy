@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,6 +27,41 @@ class TestBlastEstimation:
 
     def test_empty_returns_default(self):
         assert estimate_blast("") == 5
+
+    # --- Intent-based scoring ---
+
+    def test_retrieval_find_key_low_blast(self):
+        """'find the API key' is retrieval, not mid-complexity."""
+        assert estimate_blast("find the API key in ~/Documents") <= 3
+
+    def test_retrieval_show_config(self):
+        assert estimate_blast("show me the current config") <= 3
+
+    def test_retrieval_check_env(self):
+        assert estimate_blast("check the env variables") <= 3
+
+    def test_retrieval_where_is_file(self):
+        assert estimate_blast("where is the routes file") <= 3
+
+    def test_retrieval_list_endpoints(self):
+        assert estimate_blast("list all API endpoints") <= 3
+
+    def test_retrieval_read_file(self):
+        assert estimate_blast("read the package.json") <= 3
+
+    def test_creation_still_mid(self):
+        """create/implement should stay in 4-6 range."""
+        score = estimate_blast("create a new user service")
+        assert 4 <= score <= 6
+
+    def test_multi_step_high(self):
+        """refactor + migrate = high blast."""
+        assert estimate_blast("refactor and migrate the database") >= 7
+
+    def test_retrieval_with_action_not_capped(self):
+        """'find the bug and fix it' has both retrieval and mutation."""
+        score = estimate_blast("find the bug and fix the auth")
+        assert score >= 4
 
 
 class TestTypeEstimation:

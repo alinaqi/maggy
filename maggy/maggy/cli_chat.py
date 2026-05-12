@@ -8,7 +8,6 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.prompt import Prompt
 from rich.spinner import Spinner
-from rich.table import Table
 
 from maggy.cli_repl_cmds import SessionState, dispatch
 from maggy.cli_welcome import render_welcome
@@ -38,10 +37,7 @@ def run_chat(
     console.print("[dim]Session saved. Bye.[/dim]")
 
 
-def _find_or_create(
-    client, project: str,
-) -> tuple[dict, bool]:
-    """Find existing session or create new one."""
+def _find_or_create(client, project: str) -> tuple[dict, bool]:
     for s in client.chat_sessions():
         if s.get("project_key") == project:
             return s, True
@@ -49,26 +45,18 @@ def _find_or_create(
 
 
 def _show_resume_info(client, sid: str, wd: str) -> None:
-    """Show detected CLI sessions and recent messages."""
     detected = detect_all(wd)
     if detected.sessions:
         parts = [f"{s.cli}({s.session_id[:8]})" for s in detected.sessions]
         console.print(f"[dim]Prior: {', '.join(parts)}[/dim]")
-    msgs = client.chat_history(sid).get("messages", [])[-3:]
-    if not msgs:
-        return
-    console.print("[dim]--- Recent ---[/dim]")
-    for msg in msgs:
+    for msg in client.chat_history(sid).get("messages", [])[-3:]:
         role = msg.get("role", "?")
         text = msg.get("content", "")[:120]
         tag = "[cyan]You[/cyan]" if role == "user" else "[green]Maggy[/green]"
         console.print(f"  {tag}: {text}")
 
 
-def _repl_loop(
-    client, state: SessionState, routed: bool,
-) -> None:
-    """Prompt loop with blast override support."""
+def _repl_loop(client, state: SessionState, routed: bool) -> None:
     blast_override: int | None = None
     while True:
         try:
@@ -91,9 +79,11 @@ def _repl_loop(
             console.clear()
             continue
         if stripped.startswith("/monitor"):
-            sub = stripped.split()[1] if len(stripped.split()) > 1 else "status"
-            data = client.monitor_status() if sub == "status" else {}
+            data = _call_safe(client.monitor_status)
             console.print(f"[dim]Monitors: {data.get('active', 0)} active[/dim]")
+            continue
+        if stripped.startswith("/screenshot"):
+            _handle_screenshot(stripped)
             continue
         if stripped.startswith("/blast"):
             blast_override = _parse_blast(stripped)
@@ -115,7 +105,6 @@ def _repl_loop(
 
 
 def _parse_blast(text: str) -> int | None:
-    """Parse /blast N command."""
     parts = text.split()
     if len(parts) >= 2:
         try:
@@ -129,7 +118,6 @@ def _parse_blast(text: str) -> int | None:
 
 
 def _stream_chunks(chunks) -> None:
-    """Stream and display response chunks from any model."""
     full, err = "", ""
     try:
         with Live(
@@ -143,12 +131,8 @@ def _stream_chunks(chunks) -> None:
                 elif ct == "queued":
                     pos = chunk.get("position", "?")
                     live.update(Markdown(f"[dim]Queued (position {pos})[/dim]"))
-                elif ct == "warning":
-                    console.print(f"[yellow]{chunk.get('content', '')}[/yellow]")
-                elif ct == "agent_status":
-                    a = chunk.get("agent", "?")
-                    s = chunk.get("status", "")
-                    console.print(f"[dim]@{a}> {s}[/dim]")
+                elif ct in ("warning", "agent_status"):
+                    console.print(f"[dim]{chunk.get('content', chunk.get('status', ''))}[/dim]")
                 elif ct in ("text", "result"):
                     full += chunk.get("content", "")
                     live.update(Markdown(full))
@@ -167,6 +151,26 @@ def _stream_chunks(chunks) -> None:
             render_switch_guide("anthropic")
 
 
+def _call_safe(fn, default=None):
+    try:
+        return fn()
+    except (Exception, SystemExit):
+        return default if default is not None else {}
+
+
+def _handle_screenshot(text: str) -> None:
+    """Send image to Qwen3-VL for analysis."""
+    from maggy.services.vision import analyze_image
+    parts = text.split(None, 2)
+    if len(parts) < 2:
+        console.print("[dim]Usage: /screenshot <path> [prompt][/dim]")
+        return
+    path = parts[1]
+    prompt = parts[2] if len(parts) > 2 else None
+    console.print(f"[dim]Analyzing {path}...[/dim]")
+    _stream_chunks(analyze_image(path, prompt))
+
+
 def _show_routing(chunk: dict) -> None:
     console.print(f"[dim][{chunk.get('model', '?')}] blast={chunk.get('blast', '?')} {chunk.get('reason', '')}[/dim]")
 
@@ -178,10 +182,8 @@ def _show_history(client, session_id: str) -> None:
         return
     for msg in msgs:
         role, content = msg.get("role", "?"), msg.get("content", "")
-        tag = "[bold cyan]You[/bold cyan]" if role == "user" else "[bold green]Maggy[/bold green]"
-        console.print(f"\n{tag}: {content}" if role == "user" else f"\n{tag}:")
-        if role != "user":
-            console.print(Markdown(content))
+        tag = "[cyan]You[/cyan]" if role == "user" else "[green]Maggy[/green]"
+        console.print(f"  {tag}: {content[:120]}")
 
 
 def _show_sessions(client) -> None:
@@ -189,10 +191,8 @@ def _show_sessions(client) -> None:
     if not sessions:
         console.print("[dim]No chat sessions.[/dim]")
         return
-    t = Table(title="Chat Sessions")
-    for col in ("ID", "Project", "Status"):
-        t.add_column(col)
-    t.add_column("Messages", justify="right")
     for s in sessions:
-        t.add_row(s.get("id", "?"), s.get("project_key", "?"), s.get("status", "?"), str(s.get("messages", 0)))
-    console.print(t)
+        sid = s.get("id", "?")[:8]
+        proj = s.get("project_key", "?")
+        n = s.get("messages", 0)
+        console.print(f"  [bold]{sid}[/bold] {proj} ({n} msgs)")

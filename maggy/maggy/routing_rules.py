@@ -1,4 +1,4 @@
-"""Routing rules — task-type and pipeline-phase model assignments.
+"""Routing rules — task-type, pipeline-phase, stakes, cascade config.
 
 Loaded from ~/.maggy/routing-rules.yaml. Maggy can self-update
 this file when benchmark or outcome data provides evidence for
@@ -11,11 +11,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-
-from maggy.config import CONFIG_DIR
-
-RULES_PATH = CONFIG_DIR / "routing-rules.yaml"
 MIN_CONFIDENCE = 0.6
 
 
@@ -49,6 +44,35 @@ class Convention:
 
 
 @dataclass
+class StakesLevel:
+    """Patterns for a single stakes level."""
+
+    file_patterns: list[str] = field(default_factory=list)
+    task_types: list[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
+
+
+@dataclass
+class StakesPatterns:
+    """Stakes classification config — high/medium/low."""
+
+    high: StakesLevel = field(default_factory=StakesLevel)
+    medium: StakesLevel = field(default_factory=StakesLevel)
+    low: StakesLevel = field(default_factory=StakesLevel)
+
+
+@dataclass
+class CascadePolicy:
+    """Cascade execution policy."""
+
+    enabled: bool = True
+    min_blast: int = 5
+    min_stakes: str = "medium"
+    max_attempts: int = 3
+    quality_threshold: int = 3
+
+
+@dataclass
 class RoutingRules:
     """All routing rules Maggy uses for orchestration."""
 
@@ -63,217 +87,63 @@ class RoutingRules:
     model_performance: dict[str, PerformanceRecord] = field(
         default_factory=dict,
     )
-    conventions: list[Convention] = field(
-        default_factory=list,
+    conventions: list[Convention] = field(default_factory=list)
+    project_conventions: dict[str, list[Convention]] = field(
+        default_factory=dict,
     )
+    stakes: StakesPatterns = field(default_factory=StakesPatterns)
+    cascade: CascadePolicy = field(default_factory=CascadePolicy)
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _default_conventions() -> list[Convention]:
-    """Team conventions from claude-bootstrap skills."""
-    return [
-        Convention(
-            "mWP Mindset: Ship minimum wowable product, not MVP. "
-            "Ask: (1) What's the obvious implementation? (that's MVP, "
-            "don't ship it) (2) What would make this magical? (that's "
-            "mWP, ship that) (3) What existing systems does this feed "
-            "into? (that's the multiplier). Target 5-7 stars on the "
-            "11-star scale. No feature flags, no premature abstractions.",
-            ["all"], "claude-bootstrap",
-        ),
-        Convention(
-            "Follow TDD: RED (write failing tests) → GREEN (minimal "
-            "code to pass) → VALIDATE (lint, types, coverage >= 80%).",
-            ["feature", "bug", "refactor"], "claude-bootstrap",
-        ),
-        Convention(
-            "No secrets in code. Parameterized SQL only. Validate all "
-            "input at API boundaries. Hash passwords with bcrypt/argon2.",
-            ["all"], "claude-bootstrap",
-        ),
-        Convention(
-            "Quality gates: max 20 lines/function, max 3 params, "
-            "max 2 nesting levels, max 200 lines/file.",
-            ["all"], "claude-bootstrap",
-        ),
-        Convention(
-            "Use existing patterns. Read the codebase before changing it. "
-            "Keep changes minimal and focused on the task.",
-            ["all"], "claude-bootstrap",
-        ),
-    ]
-
-
-def default_rules() -> RoutingRules:
-    """Seed rules from benchmark evidence + team conventions."""
-    return RoutingRules(
-        version=1,
-        updated_at=_now_iso(),
-        conventions=_default_conventions(),
-        task_type_overrides={
-            "docs": ModelOverride(
-                "claude",
-                "Local models are code-optimized, not prose",
-                0.9, "benchmark",
-            ),
-            "security": ModelOverride(
-                "claude",
-                "Security review needs deep reasoning",
-                1.0, "rule",
-            ),
-            "architecture": ModelOverride(
-                "claude",
-                "Architecture needs cross-context awareness",
-                0.8, "rule",
-            ),
-            "tests": ModelOverride(
-                "claude",
-                "Only claude generated test files in benchmark",
-                0.9, "benchmark",
-            ),
-            "planning": ModelOverride(
-                "claude",
-                "Planning requires structured reasoning",
-                0.8, "rule",
-            ),
-        },
-        pipeline_phases={
-            "spec": ModelOverride(
-                "claude",
-                "SPEC phase needs comprehensive docs",
-                1.0, "rule",
-            ),
-            "tdd_red": ModelOverride(
-                "claude",
-                "RED phase needs test design expertise",
-                0.9, "rule",
-            ),
-            "tdd_green": ModelOverride(
-                "auto",
-                "GREEN phase uses blast-score routing",
-                1.0, "rule",
-            ),
-            "review": ModelOverride(
-                "claude",
-                "Review needs security + architecture depth",
-                1.0, "rule",
-            ),
-        },
-        model_performance={
-            "claude": PerformanceRecord(
-                ["security", "tests", "docs", "architecture"],
-                ["cost"],
-                6, 1.0,
-            ),
-            "codex": PerformanceRecord(
-                ["crud", "api_design"],
-                ["frontend_speed", "tests"],
-                3, 1.0,
-            ),
-            "kimi": PerformanceRecord(
-                ["schema", "simple_tasks"],
-                ["complex_reasoning"],
-                1, 1.0,
-            ),
-            "local": PerformanceRecord(
-                ["code_formatting", "simple_edits"],
-                ["docs", "prose", "planning"],
-                1, 1.0,
-            ),
-        },
-    )
-
-
-def load(path: Path | None = None) -> RoutingRules:
-    """Load rules from YAML. Seeds defaults if missing."""
-    target = path or RULES_PATH
-    if not target.exists():
-        rules = default_rules()
-        save(rules, target)
-        return rules
-    rules = _from_yaml(target)
-    if not rules.conventions:
-        rules.conventions = _default_conventions()
-        save(rules, target)
-    return rules
-
-
-def save(rules: RoutingRules, path: Path | None = None) -> None:
-    """Write rules to YAML."""
-    target = path or RULES_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    data = _to_dict(rules)
-    target.write_text(yaml.safe_dump(data, sort_keys=False))
-
-
 def apply_override(
-    rules: RoutingRules,
-    task_type: str,
+    rules: RoutingRules, task_type: str,
     phase: str | None = None,
 ) -> str | None:
-    """Return model name if rules override routing.
-
-    Returns None if blast-score routing should be used.
-    """
+    """Return model name if rules override routing."""
     if phase and phase in rules.pipeline_phases:
         override = rules.pipeline_phases[phase]
         if override.model != "auto" and _trusted(override):
             return override.model
-
     if task_type in rules.task_type_overrides:
         override = rules.task_type_overrides[task_type]
         if _trusted(override):
             return override.model
-
     return None
 
 
 def record_outcome(
-    rules: RoutingRules,
-    model: str,
-    task_type: str,
-    success: bool,
+    rules: RoutingRules, model: str,
+    task_type: str, success: bool,
     path: Path | None = None,
 ) -> None:
     """Update performance data from a task outcome."""
+    from maggy.routing_rules_io import save
+
     perf = rules.model_performance.get(model)
     if perf is None:
         perf = PerformanceRecord()
         rules.model_performance[model] = perf
-
-    total = perf.tasks_completed
-    rate = perf.success_rate
-    new_total = total + 1
-    new_rate = (rate * total + (1.0 if success else 0.0)) / new_total
-    perf.tasks_completed = new_total
-    perf.success_rate = round(new_rate, 3)
-
-    if success and task_type not in perf.strengths:
-        perf.strengths.append(task_type)
-    if not success and task_type not in perf.weaknesses:
-        perf.weaknesses.append(task_type)
-
+    _update_perf(perf, task_type, success)
     rules.updated_at = _now_iso()
     save(rules, path)
 
 
 def learn_override(
-    rules: RoutingRules,
-    task_type: str,
-    model: str,
-    reason: str,
+    rules: RoutingRules, task_type: str,
+    model: str, reason: str,
     confidence: float = 0.7,
     path: Path | None = None,
 ) -> None:
     """Maggy learns a new routing override from data."""
+    from maggy.routing_rules_io import save
+
     rules.task_type_overrides[task_type] = ModelOverride(
-        model=model,
-        reason=reason,
-        confidence=confidence,
-        source="learned",
+        model=model, reason=reason,
+        confidence=confidence, source="learned",
     )
     rules.updated_at = _now_iso()
     save(rules, path)
@@ -281,12 +151,16 @@ def learn_override(
 
 def conventions_for(
     rules: RoutingRules, task_type: str,
+    project_key: str | None = None,
 ) -> str:
     """Return conventions text relevant to a task type."""
-    lines: list[str] = []
-    for c in rules.conventions:
-        if "all" in c.applies_to or task_type in c.applies_to:
-            lines.append(f"- {c.text}")
+    all_convs = list(rules.conventions)
+    if project_key and project_key in rules.project_conventions:
+        all_convs.extend(rules.project_conventions[project_key])
+    lines = [
+        f"- {c.text}" for c in all_convs
+        if "all" in c.applies_to or task_type in c.applies_to
+    ]
     if not lines:
         return ""
     return "## Team Conventions\n" + "\n".join(lines)
@@ -296,71 +170,17 @@ def _trusted(override: ModelOverride) -> bool:
     return override.confidence >= MIN_CONFIDENCE
 
 
-def _to_dict(rules: RoutingRules) -> dict:
-    return {
-        "version": rules.version,
-        "updated_at": rules.updated_at,
-        "conventions": [
-            {
-                "text": c.text,
-                "applies_to": c.applies_to,
-                "source": c.source,
-            }
-            for c in rules.conventions
-        ],
-        "task_type_overrides": {
-            k: {
-                "model": v.model,
-                "reason": v.reason,
-                "confidence": v.confidence,
-                "source": v.source,
-            }
-            for k, v in rules.task_type_overrides.items()
-        },
-        "pipeline_phases": {
-            k: {
-                "model": v.model,
-                "reason": v.reason,
-                "confidence": v.confidence,
-                "source": v.source,
-            }
-            for k, v in rules.pipeline_phases.items()
-        },
-        "model_performance": {
-            k: {
-                "strengths": v.strengths,
-                "weaknesses": v.weaknesses,
-                "tasks_completed": v.tasks_completed,
-                "success_rate": v.success_rate,
-            }
-            for k, v in rules.model_performance.items()
-        },
-    }
-
-
-def _from_yaml(path: Path) -> RoutingRules:
-    data = yaml.safe_load(path.read_text()) or {}
-    overrides = {
-        k: ModelOverride(**v)
-        for k, v in (data.get("task_type_overrides") or {}).items()
-    }
-    phases = {
-        k: ModelOverride(**v)
-        for k, v in (data.get("pipeline_phases") or {}).items()
-    }
-    perf = {
-        k: PerformanceRecord(**v)
-        for k, v in (data.get("model_performance") or {}).items()
-    }
-    convs = [
-        Convention(**c)
-        for c in (data.get("conventions") or [])
-    ]
-    return RoutingRules(
-        version=data.get("version", 1),
-        updated_at=data.get("updated_at", ""),
-        task_type_overrides=overrides,
-        pipeline_phases=phases,
-        model_performance=perf,
-        conventions=convs,
+def _update_perf(
+    perf: PerformanceRecord, task_type: str, success: bool,
+) -> None:
+    total = perf.tasks_completed
+    rate = perf.success_rate
+    new_total = total + 1
+    perf.tasks_completed = new_total
+    perf.success_rate = round(
+        (rate * total + (1.0 if success else 0.0)) / new_total, 3,
     )
+    if success and task_type not in perf.strengths:
+        perf.strengths.append(task_type)
+    if not success and task_type not in perf.weaknesses:
+        perf.weaknesses.append(task_type)

@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import json
+import os
+import signal
 import subprocess
 import sys
 import time
-
-import json
+from urllib.parse import urlparse
 
 import httpx
 import typer
 
+from maggy.config import CONFIG_DIR
+
 DEFAULT_URL = "http://127.0.0.1:8080"
 HEALTH_TIMEOUT = 2.0
-START_WAIT = 8.0
-START_POLL = 0.5
+START_WAIT = 45.0
+START_POLL = 1.0
 
 
 class MaggyClient:
@@ -35,17 +39,41 @@ class MaggyClient:
         except (httpx.ConnectError, httpx.ReadTimeout):
             return False
 
+    def _get_port(self) -> int:
+        parsed = urlparse(self.base_url)
+        return parsed.port or 8080
+
+    def _kill_stale_port(self) -> None:
+        """Kill any process holding our port."""
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{self._get_port()}"],
+                capture_output=True, text=True, timeout=5,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return
+        for line in result.stdout.strip().splitlines():
+            try:
+                os.kill(int(line.strip()), signal.SIGTERM)
+            except (ValueError, ProcessLookupError,
+                    PermissionError):
+                continue
+        time.sleep(0.5)
+
     def _start_server(self) -> None:
+        """Spawn server, logging to server.log."""
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        log = open(CONFIG_DIR / "server.log", "a")
         subprocess.Popen(
             [sys.executable, "-m", "maggy.main"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log, stderr=log,
         )
 
     def ensure_server(self) -> bool:
         """Return True if server is reachable."""
         if self._check_health():
             return True
+        self._kill_stale_port()
         self._start_server()
         deadline = time.monotonic() + START_WAIT
         while time.monotonic() < deadline:

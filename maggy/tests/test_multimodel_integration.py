@@ -7,7 +7,7 @@ and that budget/fallback/checkpoint systems work end-to-end.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -15,7 +15,6 @@ from maggy.adapters.pi import PiAdapter, RunResult
 from maggy.budget import BudgetManager, TaskSpendTracker
 from maggy.checkpoint import CheckpointManager
 from maggy.config import (
-    BudgetConfig,
     CodebaseConfig,
     MaggyConfig,
     OrgConfig,
@@ -27,6 +26,7 @@ from maggy.mnemos.fatigue import FatigueTracker
 from maggy.providers.base import Task
 from maggy.routing import RoutingContext, RoutingService
 from maggy.services.executor import ExecutorService
+from maggy.services.executor_types import SessionCtx
 from maggy.services.planner import DualPlanner
 
 
@@ -89,10 +89,17 @@ class TestRoutingDecisions:
             )
             assert decision.primary.name in ("local", "kimi")
 
-    def test_mid_blast_routes_to_gpt(self, tmp_path):
+    def test_mid_blast_routes_to_cheapest_capable(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=5, task_type="feature")
+        decision = svc.route(ctx)
+        assert decision.primary.name in ("local", "kimi", "gpt")
+
+    def test_blast_6_routes_to_gpt(self, tmp_path):
+        cfg = _project_cfg(tmp_path)
+        svc = RoutingService(cfg)
+        ctx = RoutingContext(blast_score=6, task_type="feature")
         decision = svc.route(ctx)
         assert decision.primary.name == "gpt"
 
@@ -146,24 +153,25 @@ class TestExecutorPipeline:
                 output="done", cost_usd=0.10,
             )
 
-        async def fake_ctx(task, wd):
+        async def fake_ctx(cfg, task):
             return ""
 
         executor._pi.send_prompt = fake_send
-        executor._build_icpg_context = fake_ctx
+        from maggy.services import executor_helpers
+        executor_helpers.build_icpg_context = fake_ctx
 
         for task in TASKS:
             sid = f"s-{task.id}"
-            executor._sessions[sid] = {
+            session = {
                 "id": sid, "task_id": task.id,
                 "task_title": task.title, "mode": "plan",
                 "working_dir": str(tmp_path / "repo"),
                 "status": "running", "started_at": "",
                 "output": "",
             }
-            await executor._run(
-                sid, task, str(tmp_path / "repo"), "plan",
-            )
+            executor._sessions[sid] = session
+            ctx = SessionCtx(session, task, str(tmp_path / "repo"))
+            await executor._run(ctx, "plan")
 
         # Verify each complexity tier used a different model
         cheap = {"local", "kimi"}

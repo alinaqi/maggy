@@ -238,7 +238,7 @@ def test_chat_agent_status_rendered(mock_client):
         mp.ask.side_effect = ["test", "/quit"]
         result = runner.invoke(app, ["chat", "my-proj"])
     assert result.exit_code == 0
-    assert "@local" in result.output
+    assert "running" in result.output
 
 
 @patch("maggy.cli._client")
@@ -268,3 +268,15 @@ def test_chat_prompt_uses_angle_bracket(mock_client):
     call_args = mp.ask.call_args[0][0]
     assert ">" in call_args
     assert "maggy" not in call_args.lower()
+
+
+@patch("maggy.cli._client")
+def test_screenshot_command_dispatches(mock_client):
+    """'/screenshot path.png' calls vision handler."""
+    _setup_new(mock_client)
+    with patch("maggy.cli_chat.Prompt") as mp, \
+         patch("maggy.cli_chat._handle_screenshot") as mh:
+        mp.ask.side_effect = ["/screenshot test.png", "/quit"]
+        runner.invoke(app, ["chat", "my-proj"])
+    mh.assert_called_once()
+    assert "test.png" in mh.call_args[0][0]

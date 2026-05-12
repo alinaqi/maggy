@@ -60,7 +60,7 @@ def test_claude_build_command():
     assert cmd[:3] == ["claude", "-p", "do stuff"]
     assert "--dangerously-skip-permissions" in cmd
     assert "--output-format" in cmd
-    assert "text" in cmd
+    assert "json" in cmd
 
 
 def test_codex_build_command():

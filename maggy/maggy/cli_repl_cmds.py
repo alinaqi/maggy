@@ -190,9 +190,10 @@ _HELP = """\
 [bold]Commands:[/bold]
   /stats   Budget+perf      /budget  Breakdown       /route   Rules+tiers
   /models  Reward heatmap   /health  Memory health   /monitor Trackers
-  /use M   Restrict models  /config  Settings        /claude-md CLAUDE.md
-  /blast N Score override   /history Messages        /sessions  List
-  /clear   Clear screen     /quit    Exit            /help    This help"""
+  /screenshot F  Analyze image with Qwen3-VL         /claude-md CLAUDE.md
+  /use M   Restrict models  /config  Settings        /blast N Override
+  /history Messages         /sessions List           /clear   Screen
+  /quit    Exit             /help    This help"""
 
 
 def cmd_help() -> None:

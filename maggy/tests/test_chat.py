@@ -85,10 +85,11 @@ class TestChatManager:
 
     def test_build_cmd_new_session(self, tmp_path):
         from maggy.services.chat import ChatManager
+        from maggy.services.chat_stream import build_cmd
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
         s = mgr.create_session("my-project")
-        cmd = mgr._build_cmd(s, "fix the bug")
+        cmd = build_cmd(s, "fix the bug")
         assert "claude" in cmd[0]
         assert "-p" in cmd
         assert "fix the bug" in cmd
@@ -97,11 +98,12 @@ class TestChatManager:
 
     def test_build_cmd_resume(self, tmp_path):
         from maggy.services.chat import ChatManager
+        from maggy.services.chat_stream import build_cmd
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
         s = mgr.create_session("my-project")
         s.claude_session_id = "abc123"
-        cmd = mgr._build_cmd(s, "continue working")
+        cmd = build_cmd(s, "continue working")
         assert "--resume" in cmd
         idx = cmd.index("--resume")
         assert cmd[idx + 1] == "abc123"
@@ -208,3 +210,44 @@ class TestAutoConnect:
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
         assert mgr.find_by_project("nope") is None
+
+
+class TestMessageQueue:
+    """Message queuing when session is busy."""
+
+    def test_enqueue_returns_position(self, tmp_path):
+        from maggy.services.chat import ChatManager, enqueue_msg
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        s = mgr.create_session("my-project")
+        assert enqueue_msg(s, "msg 1") == 1
+        assert enqueue_msg(s, "msg 2") == 2
+
+    def test_enqueue_full_returns_negative(self, tmp_path):
+        from maggy.services.chat import ChatManager, enqueue_msg
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        s = mgr.create_session("my-project")
+        for i in range(5):
+            enqueue_msg(s, f"msg {i}")
+        assert enqueue_msg(s, "overflow") == -1
+
+    def test_session_has_pending_queue(self, tmp_path):
+        from maggy.services.chat import ChatManager
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        s = mgr.create_session("my-project")
+        assert hasattr(s, "pending_queue")
+        assert len(s.pending_queue) == 0
+
+    @pytest.mark.asyncio
+    async def test_send_while_locked_enqueues(self, tmp_path):
+        from maggy.services.chat import ChatManager
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        s = mgr.create_session("my-project")
+        lock = mgr._locks[s.id]
+        async with lock:
+            chunks = [c async for c in mgr.send(s.id, "queued")]
+        assert any(c.get("type") == "queued" for c in chunks)
+        assert len(s.pending_queue) == 1

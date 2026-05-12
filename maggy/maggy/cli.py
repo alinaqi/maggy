@@ -26,6 +26,8 @@ _client = MaggyClient()
 
 
 def _ensure() -> bool:
+    if not _client._check_health():
+        console.print("[dim]Starting Maggy server...[/dim]")
     if not _client.ensure_server():
         console.print("[red]Cannot reach Maggy server.[/red]")
         raise typer.Exit(1)

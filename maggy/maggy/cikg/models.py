@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 NODE_TYPES = (
-    "competitor", "feature", "market_segment",
-    "technology", "trend", "product",
+    "codebase", "competitor", "feature", "market_segment",
+    "product", "technology", "trend",
 )
 
 EDGE_TYPES = (
@@ -32,6 +32,10 @@ class Node:
         ).isoformat()
     )
 
+    def __post_init__(self) -> None:
+        if self.node_type not in NODE_TYPES:
+            raise ValueError(f"Invalid node_type: {self.node_type!r}")
+
 
 @dataclass
 class Edge:
@@ -42,6 +46,10 @@ class Edge:
     edge_type: str
     weight: float = 1.0
     metadata: dict = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.edge_type not in EDGE_TYPES:
+            raise ValueError(f"Invalid edge_type: {self.edge_type!r}")
 
 
 @dataclass
