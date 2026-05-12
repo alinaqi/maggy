@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 
 from rich.console import Console
 from rich.panel import Panel
@@ -28,6 +29,7 @@ def render_welcome(
     console.print(
         "[dim]/help for commands | /stats for budget[/dim]\n",
     )
+    _pad_to_bottom(panel_rows=8)
 
 
 def _add_project_rows(
@@ -82,6 +84,15 @@ def _safe_call(fn):
         return fn() or []
     except Exception:
         return []
+
+
+def _pad_to_bottom(panel_rows: int = 8) -> None:
+    """Print blank lines to push prompt near terminal bottom."""
+    term_h = shutil.get_terminal_size().lines
+    used = panel_rows + 3  # panel + help line + blank + prompt
+    pad = max(0, term_h - used)
+    if pad:
+        console.print("\n" * (pad - 1), end="")
 
 
 def _shorten(path: str, max_len: int) -> str:

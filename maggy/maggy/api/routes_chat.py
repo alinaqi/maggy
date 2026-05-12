@@ -131,6 +131,7 @@ async def list_sessions(
         {
             "id": s.id,
             "project_key": s.project_key,
+            "working_dir": s.working_dir,
             "status": s.status,
             "created_at": s.created_at,
             "messages": len(s.messages),

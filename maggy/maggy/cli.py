@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from maggy.cli_analytics import register as _register_analytics
@@ -33,16 +35,13 @@ def _ensure() -> bool:
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context) -> None:
-    """Interactive REPL (in project) or dashboard."""
+    """Interactive REPL — cwd is the project."""
     if ctx.invoked_subcommand is not None:
         return
     _ensure()
-    from maggy.cli_chat import detect_project, run_chat
-    project = detect_project(_client)
-    if project:
-        run_chat(_client, project, routed=True)
-    else:
-        serve()
+    from maggy.cli_chat import cwd_project, run_chat
+    name, path = cwd_project()
+    run_chat(_client, name, path, routed=True)
 
 
 @app.command()
@@ -99,13 +98,17 @@ def sessions(json_out: bool = typer.Option(False, "--json")) -> None:
 
 @app.command()
 def chat(
-    project: str = typer.Argument(..., help="Project key"),
+    project: str = typer.Argument(None, help="Project key"),
     direct: bool = typer.Option(False, "--direct"),
 ) -> None:
     """Interactive chat with a project's AI session."""
     _ensure()
-    from maggy.cli_chat import run_chat
-    run_chat(_client, project, routed=not direct)
+    from maggy.cli_chat import cwd_project, run_chat
+    if project:
+        name, path = project, str(Path.cwd().resolve())
+    else:
+        name, path = cwd_project()
+    run_chat(_client, name, path, routed=not direct)
 
 
 @app.command()
@@ -114,13 +117,10 @@ def spawn(
 ) -> None:
     """Spawn a background AI session."""
     _ensure()
-    from maggy.cli_chat import detect_project
+    from maggy.cli_chat import cwd_project
     from maggy.cli_sessions import spawn_session
-    project = detect_project(_client)
-    if not project:
-        console.print("[red]Not in a project directory.[/red]")
-        raise typer.Exit(1)
-    spawn_session(_client, task, project)
+    name, _path = cwd_project()
+    spawn_session(_client, task, name)
 
 
 @app.command()

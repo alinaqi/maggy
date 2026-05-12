@@ -50,14 +50,21 @@ class TestChatManager:
         assert s.project_key == "my-project"
         assert s.working_dir == str(sub)
 
-    def test_create_rejects_outside_path(self, tmp_path):
+    def test_create_accepts_any_directory(self, tmp_path):
         from maggy.services.chat import ChatManager
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
         outside = tmp_path / "other-repo"
         outside.mkdir()
-        with pytest.raises(ValueError, match="not inside"):
-            mgr.create_session("other", str(outside))
+        s = mgr.create_session("other", str(outside))
+        assert s.working_dir == str(outside)
+
+    def test_create_rejects_nonexistent_path(self, tmp_path):
+        from maggy.services.chat import ChatManager
+        cfg = _make_cfg(tmp_path)
+        mgr = ChatManager(cfg)
+        with pytest.raises(ValueError, match="Not a directory"):
+            mgr.create_session("x", str(tmp_path / "nope"))
 
     def test_list_sessions(self, tmp_path):
         from maggy.services.chat import ChatManager
@@ -129,12 +136,14 @@ class TestChatManager:
         with pytest.raises(ValueError, match="not found"):
             mgr.create_session("hacker-repo")
 
-    def test_working_dir_security_bad_path(self, tmp_path):
+    def test_working_dir_rejects_file_path(self, tmp_path):
         from maggy.services.chat import ChatManager
         cfg = _make_cfg(tmp_path)
         mgr = ChatManager(cfg)
-        with pytest.raises(ValueError, match="not inside"):
-            mgr.create_session("x", "/etc")
+        f = tmp_path / "afile.txt"
+        f.write_text("x")
+        with pytest.raises(ValueError, match="Not a directory"):
+            mgr.create_session("x", str(f))
 
 
 class TestAutoConnect:

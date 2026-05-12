@@ -15,21 +15,10 @@ import typer
 
 from maggy.config import CONFIG_DIR
 
-from pathlib import Path
-
 DEFAULT_URL = "http://127.0.0.1:8080"
 HEALTH_TIMEOUT = 2.0
 START_WAIT = 45.0
 START_POLL = 1.0
-
-
-def _is_inside(child: Path, parent: Path) -> bool:
-    """Check if child path is inside parent path."""
-    try:
-        child.relative_to(parent)
-        return True
-    except ValueError:
-        return False
 
 
 class MaggyClient:
@@ -177,11 +166,13 @@ class MaggyClient:
 
     # ── Chat ──────────────────────────────────────
 
-    def chat_create(self, project_key: str) -> dict:
-        return self.post(
-            "/api/chat/sessions",
-            {"project_key": project_key},
-        )
+    def chat_create(
+        self, project_key: str, project_path: str | None = None,
+    ) -> dict:
+        body: dict = {"project_key": project_key}
+        if project_path:
+            body["project_path"] = project_path
+        return self.post("/api/chat/sessions", body)
 
     def chat_sessions(self) -> list:
         return self.get("/api/chat/sessions")
@@ -227,36 +218,6 @@ class MaggyClient:
             for line in r.iter_lines():
                 if line.startswith("data: "):
                     yield json.loads(line[6:])
-
-    def detect_candidates(self, cwd: str) -> list[str]:
-        """Return all codebase keys matching cwd.
-
-        Phase 1: cwd is inside a codebase (subdirectory).
-        Phase 2: cwd is a sibling — shares a parent dir
-        within 2 levels (e.g. tests/ next to platform/).
-        """
-        try:
-            cfg = self.config()
-        except Exception:
-            return []
-        cwd_path = Path(cwd).resolve()
-        entries = [
-            (cb.get("key"), Path(cb.get("path", "")).expanduser().resolve())
-            for cb in cfg.get("codebases", [])
-        ]
-        exact = [k for k, r in entries if _is_inside(cwd_path, r)]
-        if exact:
-            return exact
-        for ancestor in list(cwd_path.parents)[:2]:
-            sibs = [k for k, r in entries if r.parent == ancestor]
-            if sibs:
-                return sibs
-        return []
-
-    def detect_project(self, cwd: str) -> str | None:
-        """Return single best match or None if ambiguous."""
-        c = self.detect_candidates(cwd)
-        return c[0] if len(c) == 1 else None
 
     # ── Session management ─────────────────────────
 

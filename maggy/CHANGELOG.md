@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.5 — 2026-05-13
+
+### Changed
+- **CWD = project** — running `maggy` from any directory uses that directory as the project (like Claude Code), no config lookup needed
+- Sessions now matched by `working_dir` path instead of `project_key` name, ensuring correct resume across identically-named folders
+- Server accepts any existing directory as a project path (no codebase config required)
+- REPL prompt pushed to bottom of terminal after welcome panel
+
+### Removed
+- Config-based project detection (`detect_project`, `detect_candidates`, `_is_inside`)
+- Multi-project disambiguation prompt
+
 ## v0.6.4 — 2026-05-12
 
 ### Added

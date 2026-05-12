@@ -65,7 +65,7 @@ class ChatManager:
     ) -> ChatSession:
         """Create a new chat session for a project."""
         if project_path:
-            wd = self._validate_path(project_path)
+            wd = self._validate_dir(project_path)
             key = project_key or Path(wd).name
         else:
             wd = self._resolve_project(project_key)
@@ -168,23 +168,20 @@ class ChatManager:
             async for chunk in stream_message(session, msg):
                 yield chunk
 
-    def _validate_path(self, path: str) -> str:
-        """Validate path is inside a configured codebase root."""
+    def find_by_working_dir(self, path: str) -> ChatSession | None:
+        """Find existing session by resolved working directory."""
+        resolved = str(Path(path).expanduser().resolve())
+        for s in self._sessions.values():
+            if s.working_dir == resolved:
+                return s
+        return None
+
+    def _validate_dir(self, path: str) -> str:
+        """Validate path is an existing directory."""
         candidate = Path(path).expanduser().resolve()
-        roots = [
-            Path(c.path).expanduser().resolve()
-            for c in self.cfg.codebases
-        ]
-        for root in roots:
-            try:
-                candidate.relative_to(root)
-                return str(candidate)
-            except ValueError:
-                continue
-        raise ValueError(
-            f"Path {path!r} is not inside any configured "
-            f"codebase. Allowed: {[str(r) for r in roots]}"
-        )
+        if not candidate.is_dir():
+            raise ValueError(f"Not a directory: {path!r}")
+        return str(candidate)
 
     def _resolve_project(self, project_key: str) -> str:
         """Map project_key to validated working directory."""

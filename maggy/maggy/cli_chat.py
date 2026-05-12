@@ -1,7 +1,7 @@
 """Interactive chat REPL for Maggy CLI with model routing."""
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 from rich.console import Console
 from rich.prompt import Prompt
@@ -16,38 +16,19 @@ console = Console()
 EXIT_WORDS = frozenset({"exit", "bye", "quit", "/exit", "/bye"})
 
 
-def detect_project(client) -> str | None:
-    """Auto-detect project, prompting if ambiguous."""
-    cwd = os.getcwd()
-    exact = client.detect_project(cwd)
-    if exact:
-        return exact
-    candidates = client.detect_candidates(cwd)
-    if not candidates:
-        return None
-    return _pick_project(candidates)
-
-
-def _pick_project(candidates: list[str]) -> str:
-    """Prompt user to select from multiple projects."""
-    console.print("[dim]Multiple projects nearby:[/dim]")
-    for i, key in enumerate(candidates, 1):
-        console.print(f"  [bold]{i}[/bold]. {key}")
-    choice = Prompt.ask(
-        "[bold cyan]Select[/bold cyan]", default="1",
-    )
-    try:
-        return candidates[int(choice) - 1]
-    except (ValueError, IndexError):
-        return candidates[0]
+def cwd_project() -> tuple[str, str]:
+    """Return (folder_name, resolved_path) for cwd."""
+    p = Path.cwd().resolve()
+    return p.name, str(p)
 
 
 def run_chat(
-    client, project: str, routed: bool = True,
+    client, project: str, project_path: str,
+    routed: bool = True,
 ) -> None:
-    session, resumed = _find_or_create(client, project)
+    session = _find_or_create(client, project, project_path)
     sid = session.get("id", "?")
-    wd = session.get("working_dir", "?")
+    wd = session.get("working_dir", project_path)
     render_welcome(project, session, client)
     _show_resume_info(client, sid, wd)
     state = SessionState(session_id=sid, working_dir=wd)
@@ -55,11 +36,14 @@ def run_chat(
     console.print("[dim]Session saved. Bye.[/dim]")
 
 
-def _find_or_create(client, project: str) -> tuple[dict, bool]:
+def _find_or_create(
+    client, project: str, project_path: str,
+) -> dict:
+    """Resume session by working_dir or create new."""
     for s in client.chat_sessions():
-        if s.get("project_key") == project:
-            return s, True
-    return client.chat_create(project), False
+        if s.get("working_dir") == project_path:
+            return s
+    return client.chat_create(project, project_path)
 
 
 def _show_resume_info(client, sid: str, wd: str) -> None:
