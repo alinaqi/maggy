@@ -1,0 +1,42 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['maggy/**', 'tests/**']
+  pull_request:
+    branches: [main]
+    paths: ['maggy/**', 'tests/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        working-directory: maggy
+        run: |
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+          pip install pytest pytest-cov
+
+      - name: Run unit tests
+        working-directory: maggy
+        run: pytest tests/ -x --tb=short -q
+
+      - name: Run integration tests
+        working-directory: maggy
+        run: pytest tests/integration/ -x --tb=short -q
+
+      - name: Coverage report
+        working-directory: maggy
+        run: pytest tests/ tests/integration/ --cov=maggy --cov-report=term --cov-fail-under=80

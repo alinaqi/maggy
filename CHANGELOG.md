@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [5.9.0] - 2026-05-12
+
+### Added
+
+#### Auto-Start — Zero-Config Bootstrap
+- **`maggy/main.py`** — Server auto-starts on first CLI command if not already running. No separate `maggy serve` step needed.
+
+#### Qwen3-VL Vision — `/screenshot` Command
+- **`maggy/services/vision.py`** — Ollama HTTP vision client for Qwen3-VL (`qwen3-vl:32b`). Base64-encodes images, streams analysis via `POST /api/chat`. Supports `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`.
+- **`/screenshot <path> [prompt]`** in REPL — Analyze screenshots for UI review, bug spotting, OCR, design-to-code. Custom prompts supported.
+
+#### Module Extraction — Large Files Decomposed
+- **`routing_rules.py`** split into 3 files — `routing_rules.py` (core), `routing_rules_defaults.py` (tier definitions), `routing_rules_io.py` (file I/O). Was 450+ lines, now each under 200.
+- **`services/executor.py`** split into 4 files — `executor.py` (orchestration), `executor_helpers.py` (subprocess), `executor_prompts.py` (prompt templates), `executor_types.py` (dataclasses). Was 600+ lines.
+- **`services/chat.py`** split — streaming extracted to `chat_stream.py`.
+- **New service modules**: `cascade.py` (cascading model fallback), `context_compactor.py` (context size management), `convention_inferrer.py` (project convention detection), `convention_scanner.py` (file pattern scanning), `output_reviewer.py` (LLM output quality check), `stakes.py` (task risk assessment), `tdd_verifier.py` (TDD pipeline verification).
+- **`cikg/graph.py`** decomposed — queries extracted to `cikg/queries.py`.
+
+#### Reward Recording
+- **`routes_chat.py`** — Routed chat endpoint now records routing outcomes (model, task type, blast score, quality score) after completion via `RoutingService.record_outcome()`. Feeds the reward heatmap for learning-based routing.
+
+#### User Management
+- **`services/users.py`** — User creation with bcrypt password hashing, SQLite storage, email uniqueness validation.
+- **`api/routes_users.py`** — `POST /api/users` endpoint for user registration.
+
+#### CI/CD
+- **`.github/workflows/integration.yml`** — GitHub Actions workflow: pytest on Python 3.11 + 3.12, coverage >= 80%.
+
+#### Documentation
+- **`docs/architecture-v5.md`** — Full v5 architecture reference (v3→v4→v5 evolution, Pi agent harness, multi-project dashboard).
+- **`docs/mnemos-implementation.md`** — Mnemos implementation addendum (signal access, hook integration, fatigue dimensions).
+- **`docs/polyphony-spec.md`** — Polyphony multi-agent orchestration specification (6-layer architecture, task state machine, routing rules).
+
+### Changed
+- **GPT tier removed** from `DEFAULT_TIERS` — OpenAI deprecated the free research tier. Codex promoted to primary mid-range model (`routing_rules_defaults.py`, `model_router.py`).
+- **Engram seed** now fills only missing memory types instead of requiring an empty store. Existing engrams preserved (`engram/seed.py`).
+
+### Fixed
+- **Routing rewards not recorded** — routed chat responses weren't feeding the reward heatmap. Added `record_outcome()` call after stream completion (`routes_chat.py`).
+- **Engram seed skipped non-empty stores** — stores with some memory types but missing others weren't seeded. Now checks per-type and fills gaps (`engram/seed.py`).
+
+### Tests
+- `tests/test_routing_config.py` — 3 tests for GPT removal, codex promotion
+- `tests/test_chat_routed.py` — 3 tests for reward recording
+- `tests/test_engram.py` — +4 tests for seed edge cases (fill missing types, skip when all present)
+- `tests/test_routes_users.py` — 7 tests for user registration
+- **Total: 843 tests passing** (825 + 18 new)
+
+---
+
 ## [5.8.0] - 2026-05-12
 
 ### Fixed
