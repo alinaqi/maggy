@@ -1,4 +1,4 @@
-"""Tests for cli_stream — streaming display with model label."""
+"""Tests for cli_stream — streaming display with tool progress."""
 from __future__ import annotations
 
 import io
@@ -12,6 +12,7 @@ from rich.text import Text
 from maggy.cli_stream import (
     _StreamState,
     _build_display,
+    _format_tool_use,
     _handle_chunk,
     _show_error,
     stream_chunks,
@@ -25,12 +26,13 @@ def _make_state() -> _StreamState:
 # -- _handle_chunk tests --
 
 
-def test_handle_chunk_routing_sets_label():
+def test_handle_chunk_routing_prints_model():
     state = _make_state()
     _handle_chunk(state, {
         "type": "routing", "model": "kimi", "blast": 3,
     })
-    assert "kimi" in state.model_label
+    output = state.console.file.getvalue()
+    assert "kimi" in output
 
 
 def test_handle_chunk_text_accumulates():
@@ -53,10 +55,11 @@ def test_handle_chunk_done_returns_false():
     assert not _handle_chunk(state, {"type": "done"})
 
 
-def test_handle_chunk_queued_sets_label():
+def test_handle_chunk_queued_prints():
     state = _make_state()
     _handle_chunk(state, {"type": "queued", "position": 2})
-    assert "2" in state.model_label
+    output = state.console.file.getvalue()
+    assert "2" in output
 
 
 def test_handle_chunk_warning_prints():
@@ -72,7 +75,18 @@ def test_handle_chunk_unknown_type_ignored():
     state = _make_state()
     assert _handle_chunk(state, {"type": "mystery"})
     assert state.content == ""
-    assert state.model_label == ""
+
+
+def test_handle_chunk_tool_use_prints():
+    state = _make_state()
+    _handle_chunk(state, {
+        "type": "tool_use",
+        "tool": "Read",
+        "input": {"file_path": "/src/main.py"},
+    })
+    output = state.console.file.getvalue()
+    assert "Read" in output
+    assert "main.py" in output
 
 
 # -- _build_display tests --
@@ -86,24 +100,47 @@ def test_build_display_spinner_when_no_content():
     assert isinstance(display.renderables[0], Spinner)
 
 
-def test_build_display_with_model_and_content():
+def test_build_display_with_content():
     state = _make_state()
-    state.model_label = "kimi"
     state.content = "Hello"
     display = _build_display(state)
-    assert len(display.renderables) == 2
-    assert isinstance(display.renderables[0], Text)
-    assert isinstance(display.renderables[1], Markdown)
+    assert len(display.renderables) == 1
+    assert isinstance(display.renderables[0], Markdown)
 
 
-def test_build_display_model_only():
-    state = _make_state()
-    state.model_label = "claude"
-    display = _build_display(state)
-    # model label + spinner
-    assert len(display.renderables) == 2
-    assert isinstance(display.renderables[0], Text)
-    assert isinstance(display.renderables[1], Spinner)
+# -- _format_tool_use tests --
+
+
+def test_format_tool_use_read():
+    result = _format_tool_use(
+        "Read", {"file_path": "/home/user/src/main.py"},
+    )
+    assert "Read" in result
+    assert "main.py" in result
+
+
+def test_format_tool_use_bash():
+    result = _format_tool_use("Bash", {"command": "git status"})
+    assert "git status" in result
+
+
+def test_format_tool_use_grep():
+    result = _format_tool_use("Grep", {"pattern": "TODO"})
+    assert "Grep" in result
+    assert "TODO" in result
+
+
+def test_format_tool_use_unknown():
+    result = _format_tool_use("CustomTool", {})
+    assert "CustomTool" in result
+
+
+def test_format_tool_use_task():
+    result = _format_tool_use(
+        "Task", {"description": "search code"},
+    )
+    assert "Agent" in result
+    assert "search code" in result
 
 
 # -- __rich__ protocol --
@@ -176,3 +213,75 @@ def test_stream_chunks_empty_iterator():
         file=io.StringIO(), force_terminal=True,
     )
     stream_chunks(iter([]), console)
+
+
+def test_stream_chunks_tool_use_displayed():
+    """Tool use chunks are printed above live area."""
+    buf = io.StringIO()
+    console = Console(file=buf, force_terminal=True)
+    chunks = iter([
+        {"type": "routing", "model": "codex"},
+        {"type": "tool_use", "tool": "Read",
+         "input": {"file_path": "/src/app.py"}},
+        {"type": "text", "content": "Found it."},
+        {"type": "done"},
+    ])
+    stream_chunks(chunks, console)
+    output = buf.getvalue()
+    assert "codex" in output
+    assert "Read" in output
+
+
+def test_handle_chunk_accumulates_tool_events():
+    """tool_use chunks should be stored in tool_events."""
+    state = _make_state()
+    _handle_chunk(state, {
+        "type": "tool_use",
+        "tool": "Read",
+        "input": {"file_path": "/src/main.py"},
+    })
+    _handle_chunk(state, {
+        "type": "tool_use",
+        "tool": "Bash",
+        "input": {"command": "git status"},
+    })
+    assert len(state.tool_events) == 2
+    assert "Read" in state.tool_events[0]
+    assert "git status" in state.tool_events[1]
+
+
+def test_stream_chunks_returns_tool_events():
+    """stream_chunks must return dict with tool_events."""
+    console = Console(
+        file=io.StringIO(), force_terminal=True,
+    )
+    chunks = iter([
+        {"type": "tool_use", "tool": "Read",
+         "input": {"file_path": "/a.py"}},
+        {"type": "tool_use", "tool": "Grep",
+         "input": {"pattern": "TODO"}},
+        {"type": "text", "content": "Done."},
+        {"type": "done"},
+    ])
+    result = stream_chunks(chunks, console)
+    assert isinstance(result, dict)
+    assert len(result["tool_events"]) == 2
+
+
+def test_stream_chunks_shows_summary():
+    """After streaming, a collapsed summary line is shown."""
+    buf = io.StringIO()
+    console = Console(file=buf, force_terminal=True)
+    chunks = iter([
+        {"type": "tool_use", "tool": "Read",
+         "input": {"file_path": "/a.py"}},
+        {"type": "tool_use", "tool": "Edit",
+         "input": {"file_path": "/b.py"}},
+        {"type": "tool_use", "tool": "Bash",
+         "input": {"command": "pytest"}},
+        {"type": "text", "content": "Done."},
+        {"type": "done"},
+    ])
+    stream_chunks(chunks, console)
+    output = buf.getvalue()
+    assert "3 tool" in output.lower()

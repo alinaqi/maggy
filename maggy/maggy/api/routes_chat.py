@@ -239,6 +239,21 @@ async def send_routed(
                 "reason": decision.reason,
             }
             yield f"data: {json.dumps(meta)}\n\n"
+        # Route actionable messages through executor
+        executor = getattr(request.app.state, "executor", None)
+        if decision and executor:
+            from maggy.services.chat_executor_bridge import (
+                executor_stream,
+                should_route_to_executor,
+            )
+            if should_route_to_executor(decision):
+                async for chunk in executor_stream(
+                    executor, decision, body.message,
+                    s.working_dir,
+                ):
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                yield 'data: {"type": "done"}\n\n'
+                return
         had_error = False
         async for chunk in chat.send(session_id, body.message):
             if budget and chunk.get("type") == "result":

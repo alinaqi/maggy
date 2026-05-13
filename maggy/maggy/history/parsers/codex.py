@@ -107,6 +107,20 @@ class CodexHistoryParser(HistoryParser):
                 grouped[sid].append(h)
         return dict(grouped)
 
+    def _find_cwd(self, sid: str) -> str:
+        """Read cwd from rollout file for session."""
+        sess_dir = self._dir / "sessions"
+        if not sess_dir.exists():
+            return ""
+        rollout = sess_dir / f"rollout-{sid}.jsonl"
+        if not rollout.exists():
+            return ""
+        for entry in _read_jsonl(rollout):
+            cwd = entry.get("cwd", "")
+            if cwd:
+                return str(Path(cwd).expanduser().resolve())
+        return ""
+
     def _build_entry(
         self, index_entry: dict, prompts: list[dict],
     ) -> SessionEntry:
@@ -128,7 +142,7 @@ class CodexHistoryParser(HistoryParser):
         return SessionEntry(
             session_id=sid,
             provider="codex",
-            project=thread_name,
+            project=self._find_cwd(sid),
             started_at=started,
             ended_at=ended,
             prompt_count=len(prompts),

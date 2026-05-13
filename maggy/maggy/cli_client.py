@@ -194,7 +194,7 @@ class MaggyClient:
         with httpx.stream(
             "POST", url,
             json={"message": message},
-            timeout=120.0,
+            timeout=600.0,
         ) as r:
             for line in r.iter_lines():
                 if line.startswith("data: "):
@@ -216,7 +216,7 @@ class MaggyClient:
         if allowed_models:
             body["allowed_models"] = allowed_models
         with httpx.stream(
-            "POST", url, json=body, timeout=120.0,
+            "POST", url, json=body, timeout=600.0,
         ) as r:
             for line in r.iter_lines():
                 if line.startswith("data: "):

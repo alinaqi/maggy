@@ -7,13 +7,17 @@ from unittest.mock import MagicMock
 
 from maggy.cli_repl_cmds import (
     cmd_budget,
-    cmd_claude_md,
     cmd_help,
     cmd_models,
     cmd_route,
     cmd_stats,
     cmd_use,
     dispatch,
+)
+from maggy.cli_repl_info import (
+    cmd_claude_md,
+    cmd_health,
+    cmd_thinking,
 )
 
 
@@ -22,6 +26,7 @@ class FakeState:
     working_dir: str = "/tmp/proj"
     session_id: str = "s1"
     allowed_models: list[str] = field(default_factory=list)
+    last_tool_events: list[str] = field(default_factory=list)
 
 
 def _mock_client():
@@ -149,7 +154,7 @@ def test_cmd_help(capsys):
 
 def test_cmd_health(capsys):
     """Health shows engram and mnemos status."""
-    from maggy.cli_repl_cmds import cmd_health
+    from maggy.cli_repl_info import cmd_health
     client = _mock_client()
     client.health_dashboard.return_value = {
         "engram": {"health_score": 0.85, "active": 42, "total": 50},
@@ -214,7 +219,7 @@ def test_budget_subscription_plan(capsys):
 
 def test_health_graceful_failure(capsys):
     """Health command handles server failure gracefully."""
-    from maggy.cli_repl_cmds import cmd_health
+    from maggy.cli_repl_info import cmd_health
     client = _mock_client()
     client.health_dashboard.side_effect = Exception("unreachable")
     cmd_health(client)
@@ -228,3 +233,50 @@ def test_stats_server_down(capsys):
     client.budget_summary.side_effect = Exception("unreachable")
     cmd_stats(client)
     # Should not crash — may show empty or partial data
+
+
+def test_dispatch_thinking():
+    """/thinking dispatches to thinking handler."""
+    state = FakeState()
+    state.last_tool_events = ["Read main.py", "$ git status"]
+    handled = dispatch("/thinking", _mock_client(), state)
+    assert handled is True
+
+
+def test_thinking_shows_events(capsys):
+    """cmd_thinking prints stored tool events."""
+    from maggy.cli_repl_info import cmd_thinking
+    from maggy.cli_repl_cmds import SessionState
+    state = SessionState(
+        session_id="s1", working_dir="/tmp",
+    )
+    state.last_tool_events = [
+        "Read src/main.py",
+        "$ git status",
+        "Grep TODO",
+    ]
+    cmd_thinking(state)
+    out = capsys.readouterr().out
+    assert "Read" in out
+    assert "git status" in out
+    assert "Grep" in out
+
+
+def test_thinking_empty(capsys):
+    """cmd_thinking shows message when no events."""
+    from maggy.cli_repl_info import cmd_thinking
+    from maggy.cli_repl_cmds import SessionState
+    state = SessionState(
+        session_id="s1", working_dir="/tmp",
+    )
+    state.last_tool_events = []
+    cmd_thinking(state)
+    out = capsys.readouterr().out
+    assert "no tool" in out.lower()
+
+
+def test_help_lists_thinking(capsys):
+    """/help mentions /thinking command."""
+    cmd_help()
+    out = capsys.readouterr().out
+    assert "/thinking" in out

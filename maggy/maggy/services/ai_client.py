@@ -54,7 +54,7 @@ async def _cli_complete(
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(
-            process.communicate(), timeout=120,
+            process.communicate(), timeout=600,
         )
         if process.returncode == 0:
             return stdout.decode().strip()

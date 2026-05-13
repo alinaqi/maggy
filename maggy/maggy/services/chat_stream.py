@@ -2,7 +2,7 @@
 
 Extracted from ChatManager for quality-gate compliance.
 Handles claude CLI subprocess, stream-json parsing, and
-assistant message extraction.
+assistant message extraction including tool_use progress.
 """
 
 from __future__ import annotations
@@ -46,43 +46,59 @@ def _with_history_context(
     return f"[Context]\n{ctx}\n[/Context]\n\n{message}"
 
 
-def parse_chunk(
+def parse_chunks(
     text: str, session: ChatSession,
-) -> dict | None:
-    """Parse a stream-json line from Claude."""
+) -> list[dict]:
+    """Parse a stream-json line into chunks."""
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        return {"type": "text", "content": text}
+        return [{"type": "text", "content": text}]
     if "session_id" in data and not session.claude_session_id:
         session.claude_session_id = data["session_id"]
     msg_type = data.get("type", "")
     if msg_type == "assistant":
-        return _extract_assistant(data)
+        return _extract_chunks(data)
     if msg_type == "result":
-        chunk: dict = {"type": "result"}
-        cost = data.get("cost_usd")
-        if cost is not None:
-            chunk["cost_usd"] = float(cost)
-        usage = data.get("usage")
-        if usage is not None:
-            chunk["input_tokens"] = int(usage.get("input_tokens") or 0)
-            chunk["output_tokens"] = int(usage.get("output_tokens") or 0)
-        return chunk
-    return None
+        return [_extract_result(data)]
+    return []
 
 
-def _extract_assistant(data: dict) -> dict:
-    """Extract text from assistant message."""
+def _extract_result(data: dict) -> dict:
+    """Extract cost/usage from result message."""
+    chunk: dict = {"type": "result"}
+    cost = data.get("cost_usd")
+    if cost is not None:
+        chunk["cost_usd"] = float(cost)
+    usage = data.get("usage")
+    if usage is not None:
+        chunk["input_tokens"] = int(usage.get("input_tokens") or 0)
+        chunk["output_tokens"] = int(
+            usage.get("output_tokens") or 0,
+        )
+    return chunk
+
+
+def _extract_chunks(data: dict) -> list[dict]:
+    """Extract text and tool_use from assistant message."""
     content = data.get("message", {}).get("content", "")
-    if isinstance(content, list):
-        parts = [
-            b.get("text", "")
-            for b in content
-            if b.get("type") == "text"
-        ]
-        return {"type": "text", "content": "".join(parts)}
-    return {"type": "text", "content": str(content)}
+    if not isinstance(content, list):
+        return [{"type": "text", "content": str(content)}]
+    chunks: list[dict] = []
+    for block in content:
+        btype = block.get("type", "")
+        if btype == "text":
+            chunks.append({
+                "type": "text",
+                "content": block.get("text", ""),
+            })
+        elif btype == "tool_use":
+            chunks.append({
+                "type": "tool_use",
+                "tool": block.get("name", ""),
+                "input": block.get("input", {}),
+            })
+    return chunks
 
 
 def check_context_pressure(session: ChatSession) -> dict | None:
@@ -91,7 +107,10 @@ def check_context_pressure(session: ChatSession) -> dict | None:
     msgs = [{"content": m.content} for m in session.messages]
     tokens = estimate_tokens(msgs)
     if tokens > 24_000:
-        return {"type": "warning", "content": f"Context: ~{tokens} tokens"}
+        return {
+            "type": "warning",
+            "content": f"Context: ~{tokens} tokens",
+        }
     return None
 
 
@@ -128,9 +147,9 @@ async def stream_message(
             text = line.decode("utf-8", errors="replace").strip()
             if not text:
                 continue
-            chunk = parse_chunk(text, session)
-            if chunk:
-                response_text += chunk.get("content", "")
+            for chunk in parse_chunks(text, session):
+                if chunk["type"] == "text":
+                    response_text += chunk.get("content", "")
                 yield chunk
         await proc.wait()
         session.status = "idle"

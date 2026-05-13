@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.6.8 — 2026-05-13
+
+### Fixed
+- **Session history detection** — Claude parser `_slug()` now preserves full resolved paths instead of basename-only (was losing `/Users/ali/maggy` → `maggy`); Codex parser reads `cwd` from rollout files instead of using user-defined `thread_name`; Kimi parser reads `work_dirs` from `kimi.json` instead of hardcoding empty string
+- **Project matching** — `_matches_project()` uses strict resolved-path comparison instead of loose substring matching that caused false positives
+- **Context fallback** — `gather_cli_context()` falls back to `session_detect.detect_all()` when HistoryService returns no matches
+
+### Added
+- **Verified context injection** — `verified_context.py` gathers real git state (branch, status, recent commits) and active CLI sessions; injected alongside history so LLMs don't fabricate project state
+- **Collapsible thinking** — tool events accumulate during streaming, collapsed summary (`[N tool calls]`) shown after response; `/thinking` command re-expands the last response's tool events
+- **Chat-to-executor bridge** — `chat_executor_bridge.py` routes actionable messages (blast >= 4, non-search/docs/review) through the full executor pipeline (iCPG, TDD, Mnemos, Engram) instead of raw LLM CLI passthrough
+- `cli_repl_info.py` extracted from `cli_repl_cmds.py` for session/info/thinking commands
+
+### Changed
+- `stream_chunks()` now returns `dict` with `tool_events` list instead of `None`
+- `SessionState` has `last_tool_events` field for `/thinking` command
+- `_format_sessions()` uses full-path project values (no more basename matching)
+- REPL command handlers split across `cli_repl_cmds.py` (routing/budget) and `cli_repl_info.py` (session/info/thinking)
+
+## v0.6.7 — 2026-05-13
+
+### Added
+- **Tool progress display** — CLI now surfaces `tool_use` events from Claude CLI's stream-json, showing what Claude is doing (Read, Edit, Bash, Grep, etc.) as dim progress lines above the spinner, matching Claude Code's work-progress UX
+- `_format_tool_use()` renders readable labels per tool type (file paths, commands, patterns)
+- `parse_chunks()` replaces `parse_chunk()` — returns list of chunks, extracting both `text` and `tool_use` blocks from assistant messages
+
+### Fixed
+- **Model label duplication** — model name (codex, kimi, etc.) no longer repeats on every Live refresh; now printed once above the live area via `console.print` instead of being re-rendered inside the Live display
+- **SSE timeout** — increased HTTP streaming timeout from 120s to 600s so long-running Claude/Codex operations don't get killed mid-response; also increased `ai_client.py` subprocess timeout to match
+- `_StreamState` simplified — removed `model_label` field; routing/tool events print above Live area, Live only manages spinner + content
+
 ## v0.6.6 — 2026-05-13
 
 ### Changed

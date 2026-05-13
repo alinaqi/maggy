@@ -20,8 +20,16 @@ def test_matches_project_trailing_slash():
     )
 
 
-def test_matches_project_basename():
+def test_matches_project_resolved_path():
+    """Full resolved path must match."""
     assert _matches_project(
+        {"project": "/tmp/foo"}, "/tmp/foo",
+    )
+
+
+def test_matches_project_rejects_basename_only():
+    """Basename-only must NOT match — too loose."""
+    assert not _matches_project(
         {"project": "foo"}, "/tmp/foo",
     )
 
@@ -32,16 +40,30 @@ def test_matches_project_no_match():
     )
 
 
+def test_matches_project_rejects_substring():
+    """'foo' should not match '/tmp/foobar'."""
+    assert not _matches_project(
+        {"project": "foo"}, "/tmp/foobar",
+    )
+
+
+def test_matches_project_rejects_partial_path():
+    """'/tmp/f' should not match '/tmp/foo'."""
+    assert not _matches_project(
+        {"project": "/tmp/f"}, "/tmp/foo",
+    )
+
+
 def test_format_sessions_empty():
     assert _format_sessions([], "/tmp/foo") == ""
 
 
 def test_format_sessions_filters_by_project():
     sessions = [
-        {"provider": "claude", "project": "foo",
+        {"provider": "claude", "project": "/tmp/foo",
          "prompt_count": 5, "started_at": "2026-01-01",
          "summary": "worked on auth"},
-        {"provider": "kimi", "project": "bar",
+        {"provider": "kimi", "project": "/tmp/bar",
          "prompt_count": 3, "started_at": "2026-01-02",
          "summary": "different project"},
     ]
@@ -53,7 +75,7 @@ def test_format_sessions_filters_by_project():
 
 def test_format_sessions_includes_summary():
     sessions = [
-        {"provider": "codex", "project": "myproj",
+        {"provider": "codex", "project": "/tmp/myproj",
          "prompt_count": 2, "started_at": "2026-05-13",
          "summary": "fixed the bug"},
     ]

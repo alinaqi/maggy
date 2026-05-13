@@ -105,7 +105,8 @@ def _send_message(
         chunks = client.chat_send_stream(
             state.session_id, message,
         )
-    stream_chunks(chunks, console)
+    result = stream_chunks(chunks, console)
+    state.last_tool_events = result.get("tool_events", [])
 
 
 def _parse_blast(text: str) -> int | None:

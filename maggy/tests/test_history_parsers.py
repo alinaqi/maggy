@@ -66,6 +66,46 @@ class TestClaudeParser:
         assert s1.summary == "fix auth"
         assert "proj" in s1.project
 
+    def test_slug_preserves_full_path(self, tmp_path: Path):
+        """_slug must return resolved full path, not basename."""
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        lines = [
+            json.dumps({
+                "display": "work",
+                "project": "/Users/ali/maggy",
+                "sessionId": "s1",
+                "timestamp": 1700000000000,
+            }),
+        ]
+        (claude_dir / "history.jsonl").write_text(
+            "\n".join(lines) + "\n",
+        )
+        p = ClaudeHistoryParser(claude_dir)
+        sessions = p.parse_sessions()
+        assert sessions[0].project == "/Users/ali/maggy"
+
+    def test_slug_resolves_tilde(self, tmp_path: Path):
+        """_slug must expand ~ in paths."""
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        lines = [
+            json.dumps({
+                "display": "work",
+                "project": "~/Documents/proj",
+                "sessionId": "s1",
+                "timestamp": 1700000000000,
+            }),
+        ]
+        (claude_dir / "history.jsonl").write_text(
+            "\n".join(lines) + "\n",
+        )
+        p = ClaudeHistoryParser(claude_dir)
+        sessions = p.parse_sessions()
+        # Must not contain ~ — should be expanded
+        assert "~" not in sessions[0].project
+        assert sessions[0].project.startswith("/")
+
     def test_parse_empty_history(self, tmp_path: Path):
         claude_dir = tmp_path / ".claude"
         claude_dir.mkdir()
@@ -145,6 +185,58 @@ class TestCodexParser:
         assert s.prompt_count == 2
         assert s.summary == "fix auth bug"
 
+    def test_project_from_rollout_cwd(self, tmp_path: Path):
+        """project must come from rollout cwd, not thread_name."""
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir()
+        # Create session index
+        index_lines = [
+            json.dumps({
+                "id": "s1",
+                "thread_name": "my chat",
+                "updated_at": "2024-01-01T10:00:00Z",
+            }),
+        ]
+        (codex_dir / "session_index.jsonl").write_text(
+            "\n".join(index_lines) + "\n",
+        )
+        (codex_dir / "history.jsonl").write_text("")
+        # Create rollout file with cwd
+        sess_dir = codex_dir / "sessions"
+        sess_dir.mkdir()
+        rollout = [
+            json.dumps({
+                "session_id": "s1",
+                "cwd": "/Users/ali/maggy",
+            }),
+        ]
+        (sess_dir / "rollout-s1.jsonl").write_text(
+            "\n".join(rollout) + "\n",
+        )
+        p = CodexHistoryParser(codex_dir)
+        sessions = p.parse_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].project == "/Users/ali/maggy"
+
+    def test_project_fallback_no_rollout(self, tmp_path: Path):
+        """Falls back to empty string when no rollout."""
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir()
+        index_lines = [
+            json.dumps({
+                "id": "s1",
+                "thread_name": "my chat",
+                "updated_at": "2024-01-01T10:00:00Z",
+            }),
+        ]
+        (codex_dir / "session_index.jsonl").write_text(
+            "\n".join(index_lines) + "\n",
+        )
+        (codex_dir / "history.jsonl").write_text("")
+        p = CodexHistoryParser(codex_dir)
+        sessions = p.parse_sessions()
+        assert sessions[0].project == ""
+
     def test_parse_empty(self, tmp_path: Path):
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir()
@@ -205,6 +297,44 @@ class TestKimiParser:
         assert s.prompt_count == 2
         assert s.tool_use_count >= 1
         assert s.summary == "fix the deploy"
+
+    def test_project_from_config(self, tmp_path: Path):
+        """project must come from kimi.json work_dirs."""
+        kimi_dir = tmp_path / ".kimi"
+        sess_dir = kimi_dir / "sessions" / "abc" / "uuid1"
+        sess_dir.mkdir(parents=True)
+        ctx_lines = [
+            json.dumps({"role": "user", "content": "hello"}),
+        ]
+        (sess_dir / "context.jsonl").write_text(
+            "\n".join(ctx_lines) + "\n",
+        )
+        # Create kimi.json with work_dirs mapping
+        config = {
+            "work_dirs": {"uuid1": "/Users/ali/maggy"},
+        }
+        (kimi_dir / "kimi.json").write_text(
+            json.dumps(config),
+        )
+        p = KimiHistoryParser(kimi_dir)
+        sessions = p.parse_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].project == "/Users/ali/maggy"
+
+    def test_project_empty_without_config(self, tmp_path: Path):
+        """project is empty when no kimi.json exists."""
+        kimi_dir = tmp_path / ".kimi"
+        sess_dir = kimi_dir / "sessions" / "abc" / "uuid1"
+        sess_dir.mkdir(parents=True)
+        ctx_lines = [
+            json.dumps({"role": "user", "content": "hello"}),
+        ]
+        (sess_dir / "context.jsonl").write_text(
+            "\n".join(ctx_lines) + "\n",
+        )
+        p = KimiHistoryParser(kimi_dir)
+        sessions = p.parse_sessions()
+        assert sessions[0].project == ""
 
     def test_parse_empty(self, tmp_path: Path):
         kimi_dir = tmp_path / ".kimi"

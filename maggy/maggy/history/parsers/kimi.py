@@ -96,6 +96,21 @@ class KimiHistoryParser(HistoryParser):
                     dirs.append(uuid_dir)
         return dirs
 
+    def _resolve_project(self, session_id: str) -> str:
+        """Read project path from kimi.json work_dirs."""
+        config_path = self._dir / "kimi.json"
+        if not config_path.exists():
+            return ""
+        try:
+            data = json.loads(config_path.read_text())
+            dirs = data.get("work_dirs", {})
+            path = dirs.get(session_id, "")
+            if path:
+                return str(Path(path).expanduser().resolve())
+        except (json.JSONDecodeError, OSError):
+            pass
+        return ""
+
     def _parse_session_dir(
         self, session_dir: Path,
     ) -> SessionEntry | None:
@@ -123,7 +138,7 @@ class KimiHistoryParser(HistoryParser):
         return SessionEntry(
             session_id=session_dir.name,
             provider="kimi",
-            project="",
+            project=self._resolve_project(session_dir.name),
             started_at=wire.get("started", ""),
             ended_at=wire.get("ended", ""),
             prompt_count=len(user_msgs),

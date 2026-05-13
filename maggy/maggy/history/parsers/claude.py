@@ -131,10 +131,10 @@ class ClaudeHistoryParser(HistoryParser):
         )
 
     def _slug(self, project_path: str) -> str:
-        """Extract project name from path."""
+        """Return resolved full path for matching."""
         if not project_path:
             return ""
-        return Path(project_path).name
+        return str(Path(project_path).expanduser().resolve())
 
     def _find_transcript(
         self, sid: str, project: str,

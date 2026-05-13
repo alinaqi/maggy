@@ -5,15 +5,59 @@ from pathlib import Path
 
 
 def gather_cli_context(working_dir: str) -> str:
-    """Gather recent activity from Claude/Codex/Kimi."""
+    """Gather verified context + CLI history."""
+    parts: list[str] = []
+    parts.append(_gather_verified(working_dir))
+    parts.append(_gather_history(working_dir))
+    return "\n\n".join(p for p in parts if p)
+
+
+def _gather_verified(working_dir: str) -> str:
+    """Get verified git state."""
+    try:
+        from maggy.services.verified_context import (
+            format_verified,
+            gather_verified,
+        )
+        ctx = gather_verified(working_dir)
+        return format_verified(ctx)
+    except Exception:
+        return ""
+
+
+def _gather_history(working_dir: str) -> str:
+    """Gather history from Claude/Codex/Kimi."""
     try:
         from maggy.history.service import HistoryService
         svc = HistoryService()
         providers = svc.available_providers()
         if not providers:
-            return ""
+            return _fallback_detect(working_dir)
         sessions = svc.get_sessions()
-        return _format_sessions(sessions, working_dir)
+        result = _format_sessions(sessions, working_dir)
+        if result:
+            return result
+        return _fallback_detect(working_dir)
+    except Exception:
+        return _fallback_detect(working_dir)
+
+
+def _fallback_detect(working_dir: str) -> str:
+    """Use session_detect for live file detection."""
+    try:
+        from maggy.services.session_detect import detect_all
+        active = detect_all(working_dir)
+        if not active:
+            return ""
+        lines = []
+        for s in active[:5]:
+            provider = s.get("provider", "?")
+            pid = s.get("pid", "")
+            line = f"- {provider}: active"
+            if pid:
+                line += f" (pid {pid})"
+            lines.append(line)
+        return "Active CLI sessions:\n" + "\n".join(lines)
     except Exception:
         return ""
 
@@ -49,8 +93,8 @@ def _matches_project(
 ) -> bool:
     """Check if session matches project directory."""
     proj = session.get("project", "")
-    return (
-        proj == target
-        or proj.rstrip("/") == target
-        or Path(target).name in proj
-    )
+    if not proj:
+        return False
+    t = target.rstrip("/")
+    p = proj.rstrip("/")
+    return p == t
