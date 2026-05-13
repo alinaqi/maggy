@@ -66,13 +66,16 @@ async def executor_stream(
         yield {"type": "error", "content": str(e)}
 
 
+_HEARTBEAT_EVERY = 5  # heartbeat every N polls (~10s)
+
+
 async def _poll_session(
     executor, sid: str,
 ) -> AsyncGenerator[dict, None]:
     """Poll executor session until done, yielding output."""
     import time
     deadline = time.monotonic() + _POLL_TIMEOUT
-    last_len = 0
+    last_len, polls = 0, 0
     while time.monotonic() < deadline:
         session = executor.get_session(sid)
         if not session:
@@ -88,5 +91,9 @@ async def _poll_session(
             if status == "failed":
                 yield {"type": "error", "content": session.get("error", "Failed")}
             return
+        polls += 1
+        if polls % _HEARTBEAT_EVERY == 0:
+            elapsed = int(time.monotonic() - (deadline - _POLL_TIMEOUT))
+            yield {"type": "agent_status", "status": f"Working... ({elapsed}s)"}
         await asyncio.sleep(_POLL_INTERVAL)
     yield {"type": "error", "content": "Executor timed out"}

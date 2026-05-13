@@ -20,6 +20,7 @@ class TaskState:
     content: str = ""
     error: str = ""
     model: str = ""
+    phase: str = ""
     cancel_event: threading.Event = field(
         default_factory=threading.Event,
     )
@@ -81,6 +82,10 @@ def _process_chunk(
     elif ct in ("text", "result"):
         with state.lock:
             state.content += chunk.get("content", "")
+    elif ct == "agent_status":
+        with state.lock:
+            state.phase = chunk.get("status", "")
+        console.print(f"  [dim]{state.phase}[/dim]")
     elif ct == "error":
         with state.lock:
             state.error = chunk.get("content", "")
@@ -103,6 +108,7 @@ def get_status(state: TaskState) -> dict:
             "model": state.model,
             "tools": len(state.tool_events),
             "has_error": bool(state.error),
+            "phase": state.phase,
         }
 
 

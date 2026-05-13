@@ -36,6 +36,7 @@ from maggy.api.routes_process import router as process_router
 from maggy.api.routes_routing import router as routing_router
 from maggy.api.routes_blueprints import router as blueprints_router
 from maggy.api.routes_chat import router as chat_router
+from maggy.api.routes_chat_sessions import router as chat_sessions_router
 from maggy.api.routes_escalation import router as escalation_router
 from maggy.api.routes_observability import router as observability_router
 from maggy.api.routes_projects import router as projects_router
@@ -272,7 +273,7 @@ class _NoCacheStatic(BaseHTTPMiddleware):
 
 
 _ROUTERS = (
-    api_router, blueprints_router, budget_router, chat_router,
+    api_router, blueprints_router, budget_router, chat_router, chat_sessions_router,
     cikg_router, deploy_router, engram_router, escalation_router,
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,

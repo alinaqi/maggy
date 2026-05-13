@@ -144,14 +144,12 @@ def cmd_status(state) -> None:
         return
     from maggy.cli_bg_task import get_status
     snap = get_status(task)
-    status = snap["status"]
     model = snap["model"] or "?"
-    chunks = snap["chunks"]
-    tools = snap["tools"]
-    console.print(
-        f"[dim]{status} | {model} | {chunks} chunks"
-        f" | {tools} tool calls[/dim]",
-    )
+    phase = snap.get("phase", "")
+    parts = [snap["status"], model, f"{snap['chunks']} chunks", f"{snap['tools']} tools"]
+    if phase:
+        parts.append(phase)
+    console.print(f"[dim]{' | '.join(parts)}[/dim]")
 
 
 def cmd_cancel(state) -> None:

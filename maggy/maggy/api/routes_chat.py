@@ -1,10 +1,8 @@
-"""Chat API routes — interactive Claude sessions via SSE."""
-
+"""Chat send routes — message streaming via SSE."""
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -20,17 +18,8 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 def _require_chat(request: Request):
     chat = getattr(request.app.state, "chat", None)
     if chat is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Chat service not available.",
-        )
+        raise HTTPException(status_code=503, detail="Chat service not available.")
     return chat
-
-
-class CreateSessionRequest(BaseModel):
-    project_key: str
-    project_path: str | None = None
-    history_context: str | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -44,134 +33,10 @@ class RoutedMessageRequest(BaseModel):
     allowed_models: list[str] | None = None
 
 
-@router.post("/auto-connect")
-async def auto_connect(
-    request: Request,
-    x_api_key: str | None = Header(None),
-) -> dict:
-    """Auto-connect to all active projects."""
-    check_auth(request, x_api_key)
-    chat = _require_chat(request)
-    activity = getattr(request.app.state, "activity", None)
-    if not activity:
-        return {"sessions": []}
-    data = activity.get_activity()
-    active = data.get("sessions", [])
-    recent = data.get("recent", [])
-    sessions = chat.auto_connect(active)
-    history = getattr(request.app.state, "history", None)
-    result = []
-    for s in sessions:
-        ctx = _enrich_session(s, history, recent)
-        result.append(_session_summary(s, ctx))
-    return {"sessions": result}
-
-
-def _enrich_session(s, history, recent: list[dict]) -> str:
-    """Build context and resolve session ID."""
-    from maggy.services.chat_context import (
-        build_project_context,
-        resolve_claude_session_id,
-    )
-    ctx = build_project_context(
-        history, s.working_dir, s.project_key, recent,
-    )
-    s.history_context = ctx
-    if not s.claude_session_id:
-        sid = resolve_claude_session_id(s.working_dir)
-        if sid:
-            s.claude_session_id = sid
-    return ctx
-
-
-def _session_summary(s, context: str) -> dict:
-    """Format session for API response."""
-    return {
-        "id": s.id,
-        "project_key": s.project_key,
-        "working_dir": s.working_dir,
-        "status": s.status,
-        "messages": len(s.messages),
-        "history_context": context,
-        "has_resume_id": bool(s.claude_session_id),
-    }
-
-
-@router.post("/sessions")
-async def create_session(
-    request: Request,
-    body: CreateSessionRequest,
-    x_api_key: str | None = Header(None),
-) -> dict:
-    """Create a new chat session."""
-    check_auth(request, x_api_key)
-    chat = _require_chat(request)
-    try:
-        session = chat.create_session(
-            body.project_key, project_path=body.project_path,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    if body.history_context:
-        session.history_context = body.history_context
-    return {
-        "id": session.id,
-        "project_key": session.project_key,
-        "working_dir": session.working_dir,
-        "status": session.status,
-    }
-
-
-@router.get("/sessions")
-async def list_sessions(
-    request: Request,
-    x_api_key: str | None = Header(None),
-) -> list[dict]:
-    """List all chat sessions."""
-    check_auth(request, x_api_key)
-    chat = _require_chat(request)
-    return [
-        {
-            "id": s.id,
-            "project_key": s.project_key,
-            "working_dir": s.working_dir,
-            "status": s.status,
-            "created_at": s.created_at,
-            "messages": len(s.messages),
-        }
-        for s in chat.list_sessions()
-    ]
-
-
-@router.get("/sessions/{session_id}")
-async def get_session(
-    request: Request,
-    session_id: str,
-    x_api_key: str | None = Header(None),
-) -> dict:
-    """Get session details + message history."""
-    check_auth(request, x_api_key)
-    chat = _require_chat(request)
-    s = chat.get_session(session_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {
-        "id": s.id,
-        "project_key": s.project_key,
-        "working_dir": s.working_dir,
-        "status": s.status,
-        "created_at": s.created_at,
-        "history_context": s.history_context,
-        "messages": [asdict(m) for m in s.messages],
-    }
-
-
 @router.post("/sessions/{session_id}/send")
 async def send_message(
-    request: Request,
-    session_id: str,
-    body: SendMessageRequest,
-    x_api_key: str | None = Header(None),
+    request: Request, session_id: str,
+    body: SendMessageRequest, x_api_key: str | None = Header(None),
 ):
     """Send a message and stream response via SSE."""
     check_auth(request, x_api_key)
@@ -186,36 +51,26 @@ async def send_message(
     async def event_stream():
         async for chunk in chat.send(session_id, body.message):
             if budget and chunk.get("type") == "result":
-                _record_chat_spend(budget, chunk)
-            data = json.dumps(chunk)
-            yield f"data: {data}\n\n"
-        yield "data: {\"type\": \"done\"}\n\n"
+                _record_spend(budget, chunk)
+            yield f"data: {json.dumps(chunk)}\n\n"
+        yield 'data: {"type": "done"}\n\n'
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-    )
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/sessions/{session_id}/send-routed")
 async def send_routed(
-    request: Request,
-    session_id: str,
-    body: RoutedMessageRequest,
-    x_api_key: str | None = Header(None),
+    request: Request, session_id: str,
+    body: RoutedMessageRequest, x_api_key: str | None = Header(None),
 ):
     """Send a message routed through blast-score engine."""
     check_auth(request, x_api_key)
     chat = _require_chat(request)
     s = chat.get_session(session_id)
     if not s:
-        raise HTTPException(
-            status_code=404, detail="Session not found",
-        )
+        raise HTTPException(status_code=404, detail="Session not found")
     if not body.message.strip():
-        raise HTTPException(
-            status_code=400, detail="Message required",
-        )
+        raise HTTPException(status_code=400, detail="Message required")
     routing = getattr(request.app.state, "routing", None)
     budget = getattr(request.app.state, "budget", None)
 
@@ -226,124 +81,82 @@ async def send_routed(
         pkey = getattr(s, "project_key", "")
         if routing:
             rc = RoutedChat(routing, budget, blueprints, pkey)
-            decision = await rc.decide(
-                body.message, body.blast_score, body.task_type,
-            )
+            decision = await rc.decide(body.message, body.blast_score, body.task_type)
             allowed = body.allowed_models
             if allowed and decision.model not in allowed:
                 decision.model = allowed[0]
                 decision.reason = f"restricted to {','.join(allowed)}"
-            meta = {
-                "type": "routing",
-                "model": decision.model,
-                "blast": decision.blast,
-                "task_type": decision.task_type,
-                "reason": decision.reason,
-            }
-            yield f"data: {json.dumps(meta)}\n\n"
-        # Route actionable messages through executor
+            yield f"data: {json.dumps(_routing_meta(decision))}\n\n"
+        # Try executor for actionable messages; fall back to chat on error
         executor = getattr(request.app.state, "executor", None)
+        executor_failed = False
         if decision and executor:
-            from maggy.services.chat_executor_bridge import (
-                executor_stream,
-                should_route_to_executor,
-            )
+            from maggy.services.chat_executor_bridge import executor_stream, should_route_to_executor
             if should_route_to_executor(decision):
-                async for chunk in executor_stream(
-                    executor, decision, body.message,
-                    s.working_dir,
-                ):
+                async for chunk in executor_stream(executor, decision, body.message, s.working_dir):
                     yield f"data: {json.dumps(chunk)}\n\n"
-                yield 'data: {"type": "done"}\n\n'
-                return
-        had_error = False
-        review_content = ""
-        tool_events: list[str] = []
+                    if chunk.get("type") == "error":
+                        executor_failed = True
+                if not executor_failed:
+                    yield 'data: {"type": "done"}\n\n'
+                    return
+                fb = {"type": "agent_status", "status": "Falling back to claude..."}
+                yield f"data: {json.dumps(fb)}\n\n"
+        # Chat path (primary or fallback)
+        had_error, review_content, tool_events = False, "", []
         effective_msg = body.message
         if decision and decision.blueprint_context:
-            effective_msg = (
-                f"[Blueprint]\n{decision.blueprint_context}"
-                f"\n[/Blueprint]\n\n{body.message}"
-            )
+            effective_msg = f"[Blueprint]\n{decision.blueprint_context}\n[/Blueprint]\n\n{body.message}"
         async for chunk in chat.send(session_id, effective_msg):
             if budget and chunk.get("type") == "result":
-                _record_chat_spend(budget, chunk)
-            if chunk.get("type") == "error":
+                _record_spend(budget, chunk)
+            ct = chunk.get("type", "")
+            if ct == "error":
                 had_error = True
-            if chunk.get("type") == "tool_use":
+            if ct == "tool_use":
                 tool_events.append(chunk.get("tool", "unknown"))
-            if chunk.get("type") in ("text", "result"):
+            if ct in ("text", "result"):
                 review_content += chunk.get("content", "")
             yield f"data: {json.dumps(chunk)}\n\n"
-        _record_routing_outcome(
-            routing, decision, had_error=had_error,
-        )
-        _record_review_eval(
-            request, decision, review_content,
-        )
-        if not had_error and decision and tool_events:
-            bp_store = getattr(request.app.state, "blueprints", None)
-            if bp_store:
-                from maggy.blueprint_extract import capture_blueprint
-                capture_blueprint(
-                    body.message, decision.task_type,
-                    tool_events, decision.model,
-                    bp_store, pkey,
-                )
+        _record_outcome(routing, decision, had_error)
+        _record_review(request, decision, review_content)
+        _capture_bp(request, body.message, decision, tool_events, had_error, pkey)
         yield 'data: {"type": "done"}\n\n'
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-    )
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-def _record_chat_spend(budget, chunk: dict) -> None:
-    """Record token/cost data from a result chunk."""
-    cost = chunk.get("cost_usd", 0)
-    in_t = chunk.get("input_tokens", 0)
-    out_t = chunk.get("output_tokens", 0)
+def _routing_meta(d) -> dict:
+    return {"type": "routing", "model": d.model, "blast": d.blast, "task_type": d.task_type, "reason": d.reason}
+
+
+def _record_spend(budget, chunk: dict) -> None:
+    cost, in_t, out_t = chunk.get("cost_usd", 0), chunk.get("input_tokens", 0), chunk.get("output_tokens", 0)
     if cost or in_t or out_t:
         budget.record_spend("anthropic", "claude", cost, in_t, out_t)
 
 
-def _record_review_eval(
-    request: Request, decision, content: str,
-) -> None:
-    """Record reviewer findings if this was a review."""
-    if not decision or not content:
+def _record_outcome(routing, decision, had_error: bool) -> None:
+    if not routing or not decision:
         return
-    if getattr(decision, "task_type", "") != "review":
+    routing.record_outcome(decision.model, decision.task_type, decision.blast, 0.0 if had_error else 1.0)
+
+
+def _record_review(request: Request, decision, content: str) -> None:
+    if not decision or not content or getattr(decision, "task_type", "") != "review":
         return
     scores = getattr(request.app.state, "reviewer_scores", None)
     if not scores:
         return
     from maggy.services.reviewer_eval import evaluate_review
-    model = getattr(decision, "model", "unknown")
-    evaluate_review(model, content, "review", scores)
+    evaluate_review(getattr(decision, "model", "unknown"), content, "review", scores)
 
 
-def _record_routing_outcome(routing, decision, *, had_error: bool) -> None:
-    """Record routing reward after chat completes."""
-    if not routing or not decision:
+def _capture_bp(request, message, decision, tool_events, had_error, pkey) -> None:
+    if had_error or not decision or not tool_events:
         return
-    reward = 0.0 if had_error else 1.0
-    routing.record_outcome(
-        decision.model, decision.task_type,
-        decision.blast, reward,
-    )
-
-
-@router.delete("/sessions/{session_id}")
-async def delete_session(
-    request: Request,
-    session_id: str,
-    x_api_key: str | None = Header(None),
-) -> dict:
-    """Delete a chat session."""
-    check_auth(request, x_api_key)
-    chat = _require_chat(request)
-    ok = chat.delete_session(session_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"ok": True}
+    bp_store = getattr(request.app.state, "blueprints", None)
+    if not bp_store:
+        return
+    from maggy.blueprint_extract import capture_blueprint
+    capture_blueprint(message, decision.task_type, tool_events, decision.model, bp_store, pkey)
