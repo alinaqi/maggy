@@ -46,10 +46,11 @@ class ExecutorService:
             from maggy.services.orchestrator import OrchestratorService
             self._orchestrator = OrchestratorService(cfg, self._pi)
     async def start(self, task_id: str, mode: str = "tdd",
-                    working_dir: str | None = None) -> str:
+                    working_dir: str | None = None, task=None) -> str:
         if mode not in ("tdd", "plan"):
             raise ValueError(f"Unknown mode {mode!r}")
-        task = await self.provider.get_task(task_id)
+        if not task:
+            task = await self.provider.get_task(task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
         wd = H.resolve_working_dir(self.cfg, working_dir, task)

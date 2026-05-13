@@ -14,6 +14,12 @@ from maggy.services.chat_models import (
     ChatSession,
     enqueue_msg,
 )
+from maggy.services.chat_media import (
+    detect_document,
+    detect_image,
+    stream_doc,
+    stream_vision,
+)
 from maggy.services.chat_stream import stream_message
 
 logger = logging.getLogger(__name__)
@@ -22,43 +28,16 @@ logger = logging.getLogger(__name__)
 __all__ = ["ChatManager", "ChatMessage", "ChatSession", "enqueue_msg"]
 
 
-def _detect_image(message: str) -> tuple[str, str] | None:
-    """Check if message contains an image file path."""
-    from maggy.services.vision import extract_image_path
-    return extract_image_path(message)
-
-
-def _detect_document(message: str) -> tuple[str, str] | None:
-    """Check if message contains a document file path."""
-    from maggy.services.documents import extract_document_path
-    return extract_document_path(message)
-
-
-async def _stream_vision(
-    path: str, prompt: str | None,
-) -> AsyncGenerator[dict, None]:
-    """Stream vision analysis with Ollama→Claude escalation."""
-    from maggy.services.model_escalation import vision_with_escalation
-    async for chunk in vision_with_escalation(path, prompt or "Analyze this image."):
-        yield chunk
-
-
-async def _stream_doc(
-    path: str, prompt: str | None, session,
-) -> AsyncGenerator[dict, None]:
-    """Extract document text and forward to Claude."""
-    from maggy.services.documents import process_document
-    async for chunk in process_document(path, prompt, session):
-        yield chunk
-
-
 class ChatManager:
     """Manages interactive Claude Code sessions."""
 
-    def __init__(self, cfg: MaggyConfig):
+    def __init__(self, cfg: MaggyConfig, store=None):
         self.cfg = cfg
         self._sessions: dict[str, ChatSession] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        self._store = store
+        if store:
+            self._restore_sessions(store)
 
     def create_session(
         self, project_key: str, project_path: str | None = None,
@@ -78,6 +57,8 @@ class ChatManager:
         )
         self._sessions[session.id] = session
         self._locks[session.id] = asyncio.Lock()
+        if self._store:
+            self._store.save_session(session.id, key, wd, "")
         return session
 
     def find_by_project(self, key: str) -> ChatSession | None:
@@ -120,6 +101,8 @@ class ChatManager:
         if session_id in self._sessions:
             del self._sessions[session_id]
             self._locks.pop(session_id, None)
+            if self._store:
+                self._store.delete_session(session_id)
             return True
         return False
 
@@ -141,19 +124,20 @@ class ChatManager:
             yield {"type": "queued", "position": pos}
             return
         async with lock:
-            img = _detect_image(message)
-            doc = _detect_document(message) if not img else None
+            img = detect_image(message)
+            doc = detect_document(message) if not img else None
             if img:
-                async for chunk in _stream_vision(*img):
+                async for chunk in stream_vision(*img):
                     yield chunk
             elif doc:
-                async for chunk in _stream_doc(*doc, session):
+                async for chunk in stream_doc(*doc, session):
                     yield chunk
             else:
                 async for chunk in stream_message(session, message):
                     yield chunk
                 async for chunk in self._drain_queue(session):
                     yield chunk
+            self._persist_after_send(session)
 
     async def _drain_queue(
         self, session: ChatSession,
@@ -167,14 +151,6 @@ class ChatManager:
             }
             async for chunk in stream_message(session, msg):
                 yield chunk
-
-    def find_by_working_dir(self, path: str) -> ChatSession | None:
-        """Find existing session by resolved working directory."""
-        resolved = str(Path(path).expanduser().resolve())
-        for s in self._sessions.values():
-            if s.working_dir == resolved:
-                return s
-        return None
 
     def _validate_dir(self, path: str) -> str:
         """Validate path is an existing directory."""
@@ -192,3 +168,33 @@ class ChatManager:
         raise ValueError(
             f"Project '{project_key}' not found in codebases"
         )
+
+    def _persist_after_send(self, session: ChatSession) -> None:
+        """Save new messages and claude_session_id after send."""
+        if not self._store:
+            return
+        store = self._store
+        store.update_claude_id(
+            session.id, session.claude_session_id,
+        )
+        saved = len(store.load_messages(session.id))
+        for msg in session.messages[saved:]:
+            store.append_message(
+                session.id, msg.role, msg.content,
+            )
+
+    def _restore_sessions(self, store) -> None:
+        """Load persisted sessions from store."""
+        for row in store.load_sessions():
+            sid = row["id"]
+            session = ChatSession(
+                id=sid, project_key=row["project_key"],
+                claude_session_id=row.get("claude_session_id", ""),
+                working_dir=row["working_dir"],
+            )
+            for m in store.load_messages(sid):
+                session.messages.append(ChatMessage(
+                    role=m["role"], content=m["content"],
+                    timestamp=m.get("timestamp", ""),
+                ))
+            self._sessions[sid] = session

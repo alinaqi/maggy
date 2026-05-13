@@ -19,6 +19,7 @@ from maggy.cli_repl_info import (
     cmd_status,
     cmd_thinking,
 )
+from maggy.cli_blueprints import cmd_blueprints
 from maggy.cli_rules import cmd_rules
 
 console = Console()
@@ -49,7 +50,7 @@ def dispatch(cmd: str, client, state: SessionState) -> bool:
     parts = cmd.strip().split(None, 1)
     name = parts[0].lower()
     args = parts[1] if len(parts) > 1 else ""
-    simple = {"/stats": cmd_stats, "/budget": cmd_budget, "/route": cmd_route, "/models": cmd_models, "/rules": cmd_rules}
+    simple = {"/stats": cmd_stats, "/budget": cmd_budget, "/route": cmd_route, "/models": cmd_models, "/rules": cmd_rules, "/blueprints": cmd_blueprints}
     if name in simple:
         simple[name](client)
         return True
@@ -173,7 +174,7 @@ _HELP = """\
   /health Memory        /monitor Trackers     /config Settings     /claude-md CLAUDE.md
   /use M  Restrict      /blast N Override     /screenshot F Vision /thinking Tools
   /history Messages     /sessions List        /reviewers Eval       /rules Summary
-  /status Background    /cancel Stop bg       /clear Screen
+  /blueprints Recipes   /status Background    /cancel Stop bg       /clear Screen
   /quit   Exit          /help   This help"""
 
 

@@ -4,6 +4,12 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def cwd_project() -> tuple[str, str]:
+    """Return (folder_name, resolved_path) for cwd."""
+    p = Path.cwd().resolve()
+    return p.name, str(p)
+
+
 def gather_cli_context(working_dir: str) -> str:
     """Gather verified context + CLI history."""
     parts: list[str] = []

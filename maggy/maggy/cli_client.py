@@ -286,3 +286,6 @@ class MaggyClient:
 
     def engram_diagnostics(self) -> dict:
         return self.get("/api/engram/diagnostics")
+
+    def blueprints(self) -> list:
+        return self.get("/api/blueprints/")

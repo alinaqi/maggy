@@ -7,49 +7,16 @@ from dataclasses import dataclass
 
 from maggy.routing import RoutingContext
 
-HIGH_KEYWORDS = frozenset({
-    "security", "auth", "authentication", "authorization",
-    "oauth", "encrypt", "vulnerability", "architecture",
-    "refactor", "redesign", "migrate", "migration",
-    "database", "schema", "performance", "optimize",
-    "deploy", "infrastructure", "cicd", "pipeline",
-})
-MID_KEYWORDS = frozenset({
-    "feature", "implement", "build", "create", "api",
-    "endpoint", "component", "service", "integration",
-    "pagination", "filter", "search", "cache",
-})
-LOW_KEYWORDS = frozenset({
-    "fix", "typo", "rename", "move", "style", "format",
-    "lint", "comment", "readme", "docs", "log", "print",
-    "bump", "version", "config", "env", "update",
-})
+HIGH_KEYWORDS = frozenset({"security", "auth", "authentication", "authorization", "oauth", "encrypt", "vulnerability", "architecture", "refactor", "redesign", "migrate", "migration", "database", "schema", "performance", "optimize", "deploy", "infrastructure", "cicd", "pipeline"})
+MID_KEYWORDS = frozenset({"feature", "implement", "build", "create", "api", "endpoint", "component", "service", "integration", "pagination", "filter", "search", "cache"})
+LOW_KEYWORDS = frozenset({"fix", "typo", "rename", "move", "style", "format", "lint", "comment", "readme", "docs", "log", "print", "bump", "version", "config", "env", "update"})
 TYPE_KEYWORDS: dict[str, frozenset[str]] = {
-    "review": frozenset({
-        "review", "code_review", "pr", "pullrequest",
-        "audit", "inspect", "validate", "verify",
-    }),
-    "security": frozenset({
-        "auth", "authentication", "authorization",
-        "security", "permission", "token",
-        "encrypt", "vulnerability", "oauth", "csrf",
-    }),
-    "search": frozenset({
-        "find", "search", "grep", "where", "locate",
-        "which", "look", "scan", "show", "list", "read",
-    }),
-    "docs": frozenset({
-        "document", "documentation", "readme", "docs",
-        "docstring", "comment", "spec", "jsdoc", "write",
-    }),
-    "tests": frozenset({
-        "test", "spec", "coverage", "mock", "fixture",
-        "assert", "pytest", "jest", "vitest",
-    }),
-    "frontend": frozenset({
-        "component", "css", "style", "ui", "layout",
-        "responsive", "tailwind", "react", "vue",
-    }),
+    "review": frozenset({"review", "code_review", "pr", "pullrequest", "audit", "inspect", "validate", "verify"}),
+    "security": frozenset({"auth", "authentication", "authorization", "security", "permission", "token", "encrypt", "vulnerability", "oauth", "csrf"}),
+    "search": frozenset({"find", "search", "grep", "where", "locate", "which", "look", "scan", "show", "list", "read"}),
+    "docs": frozenset({"document", "documentation", "readme", "docs", "docstring", "comment", "spec", "jsdoc", "write"}),
+    "tests": frozenset({"test", "spec", "coverage", "mock", "fixture", "assert", "pytest", "jest", "vitest"}),
+    "frontend": frozenset({"component", "css", "style", "ui", "layout", "responsive", "tailwind", "react", "vue"}),
 }
 DEFAULT_BLAST = 5
 _RETRIEVAL = re.compile(
@@ -144,14 +111,20 @@ class RouteDecision:
     reason: str
     blast: int
     task_type: str
+    blueprint_context: str = ""
 
 
 class RoutedChat:
     """Routes chat messages through blast-score engine."""
 
-    def __init__(self, routing, budget):
+    def __init__(
+        self, routing, budget,
+        blueprints=None, project_key: str = "",
+    ):
         self._routing = routing
         self._budget = budget
+        self._blueprints = blueprints
+        self._project_key = project_key
 
     async def decide(
         self,
@@ -184,6 +157,9 @@ class RoutedChat:
                 blast=blast,
                 task_type=task_type,
             )
+        bp_match = self._match_blueprint(cleaned, task_type)
+        if bp_match:
+            return bp_match
         ctx = RoutingContext(
             blast_score=blast, task_type=task_type,
         )
@@ -194,6 +170,28 @@ class RoutedChat:
             reason=decision.reason,
             blast=blast,
             task_type=task_type,
+        )
+
+    def _match_blueprint(self, msg: str, task_type: str):
+        """Return RouteDecision if blueprint matches."""
+        if not self._blueprints:
+            return None
+        from maggy.blueprint_extract import (
+            build_context,
+            extract_keywords,
+        )
+        kw = extract_keywords(msg)
+        bp = self._blueprints.match(
+            task_type, kw, self._project_key,
+        )
+        if not bp:
+            return None
+        return RouteDecision(
+            model=bp["min_model"],
+            reason=f"blueprint:{bp['fingerprint'][:8]}",
+            blast=0,
+            task_type=task_type,
+            blueprint_context=build_context(bp),
         )
 
     def _model_name(self, primary) -> str:

@@ -222,8 +222,10 @@ async def send_routed(
     async def event_stream():
         from maggy.services.chat_router import RoutedChat
         decision = None
+        blueprints = getattr(request.app.state, "blueprints", None)
+        pkey = getattr(s, "project_key", "")
         if routing:
-            rc = RoutedChat(routing, budget)
+            rc = RoutedChat(routing, budget, blueprints, pkey)
             decision = await rc.decide(
                 body.message, body.blast_score, body.task_type,
             )
@@ -256,11 +258,20 @@ async def send_routed(
                 return
         had_error = False
         review_content = ""
-        async for chunk in chat.send(session_id, body.message):
+        tool_events: list[str] = []
+        effective_msg = body.message
+        if decision and decision.blueprint_context:
+            effective_msg = (
+                f"[Blueprint]\n{decision.blueprint_context}"
+                f"\n[/Blueprint]\n\n{body.message}"
+            )
+        async for chunk in chat.send(session_id, effective_msg):
             if budget and chunk.get("type") == "result":
                 _record_chat_spend(budget, chunk)
             if chunk.get("type") == "error":
                 had_error = True
+            if chunk.get("type") == "tool_use":
+                tool_events.append(chunk.get("tool", "unknown"))
             if chunk.get("type") in ("text", "result"):
                 review_content += chunk.get("content", "")
             yield f"data: {json.dumps(chunk)}\n\n"
@@ -270,6 +281,15 @@ async def send_routed(
         _record_review_eval(
             request, decision, review_content,
         )
+        if not had_error and decision and tool_events:
+            bp_store = getattr(request.app.state, "blueprints", None)
+            if bp_store:
+                from maggy.blueprint_extract import capture_blueprint
+                capture_blueprint(
+                    body.message, decision.task_type,
+                    tool_events, decision.model,
+                    bp_store, pkey,
+                )
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(

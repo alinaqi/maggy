@@ -39,7 +39,8 @@ def main(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is not None:
         return
     _ensure()
-    from maggy.cli_chat import cwd_project, run_chat
+    from maggy.cli_chat import run_chat
+    from maggy.cli_context import cwd_project
     name, path = cwd_project()
     run_chat(_client, name, path, routed=True)
 
@@ -103,7 +104,8 @@ def chat(
 ) -> None:
     """Interactive chat with a project's AI session."""
     _ensure()
-    from maggy.cli_chat import cwd_project, run_chat
+    from maggy.cli_chat import run_chat
+    from maggy.cli_context import cwd_project
     if project:
         name, path = project, str(Path.cwd().resolve())
     else:
@@ -117,7 +119,7 @@ def spawn(
 ) -> None:
     """Spawn a background AI session."""
     _ensure()
-    from maggy.cli_chat import cwd_project
+    from maggy.cli_context import cwd_project
     from maggy.cli_sessions import spawn_session
     name, _path = cwd_project()
     spawn_session(_client, task, name)

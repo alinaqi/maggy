@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.6.12 — 2026-05-13
+
+### Added
+- **Task blueprints** — self-learning repeatable workflows; Maggy captures tool sequences from successful tasks and replays them with cheaper models on similar future tasks (e.g., generating benchmark reports for 16+ companies routes to local after 3 proven examples)
+- `blueprint_store.py` — SQLite-backed blueprint persistence with keyword overlap matching, project scoping, time-decay confidence, and collective matching (3+ similar blueprints prove a pattern)
+- `blueprint_extract.py` — keyword extraction with path stripping, sha256 fingerprinting, template capture with `{path}`/`{value}` slots
+- `api/routes_blueprints.py` — `GET /api/blueprints/` and `GET /api/blueprints/match` endpoints
+- `cli_blueprints.py` — `/blueprints` CLI command with Rich table display (type, keywords, confidence, uses)
+- **Session persistence** — chat sessions + messages now saved to SQLite, surviving server restarts
+- `services/session_store.py` — SQLite store with sessions + messages tables, WAL mode, foreign keys
+- **Claude CLI logging** — `_run_claude` now logs start/pid/exit/errors to `~/.maggy/server.log`
+- **Claude CLI timeout** — per-line 180s timeout prevents stale sessions from hanging forever; `_read_with_timeout` async generator
+- **Arrow key history** — readline import enables up/down command recall in REPL
+
+### Fixed
+- **"Task chat-xxx not found"** — executor bridge created ephemeral Task but only passed ID to `executor.start()`, which tried to re-fetch from issue tracker; now passes pre-built Task object directly
+- **Executor tasks not completing** — `executor_stream` read session once immediately after `start()` (which returns instantly); now polls session every 2s via `_poll_session()` until status leaves "running", streaming incremental output
+- **Background task auto-finish** — `_bg_loop` now uses `select.select` with 0.3s timeout instead of blocking on `Prompt.ask`, so completed tasks display results immediately
+
+### Changed
+- Blueprint context injected into messages when routing matches a proven blueprint
+- `routes_chat.py` captures tool_use events during streaming and records blueprints after successful completion
+- `chat_router.py` checks blueprint store before standard routing; `RouteDecision` has `blueprint_context` field
+- `chat_media.py` extracted from `chat.py` (detect_image, detect_document, stream_vision, stream_doc) for quality gate compliance
+- `cwd_project()` moved from `cli_chat.py` to `cli_context.py`
+
 ## v0.6.11 — 2026-05-13
 
 ### Added

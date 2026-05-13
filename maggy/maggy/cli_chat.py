@@ -1,10 +1,11 @@
 """Interactive chat REPL for Maggy CLI with model routing."""
 from __future__ import annotations
 
-from pathlib import Path
+import readline  # noqa: F401 — enables arrow key history
+import select
+import sys
 
 from rich.console import Console
-from rich.prompt import Prompt
 
 from maggy.cli_bg_task import (
     TaskState,
@@ -20,12 +21,7 @@ from maggy.cli_welcome import render_welcome
 console = Console()
 
 EXIT_WORDS = frozenset({"exit", "bye", "quit", "/exit", "/bye"})
-
-
-def cwd_project() -> tuple[str, str]:
-    """Return (folder_name, resolved_path) for cwd."""
-    p = Path.cwd().resolve()
-    return p.name, str(p)
+_PROMPT = "\033[1;36m>\033[0m "  # bold cyan ">"
 
 
 def run_chat(
@@ -56,17 +52,23 @@ def _find_or_create(
     )
 
 
+def _read_input(prompt: str) -> str | None:
+    """Read input with readline history support."""
+    try:
+        return input(prompt).strip()
+    except (KeyboardInterrupt, EOFError):
+        return None
+
+
 def _repl_loop(
     client, state: SessionState, routed: bool,
 ) -> None:
     blast_override: int | None = None
     while True:
-        try:
-            text = Prompt.ask("[bold cyan]>[/bold cyan]")
-        except (KeyboardInterrupt, EOFError):
+        stripped = _read_input(_PROMPT)
+        if stripped is None:
             console.print()
             break
-        stripped = text.strip()
         if not stripped:
             continue
         if stripped == "/quit" or stripped.lower() in EXIT_WORDS:
@@ -97,13 +99,16 @@ def _bg_loop(
     """Accept commands while background task runs."""
     console.print("[dim]Task running. /status or /cancel[/dim]")
     while is_active(bg):
+        ready = select.select([sys.stdin], [], [], 0.3)[0]
+        if not ready:
+            continue
         try:
-            text = Prompt.ask("[dim cyan]bg>[/dim cyan]")
+            text = sys.stdin.readline().strip()
         except (KeyboardInterrupt, EOFError):
             from maggy.cli_bg_task import cancel_task
             cancel_task(bg)
             break
-        if text.strip() and dispatch(text.strip(), client, state):
+        if text and dispatch(text, client, state):
             continue
     _finish_bg(state, bg)
 

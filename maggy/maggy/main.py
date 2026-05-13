@@ -34,6 +34,7 @@ from maggy.api.routes_mesh_admin import router as mesh_admin_router
 from maggy.api.routes_planning import router as planning_router
 from maggy.api.routes_process import router as process_router
 from maggy.api.routes_routing import router as routing_router
+from maggy.api.routes_blueprints import router as blueprints_router
 from maggy.api.routes_chat import router as chat_router
 from maggy.api.routes_escalation import router as escalation_router
 from maggy.api.routes_observability import router as observability_router
@@ -64,6 +65,8 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     db_dir = Path(cfg.storage.path).expanduser().parent
     app.state.budget = BudgetManager(cfg)
     app.state.routing = RoutingService(cfg)
+    from maggy.blueprint_store import BlueprintStore
+    app.state.blueprints = BlueprintStore(db_dir / "blueprints.db")
     app.state.events = EventEmitter(EventStore(db_dir / "events.db"))
     from maggy.cikg.graph import KnowledgeGraphService
     app.state.cikg = KnowledgeGraphService(db_dir / "cikg.db")
@@ -86,7 +89,9 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     from maggy.improve.service import Introspector
     app.state.introspector = Introspector(app.state)
     from maggy.services.chat import ChatManager
-    app.state.chat = ChatManager(cfg)
+    from maggy.services.session_store import SessionStore
+    session_store = SessionStore(db_dir / "sessions.db")
+    app.state.chat = ChatManager(cfg, store=session_store)
     from maggy.registry import ProjectRegistry
     app.state.registry = ProjectRegistry(cfg)
     from maggy.escalation.protocol import Escalator
@@ -267,8 +272,8 @@ class _NoCacheStatic(BaseHTTPMiddleware):
 
 
 _ROUTERS = (
-    api_router, budget_router, chat_router, cikg_router,
-    deploy_router, engram_router, escalation_router,
+    api_router, blueprints_router, budget_router, chat_router,
+    cikg_router, deploy_router, engram_router, escalation_router,
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,
     mesh_router, mesh_admin_router, observability_router,
@@ -301,7 +306,10 @@ def create_app() -> FastAPI:
         app.state.history = HistoryService()
         app.state.introspector = None
         from maggy.services.chat import ChatManager
-        app.state.chat = ChatManager(cfg)
+        from maggy.services.session_store import SessionStore
+        db_dir = Path(cfg.storage.path).expanduser().parent
+        session_store = SessionStore(db_dir / "sessions.db")
+        app.state.chat = ChatManager(cfg, store=session_store)
     _set_mode(app, cfg)
     logger.info("Maggy ready (%s) — codebases=%d", app.state.mode, len(cfg.codebases))
     for r in _ROUTERS:
