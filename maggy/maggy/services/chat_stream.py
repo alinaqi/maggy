@@ -28,6 +28,8 @@ def build_cmd(session: ChatSession, message: str) -> list[str]:
     ]
     if session.claude_session_id:
         cmd += ["--resume", session.claude_session_id]
+    else:
+        cmd += ["--continue"]
     return cmd
 
 
