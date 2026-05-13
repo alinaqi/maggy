@@ -119,9 +119,12 @@ def _finish_bg(state: SessionState, bg: TaskState) -> None:
     result = collect_result(bg)
     state.last_tool_events = result.get("tool_events", [])
     content = result.get("content", "")
+    error = result.get("error", "")
     if content:
         console.print(Markdown(content))
-    error = result.get("error", "")
+    elif state.last_tool_events and not error:
+        n = len(state.last_tool_events)
+        console.print(f"[green]Done[/green] — {n} operations completed. Check the target files.")
     if error:
         console.print(f"[red]Error:[/red] {error}")
     state.bg_task = None
