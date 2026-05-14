@@ -43,9 +43,10 @@ def _find_or_create(
     client, project: str, project_path: str,
     context: str = "",
 ) -> dict:
-    """Resume session by working_dir or create new."""
+    """Resume session by repo_dir or working_dir."""
     for s in client.chat_sessions():
-        if s.get("working_dir") == project_path:
+        repo = s.get("repo_dir", "")
+        if repo == project_path or s.get("working_dir") == project_path:
             return s
     return client.chat_create(
         project, project_path, history_context=context,

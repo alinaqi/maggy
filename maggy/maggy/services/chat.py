@@ -49,16 +49,19 @@ class ChatManager:
         else:
             wd = self._resolve_project(project_key)
             key = project_key
+        sid = uuid.uuid4().hex[:10]
         session = ChatSession(
-            id=uuid.uuid4().hex[:10],
-            claude_session_id="",
-            project_key=key,
-            working_dir=wd,
+            id=sid, claude_session_id="",
+            project_key=key, working_dir=wd,
+            repo_dir=wd, isolation="none",
         )
         self._sessions[session.id] = session
         self._locks[session.id] = asyncio.Lock()
         if self._store:
-            self._store.save_session(session.id, key, wd, "")
+            self._store.save_session(
+                session.id, key, wd, "",
+                repo_dir=wd, isolation="none",
+            )
         return session
 
     def find_by_project(self, key: str) -> ChatSession | None:
@@ -97,8 +100,19 @@ class ChatManager:
     def list_sessions(self) -> list[ChatSession]:
         return list(self._sessions.values())
 
+    def rename_session(self, session_id: str, label: str) -> bool:
+        """Set a custom label on a session."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
+        session.label = label
+        if self._store:
+            self._store.update_label(session_id, label)
+        return True
+
     def delete_session(self, session_id: str) -> bool:
-        if session_id in self._sessions:
+        session = self._sessions.get(session_id)
+        if session:
             del self._sessions[session_id]
             self._locks.pop(session_id, None)
             if self._store:
@@ -191,6 +205,9 @@ class ChatManager:
                 id=sid, project_key=row["project_key"],
                 claude_session_id=row.get("claude_session_id", ""),
                 working_dir=row["working_dir"],
+                repo_dir=row.get("repo_dir", ""),
+                isolation=row.get("isolation", "none"),
+                label=row.get("label", ""),
             )
             for m in store.load_messages(sid):
                 session.messages.append(ChatMessage(

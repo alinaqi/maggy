@@ -182,11 +182,12 @@ class HeartbeatConfig:
 
 @dataclass
 class OrchestratorConfig:
-    enabled: bool = False
+    enabled: bool = True
     max_concurrent: int = 3
     workspace_root: str = "~/.maggy/workspaces"
     container_timeout: int = 600
     decompose_threshold: int = 7
+    isolation: str = "auto"
 
 
 @dataclass

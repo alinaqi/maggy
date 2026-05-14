@@ -47,6 +47,8 @@ def _enrich_and_format(s, history, recent: list[dict]) -> dict:
             s.claude_session_id = sid
     return {
         "id": s.id, "project_key": s.project_key, "working_dir": s.working_dir,
+        "repo_dir": getattr(s, "repo_dir", ""),
+        "label": getattr(s, "label", ""),
         "status": s.status, "messages": len(s.messages),
         "history_context": ctx, "has_resume_id": bool(s.claude_session_id),
     }
@@ -67,7 +69,7 @@ async def create_session(
         raise HTTPException(status_code=400, detail=str(e))
     if body.history_context:
         session.history_context = body.history_context
-    return {"id": session.id, "project_key": session.project_key, "working_dir": session.working_dir, "status": session.status}
+    return {"id": session.id, "project_key": session.project_key, "working_dir": session.working_dir, "repo_dir": session.repo_dir, "isolation": session.isolation, "label": session.label, "status": session.status}
 
 
 @router.get("/sessions")
@@ -79,7 +81,7 @@ async def list_sessions(
     check_auth(request, x_api_key)
     chat = _require_chat(request)
     return [
-        {"id": s.id, "project_key": s.project_key, "working_dir": s.working_dir, "status": s.status, "created_at": s.created_at, "messages": len(s.messages)}
+        {"id": s.id, "project_key": s.project_key, "working_dir": s.working_dir, "repo_dir": s.repo_dir, "isolation": s.isolation, "label": s.label, "status": s.status, "created_at": s.created_at, "messages": len(s.messages)}
         for s in chat.list_sessions()
     ]
 
@@ -100,6 +102,24 @@ async def get_session(
         "status": s.status, "created_at": s.created_at,
         "history_context": s.history_context, "messages": [asdict(m) for m in s.messages],
     }
+
+
+class RenameSessionRequest(BaseModel):
+    label: str
+
+
+@router.patch("/sessions/{session_id}")
+async def rename_session(
+    request: Request, session_id: str,
+    body: RenameSessionRequest,
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Rename a chat session."""
+    check_auth(request, x_api_key)
+    chat = _require_chat(request)
+    if not chat.rename_session(session_id, body.label.strip()):
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"ok": True, "label": body.label.strip()}
 
 
 @router.delete("/sessions/{session_id}")

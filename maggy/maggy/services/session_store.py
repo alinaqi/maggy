@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     project_key TEXT NOT NULL,
     working_dir TEXT NOT NULL,
     claude_session_id TEXT NOT NULL DEFAULT '',
+    repo_dir TEXT NOT NULL DEFAULT '',
+    isolation TEXT NOT NULL DEFAULT 'none',
+    label TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -49,10 +52,26 @@ class SessionStore:
         self._db_path = Path(db_path)
         with _connect(self._db_path) as conn:
             conn.executescript(SCHEMA)
+            self._migrate(conn)
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """Add columns missing from older schemas."""
+        cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(sessions)")
+        }
+        for col, default in [("repo_dir", "''"), ("isolation", "'none'"), ("label", "''")]:
+            if col not in cols:
+                conn.execute(
+                    f"ALTER TABLE sessions ADD COLUMN {col} "
+                    f"TEXT NOT NULL DEFAULT {default}",
+                )
+        conn.commit()
 
     def save_session(
         self, sid: str, project_key: str,
         working_dir: str, claude_session_id: str,
+        repo_dir: str = "", isolation: str = "none",
     ) -> None:
         """Insert or update a session."""
         now = datetime.now(timezone.utc).isoformat()
@@ -60,12 +79,12 @@ class SessionStore:
             conn.execute(
                 "INSERT INTO sessions "
                 "(id, project_key, working_dir, "
-                "claude_session_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?) "
+                "claude_session_id, repo_dir, isolation, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(id) DO UPDATE SET "
                 "claude_session_id = excluded.claude_session_id",
                 (sid, project_key, working_dir,
-                 claude_session_id, now),
+                 claude_session_id, repo_dir, isolation, now),
             )
             conn.commit()
 
@@ -76,6 +95,15 @@ class SessionStore:
                 "UPDATE sessions SET claude_session_id = ? "
                 "WHERE id = ?",
                 (claude_id, sid),
+            )
+            conn.commit()
+
+    def update_label(self, sid: str, label: str) -> None:
+        """Update session label."""
+        with _connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE sessions SET label = ? WHERE id = ?",
+                (label, sid),
             )
             conn.commit()
 

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
+from pathlib import Path
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -93,7 +95,8 @@ async def send_routed(
         if decision and executor:
             from maggy.services.chat_executor_bridge import executor_stream, should_route_to_executor
             if should_route_to_executor(decision):
-                async for chunk in executor_stream(executor, decision, body.message, s.working_dir):
+                exec_wd = getattr(s, "repo_dir", "") or s.working_dir
+                async for chunk in executor_stream(executor, decision, body.message, exec_wd):
                     yield f"data: {json.dumps(chunk)}\n\n"
                     if chunk.get("type") == "error":
                         executor_failed = True
@@ -160,3 +163,24 @@ def _capture_bp(request, message, decision, tool_events, had_error, pkey) -> Non
         return
     from maggy.blueprint_extract import capture_blueprint
     capture_blueprint(message, decision.task_type, tool_events, decision.model, bp_store, pkey)
+
+
+_UPLOAD_DIR = Path(tempfile.gettempdir()) / "maggy-uploads"
+_MAX_UPLOAD = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/upload")
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Upload a file for use in chat messages."""
+    check_auth(request, x_api_key)
+    data = await file.read(_MAX_UPLOAD + 1)
+    if len(data) > _MAX_UPLOAD:
+        raise HTTPException(status_code=413, detail="File too large (10 MB max)")
+    _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    dest = _UPLOAD_DIR / (file.filename or "upload")
+    dest.write_bytes(data)
+    return {"path": str(dest), "name": file.filename, "size": len(data)}

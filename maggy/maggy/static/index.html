@@ -17,7 +17,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline';
+    script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net 'unsafe-inline';
     style-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com 'unsafe-inline';
     font-src 'self' https://cdnjs.cloudflare.com data:;
     connect-src 'self';
@@ -44,6 +44,18 @@
     .pane { height: 100%; }
     @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
     .progress-shimmer { background:linear-gradient(90deg,transparent,#ea580c,transparent); animation:shimmer 1.5s infinite; }
+    .chat-md h1,.chat-md h2,.chat-md h3 { font-weight:600; margin:0.5em 0 0.25em; }
+    .chat-md h1 { font-size:1.1em; color:#ea580c; } .chat-md h2 { font-size:1em; color:#fff; } .chat-md h3 { font-size:0.95em; color:#fff; }
+    .chat-md code { background:#1e2433; padding:1px 4px; border-radius:3px; font-size:0.9em; color:#6ee7b7; }
+    .chat-md pre { background:#1e2433; padding:8px; border-radius:6px; overflow-x:auto; margin:0.5em 0; }
+    .chat-md pre code { background:none; padding:0; }
+    .chat-md ul,.chat-md ol { padding-left:1.5em; margin:0.25em 0; }
+    .chat-md li { margin:2px 0; }
+    .chat-md a { color:#f97316; text-decoration:underline; }
+    .chat-md p { margin:0.25em 0; }
+    .chat-md blockquote { border-left:3px solid #ea580c; padding-left:0.75em; color:#9ca3af; }
+    .chat-md table { border-collapse:collapse; margin:0.5em 0; }
+    .chat-md th,.chat-md td { border:1px solid #374151; padding:4px 8px; font-size:0.85em; }
   </style>
 </head>
 <body>
@@ -101,6 +113,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

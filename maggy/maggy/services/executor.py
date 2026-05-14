@@ -45,6 +45,15 @@ class ExecutorService:
         if cfg.orchestrator.enabled:
             from maggy.services.orchestrator import OrchestratorService
             self._orchestrator = OrchestratorService(cfg, self._pi)
+        from maggy.orchestrator.isolation import IsolationLevel, detect_capabilities
+        iso = cfg.orchestrator.isolation
+        if iso == "none" or not cfg.orchestrator.enabled:
+            self._isolation = IsolationLevel.LOCK_ONLY
+        elif iso == "auto":
+            self._isolation = detect_capabilities()
+        else:
+            self._isolation = IsolationLevel(iso)
+        self._ws_root = Path(cfg.orchestrator.workspace_root).expanduser()
     async def start(self, task_id: str, mode: str = "tdd",
                     working_dir: str | None = None, task=None) -> str:
         if mode not in ("tdd", "plan"):
@@ -55,12 +64,16 @@ class ExecutorService:
             raise ValueError(f"Task {task_id} not found")
         wd = H.resolve_working_dir(self.cfg, working_dir, task)
         sid = uuid.uuid4().hex[:10]
+        from maggy.orchestrator.isolation import provision_workspace
+        isolated_wd = provision_workspace(
+            self._isolation, Path(wd), sid, self._ws_root,
+        )
         self._sessions[sid] = dict(
             id=sid, task_id=task_id, task_title=task.title, mode=mode,
-            working_dir=wd, status="running",
+            working_dir=isolated_wd, repo_dir=wd, status="running",
             started_at=datetime.now(timezone.utc).isoformat(), output="")
         self._locks.acquire(wd, sid)
-        ctx = SessionCtx(self._sessions[sid], task, wd)
+        ctx = SessionCtx(self._sessions[sid], task, isolated_wd)
         bg = asyncio.create_task(self._run(ctx, mode))
         self._bg_tasks.add(bg)
         bg.add_done_callback(self._bg_tasks.discard)
@@ -86,6 +99,14 @@ class ExecutorService:
             logger.exception("Execution failed")
             ctx.session["status"], ctx.session["error"] = "failed", str(e)
         finally:
+            repo_dir = ctx.session.get("repo_dir", ctx.wd)
+            isolated = ctx.session.get("working_dir", ctx.wd)
+            if isolated != repo_dir:
+                if ctx.session["status"] == "completed":
+                    from maggy.orchestrator.merge import merge_changes
+                    merge_changes(Path(repo_dir), Path(isolated))
+                from maggy.orchestrator.isolation import cleanup_workspace
+                cleanup_workspace(self._isolation, Path(repo_dir), isolated)
             self._locks.release_all(ctx.session["id"])
             self._checkpoint.delete(ctx.task.id.replace("/", "-"))
 

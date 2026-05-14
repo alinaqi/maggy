@@ -30,6 +30,9 @@ class ChatSession:
     claude_session_id: str
     project_key: str
     working_dir: str
+    repo_dir: str = ""
+    isolation: str = "none"
+    label: str = ""
     messages: list[ChatMessage] = field(default_factory=list)
     status: str = "idle"
     created_at: str = field(

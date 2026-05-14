@@ -34,6 +34,15 @@ function safeHref(url) {
   return esc(trimmed);
 }
 
+// ── Markdown renderer (uses marked.js CDN, falls back to pre) ─────────
+function renderMd(raw) {
+  if (!raw) return '';
+  if (typeof marked !== 'undefined') {
+    return '<div class="chat-md text-xs text-gray-300">' + marked.parse(raw) + '</div>';
+  }
+  return '<pre class="text-xs text-gray-300 whitespace-pre-wrap">' + esc(raw) + '</pre>';
+}
+
 // Escape a value for use inside a JS string literal that is itself embedded in
 // an HTML attribute. esc() is NOT enough here — it leaves single quotes and
 // backslashes intact, so a task id containing `'); alert(1);//` would break
@@ -423,13 +432,27 @@ async function scanCompetitors() {
 let CHAT_SESSION_ID = null;
 let CHAT_SESSIONS_CACHE = [];
 let CURRENT_MODEL = '';
+let _streamingActive = false;
 
 async function loadChat() {
   const pane = document.getElementById('pane-chat');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Auto-connecting to active projects…</div>`;
   try {
-    const result = await api('/chat/auto-connect', { method: 'POST' });
-    CHAT_SESSIONS_CACHE = result.sessions || [];
+    const [autoResult, allSessions] = await Promise.all([
+      api('/chat/auto-connect', { method: 'POST' }).catch(() => ({ sessions: [] })),
+      api('/chat/sessions').catch(() => []),
+    ]);
+    // Merge: auto-connected first, then any extra sessions not in auto-connect
+    const seen = new Set();
+    const merged = [];
+    for (const s of (autoResult.sessions || [])) {
+      seen.add(s.id);
+      merged.push(s);
+    }
+    for (const s of allSessions) {
+      if (!seen.has(s.id)) merged.push(s);
+    }
+    CHAT_SESSIONS_CACHE = merged;
     if (!CHAT_SESSION_ID && CHAT_SESSIONS_CACHE.length) {
       CHAT_SESSION_ID = CHAT_SESSIONS_CACHE[0].id;
     }
@@ -440,6 +463,8 @@ async function loadChat() {
 }
 
 function renderChatUI(pane) {
+  // Don't rebuild DOM while streaming — tab switch just shows/hides pane
+  if (_streamingActive && pane.querySelector('#chat-messages')) return;
   const sessions = CHAT_SESSIONS_CACHE;
   let html = `<div class="flex h-full">`;
   html += renderChatSidebar(sessions);
@@ -451,24 +476,43 @@ function renderChatUI(pane) {
 }
 
 function renderChatSidebar(sessions) {
+  // Group sessions by project_key
+  const groups = {};
+  for (const s of sessions) {
+    const key = s.project_key || 'unknown';
+    (groups[key] = groups[key] || []).push(s);
+  }
   let html = `<div class="w-60 shrink-0 border-r border-gray-800 pr-3 overflow-y-auto">`;
   html += `<div class="flex items-center justify-between mb-2">
-    <span class="text-[10px] text-gray-500 uppercase font-bold"><i class="fas fa-circle text-green-400 text-[8px] mr-1"></i>Connected Projects</span>
+    <span class="text-[10px] text-gray-500 uppercase font-bold"><i class="fas fa-circle text-green-400 text-[8px] mr-1"></i>Projects</span>
     <button onclick="newChatSession()" class="text-[10px] px-2 py-1 rounded bg-orange-600 hover:bg-orange-700 text-white"><i class="fas fa-plus mr-1"></i>New</button>
-  </div><div class="space-y-1">`;
+  </div>`;
   if (!sessions.length) {
     html += `<div class="text-[10px] text-gray-500 p-2">No active CLI sessions detected</div>`;
   }
-  for (const s of sessions) {
-    const active = s.id === CHAT_SESSION_ID ? 'bg-gray-800 border-orange-500' : 'border-transparent hover:bg-gray-900';
-    const ctx = s.history_context ? ' title="' + esc(s.history_context) + '"' : '';
-    html += `<div class="card px-2 py-1.5 cursor-pointer border ${active}" onclick="openChatSession('${jsStr(s.id)}')"${ctx}>
-      <div class="flex items-center gap-1"><i class="fas fa-circle text-green-400 text-[6px]"></i><span class="text-xs text-white truncate">${esc(s.project_key)}</span></div>
-      <div class="text-[10px] text-gray-500 truncate">${esc(s.working_dir)}</div>
-      ${s.history_context ? '<div class="text-[9px] text-gray-600 mt-0.5 truncate"><i class="fas fa-history mr-0.5"></i>has history</div>' : ''}
+  for (const [project, slist] of Object.entries(groups)) {
+    html += `<div class="mb-2">`;
+    html += `<div class="flex items-center gap-1 mb-1">
+      <i class="fas fa-folder text-orange-400 text-[10px]"></i>
+      <span class="text-[10px] text-gray-400 font-bold uppercase truncate flex-1">${esc(project)}</span>
+      <button onclick="newSessionForProject('${jsStr(project)}')" class="text-[9px] text-gray-600 hover:text-orange-400" title="New session in ${esc(project)}"><i class="fas fa-plus"></i></button>
     </div>`;
+    for (let i = 0; i < slist.length; i++) {
+      const s = slist[i];
+      const active = s.id === CHAT_SESSION_ID ? 'bg-gray-800 border-orange-500' : 'border-transparent hover:bg-gray-900';
+      const displayName = s.label || `Session ${i + 1}`;
+      html += `<div class="card px-2 py-1 cursor-pointer border ml-2 ${active}" onclick="openChatSession('${jsStr(s.id)}')">
+        <div class="flex items-center gap-1">
+          <i class="fas fa-circle text-green-400 text-[5px]"></i>
+          <span id="slabel-${esc(s.id)}" class="text-[10px] text-gray-300 flex-1 truncate">${esc(displayName)}</span>
+          <button onclick="event.stopPropagation(); renameSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-orange-400" title="Rename"><i class="fas fa-pen"></i></button>
+          <button onclick="event.stopPropagation(); deleteSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-red-400" title="Delete"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
   }
-  html += `</div></div>`;
+  html += `</div>`;
   return html;
 }
 
@@ -477,8 +521,12 @@ function renderChatMain() {
   if (CHAT_SESSION_ID) {
     // Top progress shimmer bar (hidden by default)
     html += `<div id="progress-bar" class="hidden h-0.5 w-full overflow-hidden bg-gray-800/50"><div class="progress-shimmer h-full w-1/3"></div></div>`;
+    // Model badge (shows current model during/after response)
+    html += `<div id="chat-model-badge" class="hidden shrink-0 px-5 py-1.5 text-[10px] text-gray-500 border-b border-gray-800/50">
+      <i class="fas fa-robot mr-1 text-orange-400/60"></i><span id="chat-model-name"></span>
+    </div>`;
     // Messages scroll area
-    html += `<div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 min-h-0 px-5 py-3"></div>`;
+    html += `<div id="chat-messages" class="flex-1 overflow-y-auto min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3"></div></div>`;
     // Working zone (hidden by default)
     html += `<div id="working-zone" class="hidden shrink-0 px-5 py-2 border-t border-gray-700/30">
       <div class="flex items-center gap-2 mb-1">
@@ -490,7 +538,10 @@ function renderChatMain() {
     // Divider + input bar + divider
     html += `<div class="border-t border-gray-700/50"></div>`;
     html += `<div class="shrink-0 px-5 pt-3 pb-2 bg-[#0b0e14]">
+      <div id="chat-attachments" class="hidden mb-1.5 flex flex-wrap gap-1"></div>
       <div class="flex gap-2">
+        <input id="chat-file" type="file" class="hidden" onchange="handleFileSelect(event)" multiple />
+        <button onclick="document.getElementById('chat-file').click()" class="px-3 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm" title="Attach file"><i class="fas fa-paperclip"></i></button>
         <div class="flex-1 relative">
           <div id="chat-ghost" class="absolute inset-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
           <input id="chat-input" type="text" placeholder="Type a message..."
@@ -500,7 +551,7 @@ function renderChatMain() {
         </div>
         <button onclick="sendChatMessage()" class="px-4 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm"><i class="fas fa-paper-plane"></i></button>
       </div>
-      <div class="text-[9px] text-gray-600 mt-1.5 text-center">Tab to accept suggestion · Enter to send</div>
+      <div class="text-[9px] text-gray-600 mt-1.5 text-center">Tab to accept suggestion · Enter to send · <i class="fas fa-paperclip text-[8px]"></i> to attach</div>
     </div>`;
     html += `<div class="border-t border-gray-700/50"></div>`;
   } else {
@@ -545,14 +596,77 @@ async function newChatSession() {
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
+async function newSessionForProject(projectKey) {
+  const existing = CHAT_SESSIONS_CACHE.find(s => s.project_key === projectKey);
+  const path = existing ? (existing.repo_dir || existing.working_dir) : '';
+  try {
+    const data = await api('/chat/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ project_key: projectKey, project_path: path }),
+    });
+    CHAT_SESSION_ID = data.id;
+    loadChat();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
 function openChatSession(id) {
+  if (CHAT_SESSION_ID === id) return;
   CHAT_SESSION_ID = id;
   const pane = document.getElementById('pane-chat');
   if (pane) renderChatUI(pane);
 }
 
+function renameSession(sessionId) {
+  const el = document.getElementById('slabel-' + sessionId);
+  if (!el) return;
+  const current = el.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  input.className = 'text-[10px] text-white bg-gray-900 border border-orange-500 rounded px-1 w-full outline-none';
+  input.onblur = () => commitRename(sessionId, input, el, current);
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { el.textContent = current; }
+  };
+  el.textContent = '';
+  el.appendChild(input);
+  input.focus();
+  input.select();
+}
+
+async function commitRename(sessionId, input, el, fallback) {
+  const label = input.value.trim();
+  el.textContent = label || fallback || 'Session';
+  if (!label) return;
+  try {
+    await api(`/chat/sessions/${sessionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ label }),
+    });
+    const cached = CHAT_SESSIONS_CACHE.find(s => s.id === sessionId);
+    if (cached) cached.label = label;
+  } catch (e) {
+    console.error('Rename failed:', e);
+  }
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm('Delete this session?')) return;
+  try {
+    await api(`/chat/sessions/${sessionId}`, { method: 'DELETE' });
+    if (CHAT_SESSION_ID === sessionId) {
+      CHAT_SESSION_ID = null;
+    }
+    loadChat();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
 async function loadChatMessages(id) {
-  const el = document.getElementById('chat-messages');
+  const outer = document.getElementById('chat-messages');
+  const el = document.getElementById('chat-messages-inner') || outer;
   if (!el) return;
   try {
     const data = await api(`/chat/sessions/${id}`);
@@ -564,7 +678,7 @@ async function loadChatMessages(id) {
       html += m.role === 'user' ? renderUserMsg(m) : renderAssistantMsg(m);
     }
     el.innerHTML = html;
-    el.scrollTop = el.scrollHeight;
+    if (outer) outer.scrollTop = outer.scrollHeight;
   } catch (e) {
     el.innerHTML = `<div class="text-xs text-red-400">${esc(e.message)}</div>`;
   }
@@ -591,7 +705,7 @@ function renderUserMsg(m) {
 function renderAssistantMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
   return `<div class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
-    <pre class="text-xs text-gray-300 whitespace-pre-wrap">${esc(m.content)}</pre>${ts}
+    ${renderMd(m.content)}${ts}
   </div></div>`;
 }
 
@@ -699,12 +813,24 @@ function hideWorking() {
 
 function updateModelLabel(model, blast, taskType) {
   const label = document.getElementById('model-label');
-  if (!label) return;
-  if (!model) { label.textContent = 'Thinking…'; return; }
-  const parts = [`Working with ${esc(model)}`];
-  if (blast) parts.push(`blast ${blast}`);
-  if (taskType && taskType !== 'general') parts.push(esc(taskType));
-  label.textContent = parts.join(' · ');
+  if (label) {
+    if (!model) { label.textContent = 'Thinking…'; }
+    else {
+      const parts = [`Working with ${esc(model)}`];
+      if (blast) parts.push(`blast ${blast}`);
+      if (taskType && taskType !== 'general') parts.push(esc(taskType));
+      label.textContent = parts.join(' · ');
+    }
+  }
+  // Persistent model badge in chat header
+  const badge = document.getElementById('chat-model-name');
+  if (badge && model) {
+    let text = model;
+    if (blast) text += ` · blast ${blast}`;
+    if (taskType && taskType !== 'general') text += ` · ${taskType}`;
+    badge.textContent = text;
+    badge.parentElement.classList.remove('hidden');
+  }
 }
 
 // ── Ghost-text suggestions ───────────────────────────────────────────
@@ -771,30 +897,92 @@ function refreshSuggestion() {
   updateGhostText();
 }
 
+// ── File attachments ──────────────────────────────────────────────────
+let _pendingFiles = [];
+
+async function handleFileSelect(event) {
+  for (const f of event.target.files) {
+    _pendingFiles.push(f);
+  }
+  event.target.value = '';
+  _renderAttachments();
+}
+
+function removeAttachment(idx) {
+  _pendingFiles.splice(idx, 1);
+  _renderAttachments();
+}
+
+function _renderAttachments() {
+  const el = document.getElementById('chat-attachments');
+  if (!el) return;
+  if (!_pendingFiles.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = _pendingFiles.map((f, i) =>
+    `<span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-800 text-[10px] text-gray-300">
+      <i class="fas fa-file text-orange-400"></i>${esc(f.name)}
+      <button onclick="removeAttachment(${i})" class="text-gray-500 hover:text-red-400 ml-1"><i class="fas fa-xmark"></i></button>
+    </span>`
+  ).join('');
+}
+
+async function _uploadFiles() {
+  const paths = [];
+  const apiKey = localStorage.getItem('maggy-api-key') || '';
+  for (const f of _pendingFiles) {
+    const form = new FormData();
+    form.append('file', f);
+    const headers = apiKey ? { 'X-API-Key': apiKey } : {};
+    const resp = await fetch(`${API}/chat/upload`, { method: 'POST', headers, body: form });
+    if (!resp.ok) throw new Error(`Upload failed: ${f.name}`);
+    const data = await resp.json();
+    paths.push(data.path);
+  }
+  _pendingFiles = [];
+  _renderAttachments();
+  return paths;
+}
+
 async function sendChatMessage() {
   const input = document.getElementById('chat-input');
   if (!input) return;
-  const message = input.value.trim();
-  if (!message || !CHAT_SESSION_ID) return;
+  let message = input.value.trim();
+  if (!message && !_pendingFiles.length) return;
+  if (!CHAT_SESSION_ID) return;
+  if (_pendingFiles.length) {
+    try {
+      const paths = await _uploadFiles();
+      const refs = paths.map(p => `[Attached file: ${p}]`).join('\n');
+      message = refs + (message ? '\n\n' + message : '\nAnalyze the attached file(s).');
+    } catch (e) {
+      alert('Upload failed: ' + e.message);
+      return;
+    }
+  }
+  if (!message) return;
   _chatHistory.push(message);
   if (_chatHistory.length > 10) _chatHistory.shift();
   input.value = '';
   input.disabled = true;
   const ghost = document.getElementById('chat-ghost');
   if (ghost) ghost.textContent = '';
-  const el = document.getElementById('chat-messages');
+  const outer = document.getElementById('chat-messages');
+  const el = document.getElementById('chat-messages-inner') || outer;
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
   el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
-    <pre id="stream-text" class="text-xs text-gray-300 whitespace-pre-wrap"></pre>
+    <div id="stream-text" class="text-xs text-gray-300 whitespace-pre-wrap"></div>
+    <div id="stream-tools" class="mt-1"></div>
   </div></div>`;
-  el.scrollTop = el.scrollHeight;
+  if (outer) outer.scrollTop = outer.scrollHeight;
   showWorking();
+  _streamingActive = true;
   try {
-    await streamChatResponse(message, el);
+    await streamChatResponse(message, outer);
   } catch (e) {
     const streamEl = document.getElementById('stream-text');
     if (streamEl) streamEl.innerHTML = `<span class="text-red-400">Error: ${esc(e.message)}</span>`;
   }
+  _streamingActive = false;
   hideWorking();
   input.disabled = false;
   input.focus();
@@ -816,6 +1004,7 @@ async function streamChatResponse(message, el) {
   const decoder = new TextDecoder();
   let responseText = '';
   const streamEl = document.getElementById('stream-text');
+  const toolsEl = document.getElementById('stream-tools');
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -831,11 +1020,23 @@ async function streamChatResponse(message, el) {
           continue;
         }
         if (data.type === 'error') { streamEl.innerHTML = `<span class="text-red-400">${esc(data.content)}</span>`; continue; }
+        if (data.type === 'tool_use' && toolsEl) {
+          const tool = data.tool || data.content || 'tool';
+          toolsEl.innerHTML += `<div class="text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50 mr-1"></i>${esc(tool)}</div>`;
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
+        if (data.type === 'agent_status' && toolsEl) {
+          toolsEl.innerHTML += `<div class="text-[10px] text-blue-400/70"><i class="fas fa-info-circle mr-1"></i>${esc(data.status || data.content || '')}</div>`;
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
         if (data.content) { responseText += data.content; streamEl.textContent = responseText; el.scrollTop = el.scrollHeight; }
       } catch {}
     }
   }
-  if (!responseText) streamEl.textContent = '(no response)';
+  if (responseText && streamEl) { streamEl.innerHTML = renderMd(responseText); }
+  if (!responseText && streamEl) streamEl.textContent = '(no response)';
   _lastResponse = responseText.slice(0, 500);
 }
 

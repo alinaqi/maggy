@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 from typing import TYPE_CHECKING, AsyncGenerator
 
 if TYPE_CHECKING:
@@ -13,8 +14,21 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_BIN = "claude"
+CLAUDE_BIN = shutil.which("claude") or "claude"
 _STALE_MARKERS = ("not found",)
+
+
+def _resolve_cwd(session: ChatSession) -> str:
+    """Use working_dir if it exists, else fall back to repo_dir."""
+    wd = session.working_dir
+    if os.path.isdir(wd):
+        return wd
+    repo = getattr(session, "repo_dir", "")
+    if repo and os.path.isdir(repo):
+        logger.warning("Worktree missing %s, using repo_dir", wd)
+        session.working_dir = repo
+        return repo
+    return wd
 
 
 def build_cmd(session: ChatSession, message: str) -> list[str]:
@@ -120,13 +134,14 @@ async def _run_claude(
     """Execute Claude CLI and yield parsed chunks."""
     cmd = build_cmd(session, message)
     resume = session.claude_session_id or "(new)"
-    logger.info("claude start pid=? resume=%s cwd=%s", resume, session.working_dir)
+    cwd = _resolve_cwd(session)
+    logger.info("claude start pid=? resume=%s cwd=%s", resume, cwd)
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            cwd=session.working_dir, env=env,
+            cwd=cwd, env=env,
             limit=1024 * 1024,
         )
         session.pid = proc.pid or 0
@@ -144,8 +159,10 @@ async def _run_claude(
         logger.warning("claude pid=%d timed out", proc.pid or 0)
         proc.kill()
         yield {"type": "error", "content": "Claude CLI timed out"}
-    except FileNotFoundError:
-        yield {"type": "error", "content": "claude CLI not found"}
+    except FileNotFoundError as e:
+        detail = f"claude CLI or cwd not found: {e}"
+        logger.warning(detail)
+        yield {"type": "error", "content": detail}
     except Exception as e:
         logger.exception("claude error")
         yield {"type": "error", "content": str(e)}
