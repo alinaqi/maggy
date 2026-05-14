@@ -1,14 +1,16 @@
-# Claude Bootstrap
+# Maggy
 
-> **Opinionated Claude Code setup → autonomous AI engineering platform.**
+> **From Claude Bootstrap to autonomous AI engineering.**
 
-62 skills, TDD enforcement via Stop hooks, agent teams, persistent memory (Mnemos), intent tracking (iCPG), and a local AI command center (Maggy). Works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**.
+This project started as **Claude Bootstrap** — an opinionated set of skills, hooks, and rules for Claude Code. Over time it grew into something much bigger: a multi-model routing system, a persistent memory layer, an intent-tracking code graph, container-based orchestration, and a full engineering command center. The bootstrap scaffolding is still here, but the future of this project is **Maggy** — an autonomous engineering system that routes work across AI models, learns from outcomes, and manages the full development lifecycle.
+
+62 skills, TDD enforcement via Stop hooks, agent teams, persistent memory (Mnemos), intent tracking (iCPG), and multi-model AI command center. Works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/alinaqi/claude-bootstrap.git
-cd claude-bootstrap && ./install.sh
+git clone https://github.com/alinaqi/maggy.git
+cd maggy && ./install.sh
 
 # In any project directory
 claude
@@ -17,7 +19,30 @@ claude
 
 Claude will validate tools, ask about your stack, create the repo structure, copy skills/rules/hooks, and spawn an agent team.
 
-## What It Sets Up
+## Maggy — Autonomous Engineering System
+
+Maggy is the core of this project. It routes tasks across models, tracks performance, learns from outcomes, and manages the full development lifecycle from a local dashboard or CLI REPL.
+
+- **Multi-model routing** — semantic blast scoring routes tasks across Claude/Codex/Kimi/Ollama based on complexity, cost, and proven performance
+- **Task blueprints** — self-learning workflows; Maggy captures tool sequences from successful tasks and replays them with cheaper models
+- **Chat** — interactive sessions with markdown rendering, streaming, session persistence, and file upload
+- **Execute** — one-click TDD pipeline with iCPG context enrichment
+- **Tasks** — AI-prioritized inbox from GitHub Issues or Asana
+- **Competitors** — auto-discovered competitors + daily AI briefing
+- **Insights** — CLI session analysis, health signals, reviewer evaluation
+- **Reviewer knowledge map** — tracks which reviewer (CodeRabbit, Codex, local) is best at which finding category
+
+```bash
+cd maggy && pip install -e .
+maggy serve   # dashboard at localhost:8080
+maggy         # CLI REPL (runs from any project directory)
+```
+
+See [maggy/README.md](./maggy/README.md) for setup and routing details.
+
+## Bootstrap Layer
+
+The original scaffolding that sets up any project for AI-assisted development:
 
 | Layer | What | Why |
 |-------|------|-----|
@@ -52,24 +77,6 @@ See [full skills catalog](./docs/claude-bootstrap-reference.md#skills-catalog-62
 | Instructions | `CLAUDE.md` | (uses skills) | `AGENTS.md` |
 
 `install.sh` auto-detects installed tools. `/sync-agents` syncs config across tools on demand.
-
-## Maggy — AI Command Center
-
-Maggy is the optional local dashboard bundled with Claude Bootstrap. Point it at your codebases and issue tracker:
-
-- **Chat** — multi-model routing with semantic blast scoring across Claude/Codex/Kimi/Local
-- **Tasks** — AI-prioritized inbox from GitHub Issues or Asana
-- **Execute** — one-click TDD pipeline with iCPG context
-- **Competitors** — auto-discovered competitors + daily AI briefing
-- **Insights** — CLI session analysis, health signals
-- **P2P Mesh** — cross-machine session sync
-
-```bash
-cd maggy && pip install -e .
-maggy serve   # dashboard at localhost:8080
-```
-
-See [maggy/README.md](./maggy/README.md) for setup and routing details.
 
 ## Core Concepts
 
