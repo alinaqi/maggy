@@ -436,23 +436,10 @@ let _streamingActive = false;
 
 async function loadChat() {
   const pane = document.getElementById('pane-chat');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Auto-connecting to active projects…</div>`;
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading projects…</div>`;
   try {
-    const [autoResult, allSessions] = await Promise.all([
-      api('/chat/auto-connect', { method: 'POST' }).catch(() => ({ sessions: [] })),
-      api('/chat/sessions').catch(() => []),
-    ]);
-    // Merge: auto-connected first, then any extra sessions not in auto-connect
-    const seen = new Set();
-    const merged = [];
-    for (const s of (autoResult.sessions || [])) {
-      seen.add(s.id);
-      merged.push(s);
-    }
-    for (const s of allSessions) {
-      if (!seen.has(s.id)) merged.push(s);
-    }
-    CHAT_SESSIONS_CACHE = merged;
+    const result = await api('/chat/preload', { method: 'POST' });
+    CHAT_SESSIONS_CACHE = result.sessions || [];
     if (!CHAT_SESSION_ID && CHAT_SESSIONS_CACHE.length) {
       CHAT_SESSION_ID = CHAT_SESSIONS_CACHE[0].id;
     }

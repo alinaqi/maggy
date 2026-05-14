@@ -54,6 +54,40 @@ def _enrich_and_format(s, history, recent: list[dict]) -> dict:
     }
 
 
+@router.post("/preload")
+async def preload_sessions(
+    request: Request,
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Create one session per configured codebase."""
+    check_auth(request, x_api_key)
+    chat = _require_chat(request)
+    cfg = getattr(request.app.state, "cfg", None)
+    if not cfg or not cfg.codebases:
+        return {"created": 0, "sessions": []}
+    created = []
+    for cb in cfg.codebases:
+        existing = chat.find_by_project(cb.key)
+        if existing:
+            continue
+        try:
+            s = chat.create_session(cb.key, cb.path)
+            created.append({
+                "id": s.id, "project_key": s.project_key,
+                "working_dir": s.working_dir, "label": s.label,
+            })
+        except (ValueError, OSError):
+            continue
+    all_sessions = [
+        {"id": s.id, "project_key": s.project_key,
+         "working_dir": s.working_dir, "repo_dir": s.repo_dir,
+         "label": s.label, "status": s.status,
+         "messages": len(s.messages)}
+        for s in chat.list_sessions()
+    ]
+    return {"created": len(created), "sessions": all_sessions}
+
+
 @router.post("/sessions")
 async def create_session(
     request: Request,
