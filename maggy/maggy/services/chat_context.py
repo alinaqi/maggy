@@ -121,29 +121,75 @@ def resolve_claude_session_id(
     """Find the latest Claude session_id for a project.
 
     Reads ~/.claude/history.jsonl to find the most recent
-    sessionId used in this working directory.
+    sessionId used in this working directory. Falls back
+    to parent directories (e.g. /protaige matches
+    /protaige/protaige-mvp-backend).
     """
-    history_path = Path.home() / ".claude" / "history.jsonl"
-    if not history_path.exists():
-        return ""
-    try:
-        lines = history_path.read_text().splitlines()
-    except OSError:
+    entries = _load_history_entries()
+    if not entries:
         return ""
     target = working_dir.rstrip("/")
+    sid = _match_session_exact(entries, target)
+    if sid:
+        return sid
+    return _match_session_parent(entries, target)
+
+
+def _load_history_entries() -> list[dict]:
+    """Load parsed entries from history.jsonl."""
+    path = Path.home() / ".claude" / "history.jsonl"
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return []
+    entries = []
     for line in reversed(lines):
         line = line.strip()
         if not line:
             continue
         try:
-            entry = json.loads(line)
+            entries.append(json.loads(line))
         except (json.JSONDecodeError, ValueError):
             continue
-        project = entry.get("project", "")
-        if not project:
-            continue
-        if project.rstrip("/") == target:
+    return entries
+
+
+def _match_session_exact(
+    entries: list[dict], target: str,
+) -> str:
+    """Exact path match against history entries."""
+    for entry in entries:
+        project = entry.get("project", "").rstrip("/")
+        if project == target:
             sid = entry.get("sessionId", "")
             if sid:
                 return sid
     return ""
+
+
+def _match_session_parent(
+    entries: list[dict], target: str,
+) -> str:
+    """Parent-path fallback: find session from ancestor dir."""
+    parents = _parent_paths(target)
+    for parent in parents:
+        for entry in entries:
+            project = entry.get("project", "").rstrip("/")
+            if project == parent:
+                sid = entry.get("sessionId", "")
+                if sid:
+                    return sid
+    return ""
+
+
+def _parent_paths(path: str) -> list[str]:
+    """Walk up from path, skip generic system dirs."""
+    skip = {"/", "/Users", "/home", str(Path.home())}
+    result = []
+    p = Path(path).parent
+    while str(p) not in skip and len(p.parts) > 2:
+        result.append(str(p))
+        p = p.parent
+    return result

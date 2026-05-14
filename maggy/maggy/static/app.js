@@ -490,10 +490,12 @@ function renderChatSidebar(sessions) {
       const displayName = s.label || `Session ${i + 1}`;
       const isBranch = s.label && s.label !== `Session ${i + 1}`;
       const icon = isBranch ? 'fa-code-branch' : 'fa-circle';
+      const resumeBadge = s.has_resume_id ? '<i class="fas fa-history text-green-400 text-[7px]" title="Claude session linked"></i>' : '';
       html += `<div class="card px-2 py-1 cursor-pointer border ml-2 ${active}" onclick="openChatSession('${jsStr(s.id)}')">
         <div class="flex items-center gap-1">
           <i class="fas ${icon} ${isBranch ? 'text-orange-400' : 'text-green-400'} text-[7px]"></i>
           <span id="slabel-${esc(s.id)}" class="text-[10px] text-gray-300 flex-1 truncate">${esc(displayName)}</span>
+          ${resumeBadge}
           <button onclick="event.stopPropagation(); renameSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-orange-400" title="Rename"><i class="fas fa-pen"></i></button>
           <button onclick="event.stopPropagation(); deleteSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-red-400" title="Delete"><i class="fas fa-trash"></i></button>
         </div>

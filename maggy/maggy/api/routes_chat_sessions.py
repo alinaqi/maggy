@@ -72,20 +72,57 @@ async def preload_sessions(
             continue
         try:
             s = chat.create_session(cb.key, cb.path)
-            created.append({
-                "id": s.id, "project_key": s.project_key,
-                "working_dir": s.working_dir, "label": s.label,
-            })
+            created.append(s)
         except (ValueError, OSError):
             continue
+    _resolve_all_sessions(chat)
     all_sessions = [
-        {"id": s.id, "project_key": s.project_key,
-         "working_dir": s.working_dir, "repo_dir": s.repo_dir,
-         "label": s.label, "status": s.status,
-         "messages": len(s.messages)}
-        for s in chat.list_sessions()
+        _format_session(s) for s in chat.list_sessions()
     ]
     return {"created": len(created), "sessions": all_sessions}
+
+
+def _resolve_all_sessions(chat) -> None:
+    """Resolve Claude session IDs and load history."""
+    from maggy.services.chat_context import resolve_claude_session_id
+    from maggy.services.chat_history import load_claude_history
+    from maggy.services.chat_models import ChatMessage
+    store = getattr(chat, "_store", None)
+    for s in chat.list_sessions():
+        if not s.claude_session_id:
+            sid = resolve_claude_session_id(s.working_dir)
+            if sid:
+                s.claude_session_id = sid
+                if store:
+                    store.update_claude_id(s.id, sid)
+        if s.claude_session_id and not s.messages:
+            _load_history(s, store)
+
+
+def _load_history(s, store) -> None:
+    """Load Claude conversation history into session."""
+    from maggy.services.chat_history import load_claude_history
+    from maggy.services.chat_models import ChatMessage
+    msgs = load_claude_history(s.working_dir, s.claude_session_id)
+    for m in msgs:
+        cm = ChatMessage(
+            role=m["role"], content=m["content"],
+            timestamp=m.get("timestamp", ""),
+        )
+        s.messages.append(cm)
+        if store:
+            store.append_message(s.id, cm.role, cm.content)
+
+
+def _format_session(s) -> dict:
+    """Format a session for API response."""
+    return {
+        "id": s.id, "project_key": s.project_key,
+        "working_dir": s.working_dir, "repo_dir": s.repo_dir,
+        "label": s.label, "status": s.status,
+        "messages": len(s.messages),
+        "has_resume_id": bool(s.claude_session_id),
+    }
 
 
 @router.post("/sessions")
