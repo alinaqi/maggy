@@ -41,7 +41,7 @@ def task_from_chat(
 
 
 _POLL_INTERVAL = 2.0
-_POLL_TIMEOUT = 300.0
+_POLL_TIMEOUT = 600.0
 _RUNNING = frozenset({"running", "parallel_running"})
 
 
