@@ -109,22 +109,22 @@ class TestRoutingAccuracy:
             results[task.id] = name
 
         # Low blast (1-3) → cheap tier unless rules override
-        # T-1 is docs → rules force claude
-        assert results["T-1"] == "claude"
-        assert results["T-2"] in ("local", "kimi")
-        assert results["T-3"] in ("local", "kimi")
-        # Blast 5 → local(0-5) cheapest, codex(4-10), claude(5-10)
-        assert results["T-4"] in ("local", "codex")
-        # Blast 6 → codex(4-10) cheapest, claude(5-10)
-        assert results["T-5"] in ("codex", "claude")
-        # Blast 7 → codex or claude
-        assert results["T-6"] in ("codex", "claude")
-        # Blast 8+ → codex or claude (security→claude)
-        assert results["T-7"] in ("codex", "claude")
+        # T-1 is docs → rules force deepseek-pro
+        assert results["T-1"] in ("deepseek-pro", "claude")
+        assert results["T-2"] in ("local", "deepseek-flash")
+        assert results["T-3"] in ("local", "deepseek-flash")
+        # Blast 5 → deepseek-flash(0-5) or deepseek-pro(2-8)
+        assert results["T-4"] in ("deepseek-flash", "deepseek-pro")
+        # Blast 6 → deepseek-pro(2-8) cheapest, kimi(3-8), claude(5-10)
+        assert results["T-5"] in ("deepseek-pro", "kimi", "claude")
+        # Blast 7 → deepseek-pro(2-8) or kimi(3-8) or claude
+        assert results["T-6"] in ("deepseek-pro", "kimi", "claude")
+        # Blast 8 → deepseek-pro(2-8) or kimi(3-8) or claude
+        assert results["T-7"] in ("deepseek-pro", "kimi", "claude")
         # Security always premium (claude)
         assert results["T-8"] == "claude"
         assert results["T-9"] == "claude"
-        assert results["T-10"] in ("codex", "claude")
+        assert results["T-10"] in ("deepseek-pro", "kimi", "claude")
 
     def test_routing_accuracy_score(self, tmp_path):
         """Compute accuracy as % of correct routing decisions."""
@@ -133,16 +133,22 @@ class TestRoutingAccuracy:
         correct = 0
 
         expected_tiers = {
-            "T-1": "premium", "T-2": "cheap", "T-3": "cheap",
-            "T-4": "cheap",   # local covers 0-5
-            "T-5": "mid",     # codex covers 4-10
-            "T-6": "mid",     # codex covers 4-10
-            "T-7": "mid",     # codex (no security override)
-            "T-8": "premium", "T-9": "premium",
-            "T-10": "mid",    # codex covers 4-10
+            "T-1": "mid",     # docs → deepseek-pro override
+            "T-2": "cheap",   # formatting → local/flash
+            "T-3": "cheap",   # feature blast 3 → local/flash
+            "T-4": "cheap",   # feature blast 5 → flash
+            "T-5": "mid",     # refactor blast 6 → deepseek-pro
+            "T-6": "mid",     # feature blast 7 → deepseek-pro
+            "T-7": "mid",     # refactor blast 8 → deepseek-pro
+            "T-8": "premium", # security → claude
+            "T-9": "premium", # security → claude
+            "T-10": "mid",    # perf blast 7 → deepseek-pro
         }
-        tier_map = {"local": "cheap", "kimi": "cheap",
-                     "codex": "mid", "claude": "premium"}
+        tier_map = {
+            "local": "cheap", "deepseek-flash": "cheap",
+            "deepseek-pro": "mid", "kimi": "mid",
+            "codex": "mid", "claude": "premium",
+        }
 
         for task in SPRINT_TASKS:
             raw = task.raw or {}
@@ -452,8 +458,7 @@ class TestFullExecutorPipeline:
         unique_models = set(models_used)
         assert len(unique_models) >= 3, f"Only {unique_models} used"
         assert "claude" in unique_models
-        assert "codex" in unique_models
-        cheap = {"kimi", "local"}
+        cheap = {"local", "deepseek-flash"}
         assert cheap & unique_models, "No cheap model used"
 
         # Verify fatigue was tracked

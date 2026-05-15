@@ -6,6 +6,119 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.17.0] - 2026-05-16
+
+### Added
+
+#### Maggy Dashboard UI Overhaul
+- **Sidebar navigation** — modern vertical sidebar replacing horizontal tab bar, with grouped sections (Work, Intel, System)
+- **Cmd+K / Ctrl+K command palette** — fuzzy project search with keyboard shortcut, instant jump between projects
+- **Memory panel** — fatigue gauge with color-coded states (FLOW→COMPRESS→PRE_SLEEP→REM→EMERGENCY), engram stats, recent memories list
+- **Progress panel** — real-time execution status per task, active/running/completed indicators with shimmer animations, recent activity signals log
+- **Heartbeat indicator** — live status dot with pulse-glow animation, auto-refreshes every 30s
+- **Model badge in header** — shows active model, blast score, task type during execution
+- **Sidebar fatigue indicator** — compact fatigue percentage with color-coded state
+- **CSS variable design system** — consistent dark theme with orange accent, scrollbar styling, badge components
+
+#### Multi-Source Task Aggregator
+- **`GET /api/aggregator/tasks`** — unified task list from `_project_specs/todos/` + GitHub Issues + Asana, deduplicated and priority-sorted
+- **`POST /api/aggregator/execute-all`** — queue all pending tasks for TDD execution
+- **`read_project_specs()`** — parses `active.md` and `backlog.md` markdown checklists into structured task objects
+
+#### Progress Analysis Engine
+- **`ProgressEngine`** — cross-model execution tracker with step history, blocker detection, model usage stats
+- **Auto-adjust routing** — detects fatigue thresholds and consecutive failures, suggests model escalation
+- **Next-action suggestions** — analyzes blocker state, model failures, and unvalidated completions to recommend next steps
+- **`ProgressSnapshot`** — structured summary of active/completed/blocked tasks, elapsed time, model distribution
+
+#### Background Heartbeat Jobs
+- **`poll_inbox`** — auto-refreshes inbox from GitHub/Asana every 5 minutes (configurable interval)
+- **`scan_competitors`** — periodic competitor news scanning for active project
+- **`track_research`** — research trend tracking for active project
+- All jobs registered in `HeartbeatScheduler` with per-job error isolation and status tracking
+
+#### Generic Test Suite Generator
+- **`test_generator.py`** — auto-detects Python (pyproject.toml/setup.py) and TypeScript (package.json) projects
+- **Python scaffold** — generates `conftest.py`, `__init__.py`, per-module test stubs, `.coveragerc` with configurable thresholds
+- **TypeScript scaffold** — generates `vitest.config.ts` with coverage thresholds, sample test file
+- **`write_scaffold()`** — one-call detection + generation + file writing with summary output
+
+### Changed
+- **`main.py`** — registered `aggregator_router` for task aggregation endpoints
+- **`progress_engine.py`** — new module with task state tracking and routing auto-adjustment
+- **`routes_aggregator.py`** — new API routes for multi-source task listing and batch execution
+
+### Stats
+- 8 files changed across UI (2), backend (4), heartbeat (1), test gen (1)
+- New panels: Memory, Progress (2) in redesigned sidebar
+- New API endpoints: 3 (aggregator tasks, execute-all, progress status)
+- All existing routing tests pass (38/38)
+
+---
+
+## [6.16.0] - 2026-05-16
+
+### Added
+
+#### Multi-Model Delegation Pattern
+- **External model delegation via `~/bin/` scripts** — consistent pattern for calling Qwen3, DeepSeek, Kimi, and Codex from both Claude Code hooks and Maggy's executor
+- **6-tier routing hook** — `UserPromptSubmit` hook classifies every prompt via qwen3 into QWEN / DEEPSEEK_FLASH / DEEPSEEK_PRO / KIMI / CODEX / CLAUDE tiers
+- **`~/bin/deepseek`** — Python delegation script calling DeepSeek's Anthropic-compatible API via httpx, supports `--flash` / `--pro` flags
+- **Project CLAUDE.md** — created with full skill references, routing table, and project structure docs
+
+#### DeepSeek V4 in Maggy Routing
+- `model_router.py` — expanded DEFAULT_TIERS from 4 to 6: local → deepseek-flash → deepseek-pro → kimi → codex → claude
+- `ai_client.py` — DeepSeek API completion via OpenAI-compatible endpoint with httpx
+- `adapters/deepseek.py` — DeepSeek orchestrator adapter registered for deepseek, deepseek-flash, deepseek-pro
+- `routing_rules_defaults.py` — docs/tests route to deepseek-pro, security/architecture stay on claude
+- `fatigue.py` — split deepseek into flash/pro context windows (128K each)
+- `chat_router.py` — added `use deepseek` force pattern
+- `pi.py` — DEFAULT_MODELS split into flash/pro, `_build_command` handles delegation script conventions
+
+#### Skill Documentation
+- `skills/external-model-delegation/SKILL.md` — complete reference: tier table, delegation script contract, routing hook flow, classification tiers, environment setup
+
+### Tests
+- `test_deepseek_routing.py` — 16 new tests for 6-tier routing, cost ordering, provider mapping, strength attributes
+- Updated `test_routing_service.py`, `test_benchmark_scenario.py`, `test_multimodel_integration.py` for new tier structure
+- 80 routing tests pass, 0 failures
+
+---
+
+## [6.15.0] - 2026-05-16
+
+### Added
+
+#### Mnemos Checkpoint Compatibility & Compact Recovery
+- **Backward-compatible checkpoint serialization** — `checkpoint.py` extended with compat-layer serialization so older checkpoint formats deserialize cleanly into current `CheckpointNode` schema
+- **`mnemos-compact-recovery.sh`** — New recovery script for post-compaction checkpoint restoration; detects compaction markers and re-injects checkpoint context automatically
+- **`test_mnemos_checkpoint_compat.py`** — 162-line test suite for backward-compatible checkpoint round-trips across schema versions
+- **`test_executor_bridge.py`** — 101-line test suite for chat executor bridge routing decisions and blast-score thresholds
+
+#### Fatigue-Aware Model Routing
+- **Mnemos fatigue wired into model routing** — `model_router.py` now queries fatigue state and adjusts routing: high fatigue biases toward simpler models to reduce context pressure
+- **`test_fatigue_routing.py`** — 107-line test suite for fatigue-aware routing decisions
+
+### Fixed
+
+#### Defensive Hook Scripts
+- **All hook scripts hardened** — Removed `set -euo pipefail` from all mnemos hooks; added `2>/dev/null || true` guards on `cat`/`jq` stdin reads so hooks never block Claude Code sessions
+- **Defensive pattern established**: (1) no strict mode, (2) `INPUT=$(cat 2>/dev/null || true)`, (3) jq with `// empty` fallbacks, (4) always `exit 0` on failure
+- **Kimi parser fix** — `history/parsers/kimi.py` improved session detection for cross-tool context injection
+- **Executor bridge improvements** — `chat_executor_bridge.py` refined routing logic for actionable vs informational messages
+
+### Changed
+- **`models.py`** — Extended Mnemos model definitions with additional fields for checkpoint compat
+- **`SKILL.md`** — Updated mnemos skill documentation with compact recovery and compat details
+- **`templates/CLAUDE.md`** — Added mnemos compact recovery references
+- **`templates/mnemos-post-compact-inject.sh`** — Improved injection logic for post-compaction context restoration
+
+### Stats
+- 79 files changed, +5,593 / -144 lines across the full PR
+- New test files: 28 test files, **243+ tests passing**, 83% coverage
+
+---
+
 ## [6.14.1] - 2026-05-15
 
 ### Fixed

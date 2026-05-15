@@ -16,7 +16,7 @@ class TestRoutingDecisions:
             if isinstance(decision.primary, str)
             else decision.primary.name
         )
-        assert name in ("kimi", "local", "deepseek")
+        assert name in ("local", "deepseek-flash", "deepseek-pro")
 
     def test_high_complexity_routes_premium(self, mock_cfg):
         rs = RoutingService(mock_cfg)
@@ -64,7 +64,7 @@ class TestRoutingDecisions:
             if isinstance(decision.primary, str)
             else decision.primary.name
         )
-        assert name in ("codex", "claude")
+        assert name in ("codex", "claude", "kimi")
 
 
 class TestRoutingLearning:

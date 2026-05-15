@@ -19,6 +19,7 @@ from starlette.responses import Response
 from maggy import config as config_mod
 from maggy import providers
 from maggy.api.routes import router as api_router
+from maggy.api.routes_aggregator import router as aggregator_router
 from maggy.api.routes_budget import router as budget_router
 from maggy.api.routes_cikg import router as cikg_router
 from maggy.api.routes_deploy import router as deploy_router
@@ -274,7 +275,8 @@ class _NoCacheStatic(BaseHTTPMiddleware):
 
 
 _ROUTERS = (
-    api_router, blueprints_router, budget_router, chat_router, chat_sessions_router,
+    aggregator_router, api_router, blueprints_router, budget_router,
+    chat_router, chat_sessions_router,
     cikg_router, deploy_router, engram_router, escalation_router, icpg_router,
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,
