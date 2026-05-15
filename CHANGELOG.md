@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.14.1] - 2026-05-15
+
+### Fixed
+
+#### Mnemos Stability — OOM Prevention and Concurrent Access
+- **Bounded signal reads**: `read_recent_signals(n=30)` uses `deque` tail-read instead of loading entire `signals.jsonl` into memory — prevents OOM in long sessions
+- **SQLite WAL mode**: `MnemosDB` now enables `PRAGMA journal_mode=WAL` on init — prevents "database is locked" errors when multiple hooks fire concurrently
+- **Connection lifecycle**: `MnemosDB` implements context manager protocol (`with MnemosDB() as db:`), hook dispatch uses it to guarantee connection cleanup
+- **Constant usage**: `_hook_pre_compact` uses `COMPACT_UTILIZATION` constant instead of hardcoded `0.83`
+- **Type safety**: Hook handler signatures changed from `db: object` to `db: MnemosDB`
+- **Clean imports**: `extraction.py` uses normal `from pathlib import Path` instead of inline `__import__`
+- **8 new tests**: `read_recent_signals` (5 tests including malformed JSONL), WAL mode, context manager lifecycle — total now **243 tests**
+
+---
+
 ## [6.14.0] - 2026-05-15
 
 ### Added
