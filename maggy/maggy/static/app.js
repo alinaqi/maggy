@@ -75,54 +75,47 @@ function relDate(iso) {
 // ── Tabs ────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   CURRENT_TAB = tab;
-  // Close system dropdown
-  const menu = document.getElementById('system-menu');
-  if (menu) menu.classList.add('hidden');
-  // Highlight active tab button (nav bar)
-  for (const b of document.querySelectorAll('.tab-btn')) {
+  // Highlight active sidebar link
+  for (const b of document.querySelectorAll('.sidebar-link')) {
     b.classList.toggle('active', b.dataset.tab === tab);
   }
-  // Highlight active system dropdown item
-  const gear = document.getElementById('system-gear');
-  const sysTabs = ['budget', 'routing', 'forge', 'settings'];
-  if (gear) {
-    gear.classList.toggle('active', sysTabs.includes(tab));
-  }
-  for (const s of document.querySelectorAll('.sys-item')) {
-    s.classList.toggle(
-      'text-orange-400', s.dataset.tab === tab,
-    );
-  }
-  // Show/hide panes
-  for (const p of document.querySelectorAll('.pane')) {
-    p.classList.toggle('hidden', p.id !== `pane-${tab}`);
+  // Show/hide panes (all elements with id starting pane-)
+  var panes = document.querySelectorAll('[id^="pane-"]');
+  for (var i = 0; i < panes.length; i++) {
+    panes[i].classList.toggle('hidden', panes[i].id !== 'pane-' + tab);
   }
   if (tab === 'chat') loadChat();
   else if (tab === 'inbox') loadInbox();
   else if (tab === 'followed') loadFollowed();
+  else if (tab === 'progress') loadProgress();
   else if (tab === 'competitors') loadCompetitors();
   else if (tab === 'process') loadProcess();
-  else if (tab === 'budget') loadBudget();
-  else if (tab === 'routing') loadRouting();
-  else if (tab === 'forge') loadForge();
   else if (tab === 'icpg') loadICPG();
+  else if (tab === 'memory') loadMemory();
+  else if (tab === 'routing') loadRouting();
+  else if (tab === 'budget') loadBudget();
+  else if (tab === 'forge') loadForge();
   else if (tab === 'settings') loadSettings();
 }
 
-function toggleSystemMenu() {
-  const menu = document.getElementById('system-menu');
-  if (menu) menu.classList.toggle('hidden');
+// Project switching
+function switchProject(name) {
+  if (!name) return;
+  updateCurrentProject(name);
+  // Preload chat sessions for this project
+  fetch('/api/chat/preload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_key: name })
+  }).then(function() { loadChat(); }).catch(function() {});
+  // Refresh heartbeat for project context
+  fetch('/api/heartbeat/trigger/collect_signals', { method: 'POST' }).catch(function(){});
 }
 
-// Close system menu when clicking outside
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('system-menu');
-  const gear = document.getElementById('system-gear');
-  if (!menu || !gear) return;
-  if (!gear.contains(e.target) && !menu.contains(e.target)) {
-    menu.classList.add('hidden');
-  }
-});
+function updateProjectList(projects) {
+  window._projectList = (projects || []).map(function(p) { return p.name || p; });
+  if (window._projectList.length) updateCurrentProject(window._projectList[0]);
+}
 
 // ── Drawer ──────────────────────────────────────────────────────────────
 function openDrawer(title, html) {
@@ -861,11 +854,24 @@ function updateModelLabel(model, blast, taskType) {
   // Persistent model badge in chat header
   const badge = document.getElementById('chat-model-name');
   if (badge && model) {
-    let text = model;
-    if (blast) text += ` · blast ${blast}`;
-    if (taskType && taskType !== 'general') text += ` · ${taskType}`;
+    var text = model;
+    if (blast) text += ' · blast ' + blast;
+    if (taskType && taskType !== 'general') text += ' · ' + taskType;
     badge.textContent = text;
     badge.parentElement.classList.remove('hidden');
+  }
+  // Update header badge
+  var hb = document.getElementById('header-model');
+  if (hb && model) {
+    hb.textContent = model;
+    if (blast) hb.textContent += ' · blast ' + blast;
+    hb.classList.remove('hidden');
+    hb.className = 'badge model-badge ' + (model.indexOf('deepseek') >= 0 ? '' : '');
+  }
+  var hblast = document.getElementById('header-blast');
+  if (hblast && taskType && taskType !== 'general') {
+    hblast.textContent = taskType;
+    hblast.classList.remove('hidden');
   }
 }
 
@@ -1668,13 +1674,120 @@ function renderICPGGraphSVG(pane, key, nodes, edges) {
   pane.innerHTML = html;
 }
 
+// ── Memory (Mnemos + Engrams) ───────────────────────────────────────────
+async function loadMemory() {
+  const pane = document.getElementById('pane-memory');
+  pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i>Loading memory...</div>';
+  try {
+    const [engramDiag, engramQuery] = await Promise.all([
+      api('/engram/diagnostics').catch(function() { return {}; }),
+      api('/engram/query?limit=5').catch(function() { return { records: [] }; })
+    ]);
+    var html = '<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">';
+    html += '<div class="card p-4">';
+    html += '<h3 class="text-sm font-bold text-white mb-3"><i class="fas fa-brain text-orange-500 mr-2"></i>Memory Health</h3>';
+    html += '<div class="grid grid-cols-3 gap-3 text-xs">';
+    var fatigue = engramDiag.fatigue_score || 0;
+    var state = fatigue < 0.4 ? 'FLOW' : fatigue < 0.6 ? 'COMPRESS' : fatigue < 0.75 ? 'PRE_SLEEP' : fatigue < 0.9 ? 'REM' : 'EMERGENCY';
+    var stateColor = fatigue < 0.4 ? '#22c55e' : fatigue < 0.6 ? '#eab308' : fatigue < 0.75 ? '#f97316' : '#ef4444';
+    html += '<div class="col-span-3"><div class="flex justify-between mb-1"><span>Fatigue</span><span style="color:' + stateColor + '">' + (fatigue * 100).toFixed(0) + '% · ' + state + '</span></div>';
+    html += '<div class="w-full h-2 rounded-full" style="background:#1e2636"><div class="h-2 rounded-full" style="width:' + (fatigue * 100) + '%;background:' + stateColor + '"></div></div></div>';
+    html += '<div><div class="text-gray-500">Engrams</div><div class="text-white text-lg font-bold">' + (engramDiag.total_engrams || 0) + '</div></div>';
+    html += '<div><div class="text-gray-500">Checkpoints</div><div class="text-white text-lg font-bold">' + (engramDiag.checkpoints || 0) + '</div></div>';
+    html += '<div><div class="text-gray-500">Expired</div><div class="text-white text-lg font-bold">' + (engramDiag.expired || 0) + '</div></div>';
+    html += '</div></div>';
+    var records = engramQuery.records || [];
+    if (records.length) {
+      html += '<div class="card p-4"><h3 class="text-sm font-bold text-white mb-2">Recent Memories</h3>';
+      for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        html += '<div class="flex items-center gap-2 py-1.5 border-b text-xs" style="border-color:#1e2636">';
+        html += '<span class="badge" style="font-size:9px;background:#1e2636">' + esc(r.memory_type || 'fact') + '</span>';
+        html += '<span class="flex-1 truncate text-gray-300">' + esc((r.content || '').substring(0, 80)) + '</span>';
+        html += '<span class="text-gray-600">' + relDate(r.created_at) + '</span></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    pane.innerHTML = html;
+    var fb = document.getElementById('fatigue-badge');
+    if (fb) { fb.textContent = (fatigue * 100).toFixed(0) + '% · ' + state; fb.style.color = stateColor; fb.className = ''; }
+  } catch (e) {
+    pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs">Memory offline — start a task to populate</div>';
+  }
+}
+
+// ── Progress Dashboard ──────────────────────────────────────────────────
+async function loadProgress() {
+  var pane = document.getElementById('pane-progress');
+  pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i>Loading progress...</div>';
+  try {
+    var [execSessions, signals] = await Promise.all([
+      api('/execute/sessions').catch(function(){ return { sessions: [] }; }),
+      api('/observability/signals?limit=20').catch(function(){ return { signals: [] }; })
+    ]);
+    var sessions = execSessions.sessions || [];
+    var html = '<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">';
+    html += '<h3 class="text-sm font-bold text-white"><i class="fas fa-bars-progress text-orange-500 mr-2"></i>Execution Progress</h3>';
+    if (!sessions.length) {
+      html += '<div class="text-gray-600 text-xs py-8 text-center">No active executions. Execute a task from the Inbox.</div>';
+    } else {
+      for (var i = 0; i < sessions.length; i++) {
+        var s = sessions[i];
+        var statusColor = s.status === 'completed' ? '#22c55e' : s.status === 'failed' ? '#ef4444' : '#eab308';
+        html += '<div class="card p-3 flex items-center gap-3">';
+        html += '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:' + statusColor + '"></div>';
+        html += '<div class="flex-1 min-w-0"><div class="text-xs font-medium text-white truncate">' + esc(s.task_title || s.task_id) + '</div>';
+        html += '<div class="text-[10px] text-gray-500">' + esc(s.mode || 'tdd') + ' · ' + esc(s.status) + ' · ' + relDate(s.started_at) + '</div></div>';
+        if (s.status === 'running') html += '<div class="shimmer-bar h-1 w-12 rounded"></div>';
+        html += '</div>';
+      }
+    }
+    var sigs = signals.signals || [];
+    if (sigs.length) {
+      html += '<h3 class="text-sm font-bold text-white mt-4">Recent Activity</h3>';
+      for (var j = 0; j < sigs.length; j++) {
+        var sig = sigs[j];
+        html += '<div class="flex items-center gap-2 py-1 text-[10px] text-gray-400"><span class="text-gray-600 w-12">' + relDate(sig.ts || sig.timestamp) + '</span>' + esc(sig.signal_type || sig.type || '') + '</div>';
+      }
+    }
+    html += '</div>';
+    pane.innerHTML = html;
+  } catch (e) {
+    pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs">Progress offline</div>';
+  }
+}
+
+// ── Heartbeat updater ──────────────────────────────────────────────────
+function updateHeartbeat() {
+  fetch('/api/heartbeat/status').then(function(r) { return r.json(); }).then(function(data) {
+    var jobs = data.jobs || [];
+    var indicator = document.getElementById('heartbeat-indicator');
+    if (indicator && jobs.length) {
+      var failed = jobs.filter(function(j) { return j.last_error; });
+      var dot = indicator.querySelector('span:first-child');
+      if (dot) {
+        dot.className = 'w-1.5 h-1.5 rounded-full ' + (failed.length ? 'bg-red-500' : 'bg-green-500 pulse-glow');
+      }
+    }
+  }).catch(function(){});
+}
+setInterval(updateHeartbeat, 30000);
+updateHeartbeat();
+
 // ── Init ────────────────────────────────────────────────────────────────
 async function loadAll() {
   try {
-    const h = await api('/health');
-    document.getElementById('org-badge').textContent = `${h.org} · ${h.provider} · ${h.codebases} codebases`;
-  } catch {}
-  const ready = await checkSetup();
+    var h = await api('/health');
+    var orgEl = document.getElementById('org-badge');
+    if (orgEl) orgEl.textContent = h.org + ' · ' + (h.provider || '') + ' · ' + (h.codebases || 0) + ' codebases';
+  } catch (e) {}
+  try {
+    var projData = await api('/projects');
+    var projects = (projData.projects || []).map(function(p) { return p.name; });
+    updateProjectList(projects);
+  } catch (e) {}
+  var ready = typeof checkSetup === 'function' ? await checkSetup() : true;
   if (ready) switchTab(CURRENT_TAB);
 }
 
