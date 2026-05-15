@@ -44,6 +44,28 @@ class TestRoutingDecisions:
         )
         assert name in ("codex", "claude")
 
+    def test_fatigued_escalates_model(self, mock_cfg):
+        rs = RoutingService(mock_cfg)
+        ctx = RoutingContext(blast_score=2, fatigue_score=0.65)
+        decision = rs.route(ctx)
+        name = (
+            decision.primary
+            if isinstance(decision.primary, str)
+            else decision.primary.name
+        )
+        assert name not in ("local", "kimi")
+
+    def test_rem_forces_premium(self, mock_cfg):
+        rs = RoutingService(mock_cfg)
+        ctx = RoutingContext(blast_score=2, fatigue_score=0.80)
+        decision = rs.route(ctx)
+        name = (
+            decision.primary
+            if isinstance(decision.primary, str)
+            else decision.primary.name
+        )
+        assert name in ("codex", "claude")
+
 
 class TestRoutingLearning:
     def test_record_outcome(self, mock_cfg):

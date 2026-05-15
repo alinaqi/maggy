@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from maggy.mnemos.constants import (
+    FATIGUE_ROUTING_ESCALATE as _ESCALATE,
+    FATIGUE_ROUTING_PREMIUM as _REM,
+)
+
 from .models import ModelTier
 
 
@@ -68,6 +73,7 @@ def route_task(
     security_sensitive: bool = False,
     tiers: list[ModelTier] | None = None,
     stakes: str = "low",
+    fatigue: float = 0.0,
 ) -> RoutingDecision:
     """Route a task to the optimal model tier.
 
@@ -86,7 +92,7 @@ def route_task(
     ]
 
     primary = _select_primary(
-        complexity_score, task_type, primaries, stakes,
+        complexity_score, task_type, primaries, stakes, fatigue,
     )
     validator = _select_validator(
         complexity_score, security_sensitive, validators, stakes,
@@ -109,6 +115,7 @@ def _select_primary(
     task_type: str,
     tiers: list[ModelTier],
     stakes: str = "low",
+    fatigue: float = 0.0,
 ) -> ModelTier:
     """Pick the cheapest tier that handles the complexity."""
     candidates = [
@@ -131,6 +138,16 @@ def _select_primary(
         ]
         if capable:
             return capable[0]
+
+    # Fatigue escalation: use capable models when tired
+    if fatigue >= _REM:
+        premium = _tier_at_rank(candidates, tiers, 4)
+        if premium:
+            return premium
+    if fatigue >= _ESCALATE:
+        mid = _tier_at_rank(candidates, tiers, 3)
+        if mid:
+            return mid
 
     return candidates[0]
 
@@ -160,6 +177,19 @@ def _build_fallback(
     ]
     above.sort(key=lambda t: t.cost_rank)
     return [t.name for t in above]
+
+
+def _tier_at_rank(
+    candidates: list[ModelTier],
+    all_tiers: list[ModelTier],
+    min_rank: int,
+) -> ModelTier | None:
+    """Find cheapest tier at or above min_rank."""
+    pool = [c for c in candidates if c.cost_rank >= min_rank]
+    if not pool:
+        pool = [t for t in all_tiers if t.cost_rank >= min_rank]
+    pool.sort(key=lambda t: t.cost_rank)
+    return pool[0] if pool else None
 
 
 def _build_reason(

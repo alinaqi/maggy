@@ -28,6 +28,7 @@ async def decide(
     blast: int = 0,
     task_type: str = "general",
     security: bool = False,
+    fatigue: float = 0.0,
     x_api_key: str | None = Header(None),
 ) -> dict:
     """Get routing decision for given context."""
@@ -36,7 +37,7 @@ async def decide(
     if not svc:
         return {"error": "routing not configured"}
     from maggy.routing import RoutingContext
-    ctx = RoutingContext(blast, task_type, security)
+    ctx = RoutingContext(blast, task_type, security, fatigue_score=fatigue)
     decision = svc.route(ctx)
     return {
         "primary": decision.primary,

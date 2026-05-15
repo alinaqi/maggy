@@ -29,6 +29,11 @@ STATE_BOUNDARIES: list[tuple[float, str]] = [
     (float("inf"), STATE_EMERGENCY),
 ]
 
+# -- Fatigue routing thresholds --
+FATIGUE_ROUTING_ESCALATE = 0.60   # PRE_SLEEP: skip cheap tiers
+FATIGUE_ROUTING_PREMIUM = 0.75    # REM: force premium model
+FATIGUE_PARALLEL_BLOCK = 0.50     # Disable parallel exec
+
 # -- Node types (all tiers) --
 NODE_TYPES = frozenset({
     "GoalNode", "ConstraintNode", "DecisionNode",
