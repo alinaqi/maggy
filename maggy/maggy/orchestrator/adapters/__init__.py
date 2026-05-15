@@ -7,11 +7,15 @@ from __future__ import annotations
 
 from .claude import ClaudeAdapter
 from .codex import CodexAdapter
+from .deepseek import DeepSeekAdapter
 from .kimi import KimiAdapter
 
 _REGISTRY: dict[str, type] = {
     "claude": ClaudeAdapter,
     "codex": CodexAdapter,
+    "deepseek": DeepSeekAdapter,
+    "deepseek-flash": DeepSeekAdapter,
+    "deepseek-pro": DeepSeekAdapter,
     "kimi": KimiAdapter,
 }
 

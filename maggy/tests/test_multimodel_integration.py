@@ -81,34 +81,39 @@ class TestRoutingDecisions:
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         for blast in (1, 2):
-            # Use "formatting" — "docs" is now rules-overridden
             ctx = RoutingContext(blast_score=blast, task_type="formatting")
             decision = svc.route(ctx)
             assert decision.primary.cost_rank <= 2, (
                 f"blast={blast} should route to cheap tier"
             )
-            assert decision.primary.name in ("local", "kimi")
+            assert decision.primary.name in ("local", "deepseek-flash")
 
     def test_mid_blast_routes_to_cheapest_capable(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=5, task_type="feature")
         decision = svc.route(ctx)
-        assert decision.primary.name in ("local", "codex")
+        assert decision.primary.name in (
+            "deepseek-flash", "deepseek-pro",
+        )
 
-    def test_blast_6_routes_to_codex(self, tmp_path):
+    def test_blast_6_routes_to_deepseek_pro(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=6, task_type="feature")
         decision = svc.route(ctx)
-        assert decision.primary.name == "codex"
+        assert decision.primary.name in (
+            "deepseek-pro", "kimi",
+        )
 
-    def test_high_blast_routes_to_codex_or_claude(self, tmp_path):
+    def test_high_blast_routes_to_premium(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=9, task_type="refactor")
         decision = svc.route(ctx)
-        assert decision.primary.name in ("codex", "claude")
+        assert decision.primary.name in (
+            "deepseek-pro", "kimi", "claude",
+        )
 
     def test_security_routes_to_claude(self, tmp_path):
         cfg = _project_cfg(tmp_path)
@@ -169,9 +174,8 @@ class TestExecutorPipeline:
             await executor._run(ctx, "plan")
 
         # Verify each complexity tier used a different model
-        cheap = {"local", "kimi"}
+        cheap = {"local", "deepseek-flash"}
         assert cheap & set(calls), "Low-blast should use cheap tier"
-        assert "codex" in calls, "Mid-blast should use codex"
         assert "claude" in calls, "Security should use claude"
         assert len(set(calls)) >= 3, (
             f"Expected >= 3 distinct models, got {set(calls)}"

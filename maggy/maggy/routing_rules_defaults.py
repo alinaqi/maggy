@@ -28,25 +28,27 @@ _CONV_DATA = [
 ]
 
 _OVERRIDES = {
-    "docs": ("claude", "Not prose-optimized", 0.9, "benchmark"),
+    "docs": ("deepseek-pro", "Prose-capable, cost-efficient", 0.9, "benchmark"),
     "security": ("claude", "Deep reasoning needed", 1.0, "rule"),
     "architecture": ("claude", "Cross-context awareness", 0.8, "rule"),
-    "tests": ("claude", "Test generation", 0.9, "benchmark"),
+    "tests": ("deepseek-pro", "Strong test generation", 0.9, "benchmark"),
     "planning": ("claude", "Structured reasoning", 0.8, "rule"),
 }
 
 _PHASES = {
     "spec": ("claude", "Comprehensive docs", 1.0, "rule"),
-    "tdd_red": ("claude", "Test design expertise", 0.9, "rule"),
+    "tdd_red": ("deepseek-pro", "Test design", 0.9, "rule"),
     "tdd_green": ("auto", "Blast-score routing", 1.0, "rule"),
     "review": ("claude", "Security+arch depth", 1.0, "rule"),
 }
 
 _PERF = {
-    "claude": (["security", "tests", "docs", "architecture"], ["cost"], 6, 1.0),
-    "codex": (["code_generation", "api_design", "bug", "feature"], ["docs"], 5, 1.0),
-    "kimi": (["schema", "simple_tasks", "docs"], ["complex_reasoning"], 1, 1.0),
-    "local": (["code_formatting", "simple_edits", "feature"], ["docs", "prose"], 1, 1.0),
+    "claude": (["security", "architecture", "planning"], ["cost"], 6, 1.0),
+    "deepseek-pro": (["code_generation", "debugging", "refactor", "tests", "docs"], ["security"], 5, 1.0),
+    "deepseek-flash": (["boilerplate", "simple_features", "crud", "tests"], ["complex_reasoning"], 3, 1.0),
+    "codex": (["review", "bulk_generation", "api_design"], ["docs"], 5, 1.0),
+    "kimi": (["documentation", "agentic_loops", "research"], ["complex_reasoning"], 1, 1.0),
+    "local": (["code_formatting", "simple_edits"], ["docs", "prose"], 1, 1.0),
 }
 
 

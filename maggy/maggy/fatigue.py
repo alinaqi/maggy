@@ -46,7 +46,8 @@ MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "claude": 200_000,
     "gpt": 128_000,
     "kimi": 128_000,
-    "deepseek": 128_000,
+    "deepseek-flash": 128_000,
+    "deepseek-pro": 128_000,
     "codex": 200_000,
     "local": 32_000,
 }
