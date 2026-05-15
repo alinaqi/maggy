@@ -52,10 +52,17 @@ class ModelEntry:
     context_window: int = 200_000
 
 
+DELEGATION_BIN = os.path.expanduser("~/bin")
+
 DEFAULT_MODELS: list[ModelEntry] = [
-    ModelEntry("local", "ollama", "qwen3-coder:30b-a3b-q8_0", "local", 0.0, 0.0, "ollama", 32_000),
-    ModelEntry("kimi", "moonshot", "kimi-k2", "cheap", 0.001, 10.0, "kimi", 128_000),
-    ModelEntry("deepseek", "deepseek", "deepseek-v3", "cheap", 0.002, 10.0, "deepseek", 128_000),
+    ModelEntry("local", "ollama", "qwen3-coder:30b-a3b-q8_0", "local", 0.0, 0.0,
+               os.path.join(DELEGATION_BIN, "qwen3"), 32_000),
+    ModelEntry("deepseek-flash", "deepseek", "deepseek-v4-flash", "cheap", 0.0001, 10.0,
+               os.path.join(DELEGATION_BIN, "deepseek"), 128_000),
+    ModelEntry("deepseek-pro", "deepseek", "deepseek-v4-pro", "medium", 0.0004, 20.0,
+               os.path.join(DELEGATION_BIN, "deepseek"), 128_000),
+    ModelEntry("kimi", "moonshot", "kimi-k2.6", "cheap", 0.0006, 10.0,
+               os.path.join(DELEGATION_BIN, "kimi"), 128_000),
     ModelEntry("gpt", "openai", "gpt-4o", "medium", 0.01, 20.0, "codex", 128_000),
     ModelEntry("claude", "anthropic", "claude-sonnet-4", "premium", 0.03, 50.0, "claude", 200_000),
     ModelEntry("codex", "openai", "codex", "validator", 0.02, 30.0, "codex", 200_000),
@@ -184,6 +191,14 @@ class PiAdapter:
         profile = self._profiles.get(model.cli_command)
         if profile and profile.installed:
             return profile.build_command(prompt, wd, max_turns)
+        # Delegation script conventions (~/bin/)
+        if model.name == "deepseek-flash":
+            return [model.cli_command, "--flash", prompt]
+        if model.name == "deepseek-pro":
+            return [model.cli_command, "--pro", prompt]
+        if "/kimi" in model.cli_command:
+            return [model.cli_command, "--quiet", "-p", prompt]
+        # Default: CLI with -p flag
         return [model.cli_command, "-p", prompt]
 
     def _detect_quota(self, text: str) -> bool:
