@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.14.1] - 2026-05-15
+
+### Fixed
+
+#### Mnemos Stability — OOM Prevention and Concurrent Access
+- **Bounded signal reads**: `read_recent_signals(n=30)` uses `deque` tail-read instead of loading entire `signals.jsonl` into memory — prevents OOM in long sessions
+- **SQLite WAL mode**: `MnemosDB` now enables `PRAGMA journal_mode=WAL` on init — prevents "database is locked" errors when multiple hooks fire concurrently
+- **Connection lifecycle**: `MnemosDB` implements context manager protocol (`with MnemosDB() as db:`), hook dispatch uses it to guarantee connection cleanup
+- **Constant usage**: `_hook_pre_compact` uses `COMPACT_UTILIZATION` constant instead of hardcoded `0.83`
+- **Type safety**: Hook handler signatures changed from `db: object` to `db: MnemosDB`
+- **Clean imports**: `extraction.py` uses normal `from pathlib import Path` instead of inline `__import__`
+- **8 new tests**: `read_recent_signals` (5 tests including malformed JSONL), WAL mode, context manager lifecycle — total now **243 tests**
+
+---
+
+## [6.14.0] - 2026-05-15
+
+### Added
+
+#### Mnemos Full Implementation — Task-Scoped Memory Lifecycle
+- **Tier 0 Core**: `constants.py`, `models.py` (12 node types, Pydantic models), `db.py` + `db_queries.py` (SQLite CRUD + bulk ops), `fatigue.py` (token util with 4-dim upgrade path), `checkpoint.py` (write/read/cooldown), `status.py`, `cli.py` + `cli_hooks.py` + `cli_nodes.py`
+- **Tier 1 Lifecycle**: `activation.py` (recency/frequency/centrality composite weights), `scope.py` (tag inference + Jaccard overlap), `signals.py` (JSONL tool call logger), `fatigue_dimensions.py` (4-dim: token 0.40, scatter 0.25, reread 0.20, error 0.15), `extraction.py` (tool-to-node pipeline), `consolidation.py` (micro-consolidation at COMPRESS range), `skills.py` (fingerprint + promotion algebra)
+- **Full Tier**: `rem.py` + `rem_slow_wave.py` + `rem_skills.py` + `rem_pruning.py` + `rem_wake.py` (4-phase REM process), `delegation.py` (sub-agent inheritance rules), `merge.py` (5 conflict types, absolute ConstraintNode protection), `orchestrator.py` (5 signal types), `handoff.py` (fleet diagnostics)
+- **Backward compat**: `_compat.py` preserves v0 `FatigueTracker` and `SignalLog` APIs
+- **230 new tests** across 27 test files, 83% coverage
+
+---
+
 ## [6.13.0] - 2026-05-15
 
 ### Added

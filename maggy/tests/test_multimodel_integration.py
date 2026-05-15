@@ -22,7 +22,7 @@ from maggy.config import (
     StorageConfig,
 )
 from maggy.coordination.lock_manager import LockManager
-from maggy.mnemos.fatigue import FatigueTracker
+from maggy.mnemos import FatigueTracker
 from maggy.providers.base import Task
 from maggy.routing import RoutingContext, RoutingService
 from maggy.services.executor import ExecutorService

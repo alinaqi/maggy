@@ -12,8 +12,7 @@ from maggy.checkpoint import CheckpointManager
 from maggy.config import MaggyConfig
 from maggy.coordination.lock_manager import LockManager
 from maggy.escalation.protocol import Escalator
-from maggy.mnemos.fatigue import FatigueTracker
-from maggy.mnemos.signals import SignalLog
+from maggy.mnemos import FatigueTracker, SignalLog
 from maggy.providers.base import IssueTrackerProvider
 from maggy.recovery.rollback import RollbackManager
 from maggy.routing import RoutingService
@@ -172,7 +171,9 @@ class ExecutorService:
         return review.score >= 3
 
     async def _run_model(self, ctx: SessionCtx, prompt: str, turns: int) -> RunResult:
-        decision = H.route_model(ctx.task, self._routing)
+        decision = H.route_model(
+            ctx.task, self._routing, self._fatigue.composite(),
+        )
         name = H.model_name(decision.primary)
         H.write_checkpoint(self._checkpoint, ctx.task, name)
         self._emit_status(name, "running")
@@ -234,11 +235,13 @@ class ExecutorService:
         """Check if task warrants parallel container execution."""
         if not self._orchestrator:
             return False
-        blast = H.blast_score(ctx.task)
         raw = ctx.task.raw if isinstance(ctx.task.raw, dict) else {}
+        if bool(raw.get("parallel")):
+            return True
+        blast = H.blast_score(ctx.task)
         files = H.int_value(raw.get("file_count", 0))
-        requested = bool(raw.get("parallel"))
-        return H.select_strategy(blast, files, requested) == "parallel"
+        fatigue = self._fatigue.composite()
+        return H.select_strategy(blast, files, fatigue) == "parallel"
 
     async def _run_parallel(self, ctx: SessionCtx) -> None:
         """Decompose task and run subtasks via orchestrator."""

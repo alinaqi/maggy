@@ -33,9 +33,27 @@ This gives near-real-time fatigue monitoring without requiring direct hook acces
 |------|---------|--------------|
 | Statusline | Every API call | Write `fatigue.json` with token metrics |
 | PreToolUse (Edit/Write) | Before file edits | Read fatigue, auto-checkpoint at 0.60+, auto-consolidate at 0.40+ |
-| PreCompact | Before compaction | Emergency checkpoint, typed preservation instructions |
-| SessionStart | Session begins | Load checkpoint, bridge iCPG state |
+| PreToolUse (no matcher) | Every tool call | **Fallback** post-compaction inject (marker-based, safety net) |
+| PreCompact | Before compaction | Emergency checkpoint, typed preservation instructions, compaction marker |
+| SessionStart "compact" | After compaction | **Primary** checkpoint re-injection into fresh context |
+| SessionStart "startup\|resume" | New/resumed session | Load checkpoint, bridge iCPG state |
 | Stop | Agent stops | Write final checkpoint |
+
+### Three-Layer Post-Compaction Defense
+
+```
+PreCompact → writes checkpoint + marker + summarizer instructions (Layer 1)
+    ↓
+Claude compacts (lossy summarization)
+    ↓
+SessionStart "compact" → PRIMARY re-injection, consumes marker (Layer 2)
+    ↓
+PreToolUse no-matcher → FALLBACK inject if marker still exists (Layer 3)
+```
+
+Layer 2 (SessionStart "compact") is the recommended approach because it fires
+before the agent takes any action, ensuring zero-gap memory restoration. Layer 3
+exists as a safety net for edge cases (older Claude Code versions, interrupted compaction).
 
 ## 2. MnemoGraph Architecture
 

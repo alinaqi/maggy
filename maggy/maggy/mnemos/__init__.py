@@ -1,6 +1,8 @@
-"""Mnemos helpers for fatigue and signal tracking."""
+"""Mnemos — Task-scoped memory lifecycle system."""
 
-from .fatigue import FatigueTracker
-from .signals import SignalLog
+__version__ = "0.1.0"
+
+# Backward-compatible v0 stub APIs
+from maggy.mnemos._compat import FatigueTracker, SignalLog
 
 __all__ = ["FatigueTracker", "SignalLog"]

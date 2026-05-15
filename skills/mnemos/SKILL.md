@@ -44,13 +44,16 @@ Fatigue states and actions:
 1. **Statusline** writes `fatigue.json` on every API call
 2. **PreToolUse** hook reads fatigue before every edit, auto-checkpoints at 0.60+
 3. **PreCompact** hook writes emergency checkpoint, compaction marker, and tells summarizer what to preserve
-4. **Post-Compaction Injection** (PreToolUse, no matcher) detects the compaction marker on the first tool call after compaction and re-injects the full checkpoint into context
-5. **SessionStart** hook loads last checkpoint on new session resume
+4. **SessionStart "compact"** fires immediately after compaction, re-injects full checkpoint (primary restore)
+5. **SessionStart "startup|resume"** loads last checkpoint on new/resumed sessions
+6. **PreToolUse fallback** (no matcher) detects compaction marker if SessionStart didn't fire
+7. **Stop** hook writes final checkpoint for next session
 
-### Post-Compaction Recovery (Two-Layer Defense):
-When Claude Code compacts the context (~83% full), Mnemos uses two layers:
-- **Layer 1**: PreCompact outputs strong preservation instructions with inline checkpoint content for the summarizer
-- **Layer 2**: After compaction, the first tool call triggers `mnemos-post-compact-inject.sh` which detects the `.mnemos/just-compacted` marker and re-injects the full checkpoint. This is the guaranteed path — it doesn't depend on the summarizer.
+### Post-Compaction Recovery (Three-Layer Defense):
+When Claude Code compacts the context (~83% full), Mnemos uses three layers:
+- **Layer 1 (PreCompact)**: Outputs strong preservation instructions with inline checkpoint content for the summarizer. Writes `.mnemos/just-compacted` marker.
+- **Layer 2 (SessionStart "compact")**: **PRIMARY re-injection.** Fires immediately when Claude resumes after compaction — before any agent action. Consumes the marker and injects the full checkpoint into the fresh context. This is the recommended approach per the RFC (Wake State Reconstruction).
+- **Layer 3 (PreToolUse fallback)**: If SessionStart doesn't fire (older versions, edge cases), the first tool call triggers `mnemos-post-compact-inject.sh` which detects the marker and injects. Safety net only.
 
 The result: after compaction, you'll see a "CONTEXT RESTORED AFTER COMPACTION" block with your goal, constraints, what you were working on, and progress. Resume from there.
 

@@ -35,6 +35,7 @@ class RoutingContext:
     project_key: str = ""
     pipeline_phase: str = ""
     stakes: str = "low"
+    fatigue_score: float = 0.0
 
 
 class RoutingService:
@@ -76,6 +77,7 @@ class RoutingService:
             ctx.task_type,
             ctx.security_sensitive,
             stakes=ctx.stakes,
+            fatigue=ctx.fatigue_score,
         )
         return self._penalize_uncalibrated(decision)
 

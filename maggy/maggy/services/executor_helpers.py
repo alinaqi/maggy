@@ -7,8 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from maggy.adapters.pi import RunResult
-from maggy.mnemos.fatigue import FatigueTracker
-from maggy.mnemos.signals import SignalLog
+from maggy.mnemos import FatigueTracker, SignalLog
 from maggy.process.model_router import RoutingDecision
 from maggy.routing import RoutingContext, RoutingService
 
@@ -22,7 +21,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def route_model(task: Task, routing: RoutingService) -> RoutingDecision:
+def route_model(
+    task: Task, routing: RoutingService, fatigue_score: float = 0.0,
+) -> RoutingDecision:
     """Pick the best model for a task via routing rules."""
     from maggy.services.stakes import classify_stakes
 
@@ -36,6 +37,7 @@ def route_model(task: Task, routing: RoutingService) -> RoutingDecision:
             security_sensitive=_security_flag(raw, task_type),
             project_key=str(raw.get("project_key") or task.board),
             stakes=stakes,
+            fatigue_score=fatigue_score,
         ),
     )
 
@@ -198,10 +200,13 @@ def _task_type(task: "Task") -> str:
 
 
 def select_strategy(
-    blast: int, file_count: int, user_requested: bool = False,
+    blast: int, file_count: int, fatigue: float = 0.0,
 ) -> str:
     """Return 'parallel' or 'sequential' execution strategy."""
-    if user_requested or blast >= 7 or file_count >= 5:
+    from maggy.mnemos.constants import FATIGUE_PARALLEL_BLOCK
+    if fatigue >= FATIGUE_PARALLEL_BLOCK:
+        return "sequential"
+    if blast >= 7 or file_count >= 5:
         return "parallel"
     return "sequential"
 

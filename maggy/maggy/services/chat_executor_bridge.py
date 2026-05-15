@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import AsyncGenerator
+
+logger = logging.getLogger(__name__)
 
 _PASSTHROUGH_TYPES = frozenset({"search", "docs", "review"})
 _BLAST_THRESHOLD = 4
@@ -29,7 +32,7 @@ def task_from_chat(
         description=message,
         status="open",
         raw={
-            "blast": decision.blast,
+            "blast_score": decision.blast,
             "task_type": decision.task_type,
             "model": getattr(decision, "model", ""),
             "source": "chat",
@@ -51,18 +54,22 @@ async def executor_stream(
     """Stream executor output as SSE chunks."""
     task = task_from_chat(message, decision, working_dir)
     model = getattr(decision, "model", "executor")
+    logger.info("executor_stream: blast=%d type=%s model=%s", decision.blast, decision.task_type, model)
     yield {"type": "agent_status", "status": f"Executing via {model}..."}
     try:
         sid = await asyncio.wait_for(
             executor.start(task.id, mode="tdd", working_dir=working_dir, task=task),
             timeout=30,
         )
+        logger.info("executor_stream: session %s started", sid)
         yield {"type": "text", "content": f"Executor session: {sid}\n"}
         async for chunk in _poll_session(executor, sid):
             yield chunk
     except asyncio.TimeoutError:
+        logger.warning("executor_stream: start() timed out after 30s")
         yield {"type": "error", "content": "Executor timed out"}
     except Exception as e:
+        logger.warning("executor_stream: error: %s", e)
         yield {"type": "error", "content": str(e)}
 
 

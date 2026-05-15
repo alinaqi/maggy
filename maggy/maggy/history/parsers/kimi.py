@@ -103,10 +103,17 @@ class KimiHistoryParser(HistoryParser):
             return ""
         try:
             data = json.loads(config_path.read_text())
-            dirs = data.get("work_dirs", {})
-            path = dirs.get(session_id, "")
-            if path:
-                return str(Path(path).expanduser().resolve())
+            dirs = data.get("work_dirs", [])
+            if isinstance(dirs, list):
+                for entry in dirs:
+                    if isinstance(entry, dict) and entry.get("last_session_id") == session_id:
+                        path = entry.get("path", "")
+                        if path:
+                            return str(Path(path).expanduser().resolve())
+            elif isinstance(dirs, dict):
+                path = dirs.get(session_id, "")
+                if path:
+                    return str(Path(path).expanduser().resolve())
         except (json.JSONDecodeError, OSError):
             pass
         return ""

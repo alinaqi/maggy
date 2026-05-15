@@ -32,8 +32,7 @@ from maggy.config import (
 )
 from maggy.coordination.lock_manager import LockManager
 from maggy.escalation.protocol import Escalator
-from maggy.mnemos.fatigue import FatigueTracker
-from maggy.mnemos.signals import SignalLog
+from maggy.mnemos import FatigueTracker, SignalLog
 from maggy.observability.collector import ObservabilityCollector
 from maggy.providers.base import Task
 from maggy.registry import ProjectRegistry

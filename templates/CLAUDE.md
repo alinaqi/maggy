@@ -92,6 +92,17 @@ All agents use Mnemos for memory management:
 - `mnemos checkpoint` at sub-goal boundaries
 - Session hooks auto-manage fatigue and checkpoints
 
+### Mnemos Auto-Restore (Compaction & Session Resume)
+Mnemos hooks automatically restore context after compaction and on session resume.
+When you see "MNEMOS CHECKPOINT" in your context, it was injected by a hook:
+1. **Announce immediately** — tell the user what was restored (goal, constraints, progress)
+2. **Resume from checkpoint** — do NOT re-derive what the checkpoint already states
+3. **If no checkpoint fires** (hook failure), manually restore:
+   - Read `.mnemos/checkpoint-latest.json` for the last checkpoint
+   - Run `sqlite3 .mnemos/mnemo.db "SELECT type, content FROM mnemo_nodes WHERE status='active'"` for live nodes
+   - Or run `mnemos resume` if the CLI is available
+4. **On any new session**: if `.mnemos/` exists, run `mnemos resume` to check for prior state
+
 ## Don't
 - Don't modify .env files
 - Don't add packages without checking if existing deps cover the need
