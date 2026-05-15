@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.16.0] - 2026-05-16
+
+### Added
+
+#### Multi-Model Delegation Pattern
+- **External model delegation via `~/bin/` scripts** — consistent pattern for calling Qwen3, DeepSeek, Kimi, and Codex from both Claude Code hooks and Maggy's executor
+- **6-tier routing hook** — `UserPromptSubmit` hook classifies every prompt via qwen3 into QWEN / DEEPSEEK_FLASH / DEEPSEEK_PRO / KIMI / CODEX / CLAUDE tiers
+- **`~/bin/deepseek`** — Python delegation script calling DeepSeek's Anthropic-compatible API via httpx, supports `--flash` / `--pro` flags
+- **Project CLAUDE.md** — created with full skill references, routing table, and project structure docs
+
+#### DeepSeek V4 in Maggy Routing
+- `model_router.py` — expanded DEFAULT_TIERS from 4 to 6: local → deepseek-flash → deepseek-pro → kimi → codex → claude
+- `ai_client.py` — DeepSeek API completion via OpenAI-compatible endpoint with httpx
+- `adapters/deepseek.py` — DeepSeek orchestrator adapter registered for deepseek, deepseek-flash, deepseek-pro
+- `routing_rules_defaults.py` — docs/tests route to deepseek-pro, security/architecture stay on claude
+- `fatigue.py` — split deepseek into flash/pro context windows (128K each)
+- `chat_router.py` — added `use deepseek` force pattern
+- `pi.py` — DEFAULT_MODELS split into flash/pro, `_build_command` handles delegation script conventions
+
+#### Skill Documentation
+- `skills/external-model-delegation/SKILL.md` — complete reference: tier table, delegation script contract, routing hook flow, classification tiers, environment setup
+
+### Tests
+- `test_deepseek_routing.py` — 16 new tests for 6-tier routing, cost ordering, provider mapping, strength attributes
+- Updated `test_routing_service.py`, `test_benchmark_scenario.py`, `test_multimodel_integration.py` for new tier structure
+- 80 routing tests pass, 0 failures
+
+---
+
 ## [6.15.0] - 2026-05-16
 
 ### Added
