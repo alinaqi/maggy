@@ -105,6 +105,7 @@ function switchTab(tab) {
   else if (tab === 'budget') loadBudget();
   else if (tab === 'routing') loadRouting();
   else if (tab === 'forge') loadForge();
+  else if (tab === 'icpg') loadICPG();
   else if (tab === 'settings') loadSettings();
 }
 
@@ -433,6 +434,31 @@ let CHAT_SESSION_ID = null;
 let CHAT_SESSIONS_CACHE = [];
 let CURRENT_MODEL = '';
 let _streamingActive = false;
+let _lastStreamRender = 0;
+
+// Sidebar star + collapse state (persisted in localStorage)
+function _starredProjects() {
+  try { return JSON.parse(localStorage.getItem('maggy-starred') || '[]'); } catch { return []; }
+}
+function _collapsedProjects() {
+  try { return JSON.parse(localStorage.getItem('maggy-collapsed') || '[]'); } catch { return []; }
+}
+function toggleStar(key) {
+  const starred = _starredProjects();
+  const idx = starred.indexOf(key);
+  if (idx >= 0) starred.splice(idx, 1); else starred.push(key);
+  localStorage.setItem('maggy-starred', JSON.stringify(starred));
+  const pane = document.getElementById('pane-chat');
+  if (pane) renderChatUI(pane);
+}
+function toggleCollapse(key) {
+  const collapsed = _collapsedProjects();
+  const idx = collapsed.indexOf(key);
+  if (idx >= 0) collapsed.splice(idx, 1); else collapsed.push(key);
+  localStorage.setItem('maggy-collapsed', JSON.stringify(collapsed));
+  const pane = document.getElementById('pane-chat');
+  if (pane) renderChatUI(pane);
+}
 
 async function loadChat() {
   const pane = document.getElementById('pane-chat');
@@ -463,12 +489,19 @@ function renderChatUI(pane) {
 }
 
 function renderChatSidebar(sessions) {
-  // Group sessions by project_key
   const groups = {};
   for (const s of sessions) {
     const key = s.project_key || 'unknown';
     (groups[key] = groups[key] || []).push(s);
   }
+  const starred = _starredProjects();
+  const collapsed = _collapsedProjects();
+  // Sort: starred first, then alphabetical
+  const keys = Object.keys(groups).sort((a, b) => {
+    const aS = starred.includes(a) ? 0 : 1;
+    const bS = starred.includes(b) ? 0 : 1;
+    return aS - bS || a.localeCompare(b);
+  });
   let html = `<div class="w-60 shrink-0 border-r border-gray-800 pr-3 overflow-y-auto">`;
   html += `<div class="flex items-center justify-between mb-2">
     <span class="text-[10px] text-gray-500 uppercase font-bold"><i class="fas fa-circle text-green-400 text-[8px] mr-1"></i>Projects</span>
@@ -477,29 +510,41 @@ function renderChatSidebar(sessions) {
   if (!sessions.length) {
     html += `<div class="text-[10px] text-gray-500 p-2">No active CLI sessions detected</div>`;
   }
-  for (const [project, slist] of Object.entries(groups)) {
+  for (const project of keys) {
+    const slist = groups[project];
+    const isStarred = starred.includes(project);
+    const isCollapsed = collapsed.includes(project);
+    const starCls = isStarred ? 'text-yellow-400' : 'text-gray-700 hover:text-yellow-400';
+    const starIcon = isStarred ? 'fa-star' : 'fa-star';
+    const chevron = isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down';
     html += `<div class="mb-2">`;
-    html += `<div class="flex items-center gap-1 mb-1">
-      <i class="fas fa-folder text-orange-400 text-[10px]"></i>
-      <span class="text-[10px] text-gray-400 font-bold uppercase truncate flex-1">${esc(project)}</span>
-      <button onclick="newSessionForProject('${jsStr(project)}')" class="text-[9px] text-gray-600 hover:text-orange-400" title="New session in ${esc(project)}"><i class="fas fa-plus"></i></button>
+    html += `<div class="flex items-center gap-1 mb-1 group">
+      <button onclick="event.stopPropagation(); toggleCollapse('${jsStr(project)}')" class="text-[9px] text-gray-600 hover:text-white w-3"><i class="fas ${chevron}"></i></button>
+      <button onclick="event.stopPropagation(); toggleStar('${jsStr(project)}')" class="text-[9px] ${starCls}" title="${isStarred ? 'Unstar' : 'Star'}"><i class="fas ${starIcon}"></i></button>
+      <span class="text-[10px] text-gray-400 font-bold uppercase truncate flex-1 cursor-pointer" onclick="toggleCollapse('${jsStr(project)}')">${esc(project)}</span>
+      <button onclick="newSessionForProject('${jsStr(project)}')" class="text-[9px] text-gray-600 hover:text-orange-400 opacity-0 group-hover:opacity-100" title="New session"><i class="fas fa-plus"></i></button>
     </div>`;
-    for (let i = 0; i < slist.length; i++) {
-      const s = slist[i];
-      const active = s.id === CHAT_SESSION_ID ? 'bg-gray-800 border-orange-500' : 'border-transparent hover:bg-gray-900';
-      const displayName = s.label || `Session ${i + 1}`;
-      const isBranch = s.label && s.label !== `Session ${i + 1}`;
-      const icon = isBranch ? 'fa-code-branch' : 'fa-circle';
-      const resumeBadge = s.has_resume_id ? '<i class="fas fa-history text-green-400 text-[7px]" title="Claude session linked"></i>' : '';
-      html += `<div class="card px-2 py-1 cursor-pointer border ml-2 ${active}" onclick="openChatSession('${jsStr(s.id)}')">
-        <div class="flex items-center gap-1">
-          <i class="fas ${icon} ${isBranch ? 'text-orange-400' : 'text-green-400'} text-[7px]"></i>
-          <span id="slabel-${esc(s.id)}" class="text-[10px] text-gray-300 flex-1 truncate">${esc(displayName)}</span>
-          ${resumeBadge}
-          <button onclick="event.stopPropagation(); renameSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-orange-400" title="Rename"><i class="fas fa-pen"></i></button>
-          <button onclick="event.stopPropagation(); deleteSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-red-400" title="Delete"><i class="fas fa-trash"></i></button>
-        </div>
-      </div>`;
+    if (!isCollapsed) {
+      for (let i = 0; i < slist.length; i++) {
+        const s = slist[i];
+        const active = s.id === CHAT_SESSION_ID ? 'bg-gray-800 border-orange-500' : 'border-transparent hover:bg-gray-900';
+        const displayName = s.label || `Session ${i + 1}`;
+        const isBranch = s.label && s.label !== `Session ${i + 1}`;
+        const icon = isBranch ? 'fa-code-branch' : 'fa-circle';
+        const resumeBadge = s.has_resume_id ? '<i class="fas fa-history text-green-400 text-[7px]" title="Claude session linked"></i>' : '';
+        html += `<div class="card px-2 py-1 cursor-pointer border ml-4 ${active}" onclick="openChatSession('${jsStr(s.id)}')">
+          <div class="flex items-center gap-1">
+            <i class="fas ${icon} ${isBranch ? 'text-orange-400' : 'text-green-400'} text-[7px]"></i>
+            <span id="slabel-${esc(s.id)}" class="text-[10px] text-gray-300 flex-1 truncate">${esc(displayName)}</span>
+            ${resumeBadge}
+            <button onclick="event.stopPropagation(); renameSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-orange-400" title="Rename"><i class="fas fa-pen"></i></button>
+            <button onclick="event.stopPropagation(); deleteSession('${jsStr(s.id)}')" class="text-[9px] text-gray-600 hover:text-red-400" title="Delete"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>`;
+      }
+    } else {
+      // Show count badge when collapsed
+      html += `<div class="ml-4 text-[9px] text-gray-600">${slist.length} session${slist.length !== 1 ? 's' : ''}</div>`;
     }
     html += `</div>`;
   }
@@ -534,15 +579,15 @@ function renderChatMain() {
         <input id="chat-file" type="file" class="hidden" onchange="handleFileSelect(event)" multiple />
         <button onclick="document.getElementById('chat-file').click()" class="px-3 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm" title="Attach file"><i class="fas fa-paperclip"></i></button>
         <div class="flex-1 relative">
-          <div id="chat-ghost" class="absolute inset-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
-          <input id="chat-input" type="text" placeholder="Type a message..."
-            class="w-full text-sm text-white rounded-lg px-3 py-2.5 border border-gray-700 focus:border-orange-500 outline-none relative bg-transparent"
-            style="background: #151922;"
-            onkeydown="handleChatKeydown(event)" oninput="updateGhostText()" />
+          <div id="chat-ghost" class="absolute inset-x-0 top-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
+          <textarea id="chat-input" rows="1" placeholder="Type a message..."
+            class="w-full text-sm text-white rounded-lg px-3 py-2 border border-gray-700 focus:border-orange-500 outline-none resize-none overflow-hidden"
+            style="background: #151922; max-height: 120px;"
+            onkeydown="handleChatKeydown(event)" oninput="autoResizeInput(); updateGhostText()"></textarea>
         </div>
-        <button onclick="sendChatMessage()" class="px-4 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm"><i class="fas fa-paper-plane"></i></button>
+        <button onclick="sendChatMessage()" class="self-end px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm"><i class="fas fa-paper-plane"></i></button>
       </div>
-      <div class="text-[9px] text-gray-600 mt-1.5 text-center">Tab to accept suggestion · Enter to send · <i class="fas fa-paperclip text-[8px]"></i> to attach</div>
+      <div class="text-[9px] text-gray-600 mt-1 text-center">Tab to accept · Enter to send · Shift+Enter for newline</div>
     </div>`;
     html += `<div class="border-t border-gray-700/50"></div>`;
   } else {
@@ -689,7 +734,7 @@ function renderHistoryContext(ctx) {
 function renderUserMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
   return `<div class="flex justify-end"><div class="max-w-[75%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
-    <div class="text-xs text-white">${esc(m.content)}</div>${ts}
+    <div class="text-xs text-white whitespace-pre-wrap">${esc(m.content)}</div>${ts}
   </div></div>`;
 }
 
@@ -872,7 +917,7 @@ function updateGhostText() {
 }
 
 function handleChatKeydown(event) {
-  if (event.key === 'Enter') { sendChatMessage(); return; }
+  if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); return; }
   if (event.key === 'Tab' && _currentSuggestion) {
     const input = document.getElementById('chat-input');
     if (input && (!input.value || _currentSuggestion.toLowerCase().startsWith(input.value.toLowerCase()))) {
@@ -881,6 +926,14 @@ function handleChatKeydown(event) {
       updateGhostText();
     }
   }
+}
+
+function autoResizeInput() {
+  const el = document.getElementById('chat-input');
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  el.style.overflowY = el.scrollHeight > 120 ? 'auto' : 'hidden';
 }
 
 function refreshSuggestion() {
@@ -961,7 +1014,7 @@ async function sendChatMessage() {
   const el = document.getElementById('chat-messages-inner') || outer;
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
   el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
-    <div id="stream-text" class="text-xs text-gray-300 whitespace-pre-wrap"></div>
+    <div id="stream-text" class="text-xs text-gray-300"></div>
     <div id="stream-tools" class="mt-1"></div>
   </div></div>`;
   if (outer) outer.scrollTop = outer.scrollHeight;
@@ -976,6 +1029,7 @@ async function sendChatMessage() {
   _streamingActive = false;
   hideWorking();
   input.disabled = false;
+  input.style.height = 'auto';
   input.focus();
   refreshSuggestion();
 }
@@ -1022,12 +1076,24 @@ async function streamChatResponse(message, el) {
           el.scrollTop = el.scrollHeight;
           continue;
         }
-        if (data.content) { responseText += data.content; streamEl.textContent = responseText; el.scrollTop = el.scrollHeight; }
+        if (data.content) {
+          responseText += data.content;
+          // Debounced markdown render during streaming
+          const now = Date.now();
+          if (now - _lastStreamRender > 300) {
+            streamEl.innerHTML = renderMd(responseText);
+            _lastStreamRender = now;
+          } else {
+            streamEl.textContent = responseText;
+          }
+          if (el) el.scrollTop = el.scrollHeight;
+        }
       } catch {}
     }
   }
   if (responseText && streamEl) { streamEl.innerHTML = renderMd(responseText); }
   if (!responseText && streamEl) streamEl.textContent = '(no response)';
+  if (el) el.scrollTop = el.scrollHeight;
   _lastResponse = responseText.slice(0, 500);
 }
 
@@ -1414,6 +1480,192 @@ async function autoConfigureSetup() {
     btn.innerHTML = '<i class="fas fa-wand-magic mr-1"></i>Auto-Configure';
     btn.disabled = false;
   }
+}
+
+// ── iCPG ─────────────────────────────────────────────────────────────────
+let ICPG_PROJECT = null;
+
+async function loadICPG() {
+  const pane = document.getElementById('pane-icpg');
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading iCPG…</div>`;
+  try {
+    const data = await api('/icpg/overview');
+    if (ICPG_PROJECT) { await loadICPGProject(ICPG_PROJECT); return; }
+    pane.innerHTML = renderICPGOverview(data);
+  } catch (e) {
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderICPGOverview(data) {
+  const t = data.total || {};
+  let html = `<div class="overflow-y-auto h-full">`;
+  html += `<h2 class="text-sm font-bold text-white mb-3"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>iCPG — Intent Graph</h2>`;
+  html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+    <div class="card p-3 text-center"><div class="text-xl font-bold text-orange-400">${t.reasons || 0}</div><div class="text-[10px] text-gray-500">ReasonNodes</div></div>
+    <div class="card p-3 text-center"><div class="text-xl font-bold text-blue-400">${t.symbols || 0}</div><div class="text-[10px] text-gray-500">Symbols</div></div>
+    <div class="card p-3 text-center"><div class="text-xl font-bold text-green-400">${t.edges || 0}</div><div class="text-[10px] text-gray-500">Edges</div></div>
+    <div class="card p-3 text-center"><div class="text-xl font-bold ${t.drift > 0 ? 'text-red-400' : 'text-gray-500'}">${t.drift || 0}</div><div class="text-[10px] text-gray-500">Drift Events</div></div>
+  </div>`;
+  const projects = (data.projects || []).filter(p => p.reasons > 0);
+  if (!projects.length) {
+    html += `<div class="card p-4 text-xs text-gray-500">No iCPG databases found. Run <code class="bg-gray-800 px-1 rounded">icpg init && icpg bootstrap</code> in a project.</div>`;
+    return html + `</div>`;
+  }
+  html += `<div class="card p-4 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2">Projects with iCPG</div>`;
+  html += `<div class="space-y-1">`;
+  for (const p of projects) {
+    const driftBadge = p.drift > 0 ? `<span class="text-[9px] text-red-400 ml-1">${p.drift} drift</span>` : '';
+    html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-800 cursor-pointer" onclick="openICPGProject('${jsStr(p.key)}')">
+      <i class="fas fa-folder text-orange-400 text-[10px]"></i>
+      <span class="text-xs text-white flex-1">${esc(p.key)}</span>
+      <span class="text-[9px] text-gray-500">${p.reasons}R · ${p.symbols}S · ${p.edges}E</span>${driftBadge}
+      <i class="fas fa-chevron-right text-[8px] text-gray-600"></i>
+    </div>`;
+  }
+  html += `</div></div>`;
+  // Also show projects with 0 reasons but db exists
+  const empty = (data.projects || []).filter(p => p.reasons === 0);
+  if (empty.length) {
+    html += `<div class="text-[10px] text-gray-600 mt-2">${empty.length} project(s) with empty iCPG: ${empty.map(p => p.key).join(', ')}</div>`;
+  }
+  return html + `</div>`;
+}
+
+async function openICPGProject(key) {
+  ICPG_PROJECT = key;
+  await loadICPGProject(key);
+}
+
+async function loadICPGProject(key) {
+  const pane = document.getElementById('pane-icpg');
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading ${esc(key)}…</div>`;
+  try {
+    const [reasons, drift] = await Promise.all([
+      api(`/icpg/${encodeURIComponent(key)}/reasons?limit=100`),
+      api(`/icpg/${encodeURIComponent(key)}/drift`),
+    ]);
+    pane.innerHTML = renderICPGProject(key, reasons, drift);
+  } catch (e) {
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderICPGProject(key, reasons, drift) {
+  let html = `<div class="overflow-y-auto h-full">`;
+  html += `<div class="flex items-center gap-2 mb-3">
+    <button onclick="ICPG_PROJECT=null;loadICPG()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
+    <h2 class="text-sm font-bold text-white"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>${esc(key)}</h2>
+    <span class="text-[10px] text-gray-500">${(reasons.reasons||[]).length} intents</span>
+  </div>`;
+  // Drift alerts
+  const driftList = drift.drift || [];
+  if (driftList.length) {
+    html += `<div class="card p-3 mb-3 border-red-900/50"><div class="text-[10px] text-red-400 uppercase mb-1"><i class="fas fa-exclamation-triangle mr-1"></i>${driftList.length} Unresolved Drift</div>`;
+    html += `<div class="space-y-1">`;
+    for (const d of driftList.slice(0, 10)) {
+      const dims = (d.drift_dimensions || []).join(', ');
+      const sev = Math.round(d.severity * 100);
+      const color = sev >= 70 ? 'text-red-400' : sev >= 40 ? 'text-yellow-400' : 'text-gray-400';
+      html += `<div class="text-[10px]"><span class="${color} font-bold">[${sev}%]</span> <span class="text-gray-300">${esc(d.symbol_name || '?')}</span> <span class="text-gray-600">— ${esc(dims)}</span></div>`;
+    }
+    if (driftList.length > 10) html += `<div class="text-[9px] text-gray-600">+${driftList.length - 10} more</div>`;
+    html += `</div></div>`;
+  }
+  // ReasonNodes
+  const rlist = reasons.reasons || [];
+  html += `<div class="card p-3 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-bullseye mr-1"></i>Intents</div>`;
+  if (!rlist.length) {
+    html += `<div class="text-[10px] text-gray-600">No ReasonNodes found.</div>`;
+  } else {
+    // Group by status
+    const groups = {};
+    for (const r of rlist) { (groups[r.status] = groups[r.status] || []).push(r); }
+    const statusOrder = ['executing', 'proposed', 'fulfilled', 'drifted', 'rejected', 'abandoned'];
+    const statusIcon = { proposed: 'fa-question text-yellow-400', executing: 'fa-play text-blue-400', fulfilled: 'fa-check text-green-400', drifted: 'fa-exclamation text-red-400', rejected: 'fa-xmark text-gray-500', abandoned: 'fa-ban text-gray-600' };
+    const statusColor = { proposed: 'text-yellow-400', executing: 'text-blue-400', fulfilled: 'text-green-400', drifted: 'text-red-400', rejected: 'text-gray-500', abandoned: 'text-gray-600' };
+    for (const st of statusOrder) {
+      const items = groups[st];
+      if (!items) continue;
+      html += `<div class="mb-2"><div class="text-[9px] ${statusColor[st] || 'text-gray-500'} uppercase font-bold mb-1">${esc(st)} (${items.length})</div>`;
+      for (const r of items.slice(0, 20)) {
+        const typeLabel = r.decision_type !== 'task' ? `<span class="text-[8px] text-gray-600 ml-1">${esc(r.decision_type)}</span>` : '';
+        html += `<div class="flex items-start gap-1.5 py-0.5">
+          <i class="fas ${statusIcon[st] || 'fa-circle text-gray-600'} text-[8px] mt-0.5"></i>
+          <div class="flex-1 min-w-0"><div class="text-[10px] text-gray-300 truncate">${esc(r.goal)}${typeLabel}</div>
+          <div class="text-[8px] text-gray-600">${esc(r.owner)} · ${esc((r.created_at||'').slice(0,10))}</div></div>
+        </div>`;
+      }
+      if (items.length > 20) html += `<div class="text-[9px] text-gray-600 ml-3">+${items.length - 20} more</div>`;
+      html += `</div>`;
+    }
+  }
+  html += `</div>`;
+  // Graph viz button
+  html += `<div class="card p-3"><div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-diagram-project mr-1"></i>Graph</div>
+    <button onclick="loadICPGGraph('${jsStr(key)}')" class="text-[10px] px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-700 text-white"><i class="fas fa-project-diagram mr-1"></i>Visualize Graph</button>
+    <a href="/api/icpg/${encodeURIComponent(key)}/graph?limit=200" target="_blank" class="text-[10px] px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-blue-400 ml-2">Raw JSON</a>
+  </div>`;
+  return html + `</div>`;
+}
+
+async function loadICPGGraph(key) {
+  const pane = document.getElementById('pane-icpg');
+  try {
+    const data = await api(`/icpg/${encodeURIComponent(key)}/graph?limit=150`);
+    const nodes = data.nodes || [];
+    const edges = data.edges || [];
+    if (!nodes.length) { alert('No graph data'); return; }
+    renderICPGGraphSVG(pane, key, nodes, edges);
+  } catch (e) { alert('Graph failed: ' + e.message); }
+}
+
+function renderICPGGraphSVG(pane, key, nodes, edges) {
+  const W = pane.clientWidth - 40, H = Math.max(500, pane.clientHeight - 80);
+  // Position nodes using simple force-layout approximation
+  const nmap = {};
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    const angle = (i / nodes.length) * Math.PI * 2;
+    const r = n.type === 'reason' ? W * 0.2 : W * 0.35;
+    n.x = W / 2 + r * Math.cos(angle) + (Math.random() - 0.5) * 30;
+    n.y = H / 2 + r * Math.sin(angle) + (Math.random() - 0.5) * 30;
+    nmap[n.id] = n;
+  }
+  let svg = `<svg width="${W}" height="${H}" class="mx-auto">`;
+  // Edges
+  for (const e of edges) {
+    const from = nmap[e.from], to = nmap[e.to];
+    if (!from || !to) continue;
+    const color = e.type === 'CREATES' ? '#22c55e' : e.type === 'MODIFIES' ? '#f59e0b' : e.type === 'DRIFTS_FROM' ? '#ef4444' : '#6b7280';
+    svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${color}" stroke-width="0.5" opacity="0.4"/>`;
+  }
+  // Nodes
+  for (const n of nodes) {
+    const fill = n.type === 'reason' ? '#ea580c' : '#3b82f6';
+    const r = n.type === 'reason' ? 6 : 3;
+    svg += `<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${fill}" opacity="0.8"/>`;
+    if (n.type === 'reason') {
+      svg += `<text x="${n.x + 8}" y="${n.y + 3}" fill="#9ca3af" font-size="8" class="select-none">${esc(n.label.slice(0, 30))}</text>`;
+    }
+  }
+  // Legend
+  svg += `<g transform="translate(10, ${H - 50})">
+    <circle cx="5" cy="5" r="5" fill="#ea580c"/><text x="14" y="8" fill="#9ca3af" font-size="9">ReasonNode</text>
+    <circle cx="5" cy="20" r="3" fill="#3b82f6"/><text x="14" y="23" fill="#9ca3af" font-size="9">Symbol</text>
+    <line x1="90" y1="5" x2="110" y2="5" stroke="#22c55e" stroke-width="1.5"/><text x="114" y="8" fill="#9ca3af" font-size="9">CREATES</text>
+    <line x1="90" y1="20" x2="110" y2="20" stroke="#f59e0b" stroke-width="1.5"/><text x="114" y="23" fill="#9ca3af" font-size="9">MODIFIES</text>
+  </g>`;
+  svg += `</svg>`;
+  let html = `<div class="overflow-y-auto h-full">`;
+  html += `<div class="flex items-center gap-2 mb-3">
+    <button onclick="ICPG_PROJECT='${jsStr(key)}';loadICPGProject('${jsStr(key)}')" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
+    <h2 class="text-sm font-bold text-white"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>${esc(key)} — Graph</h2>
+    <span class="text-[10px] text-gray-500">${nodes.length} nodes · ${edges.length} edges</span>
+  </div>`;
+  html += `<div class="card p-2">${svg}</div>`;
+  html += `</div>`;
+  pane.innerHTML = html;
 }
 
 // ── Init ────────────────────────────────────────────────────────────────
