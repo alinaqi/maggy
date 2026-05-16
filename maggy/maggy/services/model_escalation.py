@@ -49,12 +49,73 @@ async def _claude_request(prompt: str) -> str | None:
 
 
 async def ollama_with_escalation(prompt: str) -> str | None:
-    """Try Ollama, escalate to Claude API on failure."""
+    """Cascade: qwen3 → kimi → deepseek-flash → Claude API → None.
+
+    Each level falls through if the model is unavailable or returns empty.
+    This ensures semantic classification works across languages and synonyms,
+    not just English keyword matching.
+    """
+    # Level 1: qwen3 (free, local, semantic)
     result = await _ollama_request(prompt)
     if result is not None:
         return result
-    logger.info("Ollama unavailable, escalating to Claude API")
+
+    # Level 2: kimi CLI (free, local)
+    logger.info("Ollama unavailable, trying kimi CLI")
+    result = await _kimi_request(prompt)
+    if result is not None:
+        return result
+
+    # Level 3: deepseek-flash (cheap API, ~$0.0001)
+    logger.info("Kimi unavailable, trying deepseek-flash")
+    result = await _deepseek_request(prompt)
+    if result is not None:
+        return result
+
+    # Level 4: Claude API (last resort)
+    logger.info("DeepSeek unavailable, escalating to Claude API")
     return await _claude_request(prompt)
+
+
+async def _kimi_request(prompt: str) -> str | None:
+    """Try kimi CLI for classification."""
+    import os, subprocess
+    kimi_bin = os.path.expanduser("~/bin/kimi")
+    if not os.path.exists(kimi_bin):
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            kimi_bin, "--quiet", "-p", prompt,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        if proc.returncode == 0 and stdout:
+            return stdout.decode().strip()
+    except Exception:
+        pass
+    return None
+
+
+async def _deepseek_request(prompt: str) -> str | None:
+    """Try deepseek-flash for classification."""
+    import os, subprocess
+    ds_bin = os.path.expanduser("~/bin/deepseek")
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if not os.path.exists(ds_bin) or not api_key:
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            ds_bin, "--flash", prompt,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        if proc.returncode == 0 and stdout:
+            return stdout.decode().strip()
+    except Exception:
+        pass
+    return None
 
 
 async def _qwen_vision(
