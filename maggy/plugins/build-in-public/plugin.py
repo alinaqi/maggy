@@ -11,6 +11,7 @@ mWP (7/11 stars): Not a webhook wrapper. An autonomous narrative engine that:
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -66,6 +67,8 @@ class ScheduledPost:
 logger = logging.getLogger(__name__)
 
 BUFFER_API = "https://api.buffer.com"  # GraphQL endpoint
+IMAGE_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+IMAGE_MODEL = "gemini-3.1-flash-image-preview"
 
 
 class ContentStrategy:
@@ -354,8 +357,14 @@ class BuildInPublic:
                 payload.get("url", payload.get("preview_url", ""))
             )
 
-        # Phase 4: Schedule all posts
-        await self._schedule_posts([s.__dict__ for s in scheduled], screenshot_path)
+        # Phase 3b: Generate AI image if visualization adds value
+        image_path = ""
+        if self._should_generate_image(event_type, context, narratives):
+            image_path = self._generate_image(event_type, context)
+
+        # Phase 4: Schedule all posts (with best available media)
+        media = screenshot_path or image_path
+        await self._schedule_posts([s.__dict__ for s in scheduled], media)
 
         # Phase 5: Commit to queue
         self._strategy.commit(scheduled)
@@ -601,6 +610,80 @@ class BuildInPublic:
             logger.debug("build-in-public: screenshot failed: %s", e)
 
         return ""
+
+    def _should_generate_image(self, event_type: str, context: dict,
+                               narratives: dict) -> bool:
+        """Ask DeepSeek if a visual would meaningfully improve these posts."""
+        # Only for architecture/deep-dive content
+        if event_type not in ("on_feature_shipped", "on_review_passed"):
+            return False
+        text = narratives.get("linkedin", narratives.get("x", ""))
+        if len(text) < 500:
+            return False
+        prompt = (
+            f"Would this post benefit from a generated visual (architecture "
+            f"diagram, technical illustration, or concept visualization)? "
+            f"Reply YES or NO.\n\n{text[:600]}"
+        )
+        try:
+            r = subprocess.run(
+                [os.path.expanduser("~/bin/deepseek"), "--flash", prompt],
+                capture_output=True, text=True, timeout=15,
+            )
+            return "YES" in (r.stdout or "").upper()[:10]
+        except Exception:
+            return False
+
+    def _generate_image(self, event_type: str, context: dict) -> str:
+        """Generate a technical illustration via Gemini Imagen."""
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            return ""
+
+        what = context.get("what", "")[:200]
+        image_prompt = (
+            f"Create a clean, modern technical illustration or diagram "
+            f"that visualizes this concept: {what}. "
+            f"Use a dark theme with orange accents. "
+            f"Minimalist, professional, suitable for a LinkedIn post. "
+            f"No text in the image unless it's labels on a diagram. "
+            f"Abstract visualization, not a screenshot or UI mockup."
+        )
+
+        try:
+            resp = httpx.post(
+                IMAGE_API,
+                headers={"x-goog-api-key": api_key,
+                         "Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": image_prompt}]}],
+                    "generationConfig": {
+                        "responseModalities": ["TEXT", "IMAGE"],
+                    },
+                },
+                timeout=60,
+            )
+            if resp.status_code != 200:
+                logger.debug("Gemini image gen failed: %s", resp.text[:200])
+                return ""
+
+            data = resp.json()
+            parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            for part in parts:
+                if "inlineData" in part:
+                    b64 = part["inlineData"]["data"]
+                    img_dir = Path.home() / ".maggy" / "build-in-public" / "images"
+                    img_dir.mkdir(parents=True, exist_ok=True)
+                    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                    path = img_dir / f"hero-{ts}.png"
+                    path.write_bytes(base64.b64decode(b64))
+                    logger.info("build-in-public: generated image %s", path)
+                    return str(path)
+
+            return ""
+        except Exception as e:
+            logger.debug("build-in-public: image generation failed: %s", e)
+            return ""
 
     def _preferred_time(self) -> str:
         """Return ISO timestamp for preferred posting time."""
