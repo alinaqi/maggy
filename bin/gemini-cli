@@ -35,4 +35,23 @@ if [ -z "$GEMINI_API_KEY" ]; then
   echo "[gemini-cli] WARNING: GEMINI_API_KEY not set — CLI may need separate auth" >&2
 fi
 
-exec gemini -p "$PROMPT" -m "$MODEL" --output-format json ${YOLO:+"$YOLO"}
+# Find the actual Gemini CLI binary (not our ~/bin/gemini API delegator)
+GEMINI_BIN=""
+for candidate in \
+  "$HOME/.nvm/versions/node/$(node -v 2>/dev/null | tr -d 'v')/bin/gemini" \
+  "$(npm root -g 2>/dev/null)/.bin/gemini" \
+  "/usr/local/bin/gemini" \
+  "$(which -a gemini 2>/dev/null | grep -v "$HOME/bin" | head -1)"; do
+  if [ -x "$candidate" ] && [ "$(dirname "$candidate")" != "$HOME/bin" ]; then
+    GEMINI_BIN="$candidate"
+    break
+  fi
+done
+
+if [ -z "$GEMINI_BIN" ]; then
+  echo "[gemini-cli] ERROR: Gemini CLI not found. Install: npm install -g @google/gemini-cli" >&2
+  echo "[gemini-cli] Note: ~/bin/gemini is the API delegator, not the CLI." >&2
+  exit 1
+fi
+
+exec "$GEMINI_BIN" -p "$PROMPT" -m "$MODEL" --output-format json --skip-trust ${YOLO:+"$YOLO"}
