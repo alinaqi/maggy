@@ -82,19 +82,22 @@ See [full skills catalog](./docs/claude-bootstrap-reference.md#skills-catalog-62
 
 ## Memory: Mnemos vs. Codex vs. Claude Code
 
-Every AI coding tool loses context on compaction — how it loses it and what survives defines the ceiling on session quality. Here's how Maggy's Mnemos differs:
+Every AI coding tool loses context on compaction. The difference is whether it prevents failure or just reacts to it.
+
+**Codex** compaction is an opaque encrypted blob triggered by a single token counter. When it misfires, the agent enters documented "death spirals" — up to 26 compactions per session, re-reading the same files 10-20×, burning 160M+ tokens on work that used to cost 89M. No telemetry surfaces *why* compaction fired. No memory survives the session.
+
+**Claude Code** uses 9-section XML summarization at a hardcoded ~95% token threshold. The summary is opaque to the user, discard decisions are invisible, and critical context (active errors, file contents) is silently dropped. No cross-session recall, no team context, no signal that the agent is struggling *before* the summary happens.
+
+**Maggy Mnemos** treats memory as a typed graph where goals and constraints are never evicted, while ephemeral context decays by relevance. A 4-dimension fatigue model (token pressure, scope scatter, reread ratio, error density) triggers consolidation *early* — in the COMPRESS state at 40-60% load, long before a death spiral. Mnemos measures **re-read ratio** explicitly — the leading indicator of a compaction death spiral. When the agent starts re-reading files it already read, fatigue rises and consolidation triggers *before* the context window is full. Every eviction decision is auditable in SQLite. Cross-session memory via Engram.
 
 | | Codex | Claude Code | Maggy (Mnemos) |
 |---|---|---|---|
-| **Compaction trigger** | Token threshold (~167K of 200K), blind | Token threshold, blind | **4-dimension fatigue** (token utilization, scope scatter, reread ratio, error density) |
-| **What's preserved** | Encrypted blob (OpenAI models) or 4-point text summary | 9-section XML summary | **Typed memory nodes** with per-type eviction policies (code-refs survive longer than error traces) |
-| **Transparency** | Zero (fast path is opaque AES-encrypted) | Readable but lossy | **Fully auditable** — every node type, eviction, and checkpoint is on disk |
-| **Recursive degradation** | Known death spirals (compacts for hours before producing) | Same — no telemetry | **Fatigue score surfaces degradation before death spirals** — compacts semantically, not blindly |
-| **Cross-session memory** | Per-user, non-editable | None | **Typed, queryable, cross-project** — Engram store persists across sessions |
-| **Team memory** | None — no pooling across teammates | None | **Shared via Engram** — accumulated context available to new team members |
+| **Compaction trigger** | Configurable token threshold, blind to workload | Hardcoded ~95% token threshold, blind | **4-dimension fatigue score** — token-aware but not token-blind |
+| **What survives** | Opaque AES-encrypted blob (both paths) | 9-section XML summary | **Typed memory nodes** with per-type eviction (goals/constraints never evicted) |
+| **Transparency** | Zero — cannot audit the summary | Readable but discard decisions invisible | **Fully auditable** — SQLite + JSONL, every node and eviction on disk |
+| **Death spiral prevention** | None — known to compact for hours | None — no pre-failure signal | **Re-read ratio + fatigue scoring** triggers consolidation at 40-60%, before the window is full |
+| **Cross-session memory** | None | None | **Engram store** — typed, queryable, persists across sessions |
 | **Pre-compaction safety** | None — compacts reactively | None | **Checkpoint written before compaction** — critical nodes survive even if compaction fails |
-
-**Codex** compacts like a senior engineer tearing up drafts and writing a status report — effective but irreversible, and you can't audit the summary. **Claude Code** gives you readable summaries but nothing persists across sessions. **Maggy** tracks *why* each memory node exists, applies per-type eviction, and surfaces fatigue before degradation begins.
 
 ## Core Concepts
 
