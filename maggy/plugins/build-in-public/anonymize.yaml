@@ -1,0 +1,31 @@
+# Sensitive terms → public-safe replacements
+# Build in public without exposing what should stay private.
+rules:
+  zenloop: "a CX SaaS platform"
+  protaige: "a brand intelligence platform"
+  Protaigé: "a brand intelligence platform"
+  edubites: "an ed-tech platform"
+  eduBites: "an ed-tech platform"
+  chessiega: "a chess analytics project"
+  Chessiega: "a chess analytics project"
+  Maia: "an AI agent"
+  Deepak: "an AI agent"
+  Zoro: "an autonomous engineering manager"
+
+# Never mention these — strip entirely
+strip:
+  - revenue numbers
+  - user counts
+  - customer names
+  - internal URLs
+  - API keys
+  - salary
+  - valuation
+  - investor names
+
+# Replace patterns via regex
+patterns:
+  - match: '\b\d+\.?\d*[kKmM]\s*(users|customers|ARR|MRR)\b'
+    replace: "at scale"
+  - match: '\$\d+[kKmM]?\s*(ARR|MRR|revenue)\b'
+    replace: "growing revenue"

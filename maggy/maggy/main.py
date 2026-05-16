@@ -21,6 +21,7 @@ from maggy import providers
 from maggy.api.routes import router as api_router
 from maggy.api.routes_aggregator import router as aggregator_router
 from maggy.api.routes_budget import router as budget_router
+from maggy.api.routes_plugins import router as plugins_router
 from maggy.api.routes_testing import router as testing_router
 from maggy.api.routes_cikg import router as cikg_router
 from maggy.api.routes_deploy import router as deploy_router
@@ -161,6 +162,12 @@ async def _start_heartbeat(app: FastAPI) -> None:
     await sched.start()
     app.state.heartbeat = sched
     logger.info("Heartbeat started — %d jobs", len(sched._jobs))
+    # Load plugins
+    from maggy.plugins.manager import get_plugin_manager
+    pm = get_plugin_manager()
+    loaded = pm.load_all()
+    app.state.plugins = pm
+    logger.info("Plugins loaded — %d active", loaded)
 
 
 @asynccontextmanager
@@ -282,9 +289,10 @@ _ROUTERS = (
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,
     mesh_router, mesh_admin_router, observability_router,
-    planning_router, process_router, projects_router,
-    routing_router, setup_router, testing_router, users_router,
-    orchestrator_router, ws_mesh_router,
+    orchestrator_router, planning_router, plugins_router,
+    process_router, projects_router, routing_router,
+    setup_router, testing_router, users_router,
+    ws_mesh_router,
 )
 
 
