@@ -34,10 +34,7 @@ SUMMARY="📊 Route: ${TIER} (by ${CLASSIFIER}) · est: ${COST} · today: ${DECI
 
 cat <<EOF
 {
-  "hookSpecificOutput": {
-    "hookEventName": "Stop",
-    "additionalContext": $(echo "$SUMMARY" | jq -Rs .)
-  }
+  "systemMessage": $(echo "$SUMMARY" | jq -Rs .)
 }
 EOF
 exit 0
