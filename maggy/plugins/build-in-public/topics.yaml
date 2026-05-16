@@ -127,6 +127,31 @@ monitor_accounts:
       - topic: "copilot"
         action: "like"
 
+# Reddit subreddits to monitor for relevant discussions
+reddit_monitor:
+  - "MachineLearning"
+  - "artificial"
+  - "LocalLLaMA"
+  - "LLMDevs"
+  - "ClaudeAI"
+  - "ChatGPTPro"
+  - "OpenAI"
+  - "Programming"
+  - "ExperiencedDevs"
+  - "buildinpublic"
+  - "indiehackers"
+  - "SideProject"
+  - "SaaS"
+  - "coding"
+  # Claude Code & Autonomous Coding
+  - "cursor"
+  - "aipromptengineering"
+  - "aicoding"
+  - "devops"
+  - "webdev"
+  - "softwareengineering"
+  - "learnprogramming"
+
 # Global monitoring config
 monitor_config:
   interval_minutes: 30      # default fetch interval

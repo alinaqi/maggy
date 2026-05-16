@@ -81,12 +81,19 @@ def status_for(project: str, live=False):
         if candidate.exists(): topics_path = candidate; break
 
     monitored = []
+    reddit_subs = []
+    watch_topics = []
     if topics_path:
         try:
             import yaml
             t = yaml.safe_load(topics_path.read_text())
             monitored = [a["handle"] for a in t.get("monitor_accounts", [])]
+            reddit_subs = t.get("reddit_monitor", [])
+            watch_topics = t.get("watch", [])
         except: pass
+
+    # Reddit state from engage file
+    reddit_state = eng.get("reddit_monitored", {})
 
     # Build summary
     lines.append(f"📋 Scheduled (queue):   {len(sched)}")
@@ -94,7 +101,14 @@ def status_for(project: str, live=False):
     if monitored:
         lines.append(f"   {', '.join(monitored[:8])}")
         if len(monitored) > 8: lines.append(f"   ... +{len(monitored)-8} more")
-
+    lines.append(f"🔴 Reddit subreddits:    {len(reddit_subs)}")
+    if reddit_subs:
+        lines.append(f"   {', '.join(reddit_subs[:8])}")
+    if reddit_state:
+        lines.append(f"   Last scan:            {reddit_state.get('last_scan', 'never')[:19]}")
+    lines.append(f"🏷️  Watch topics:         {len(watch_topics)}")
+    if watch_topics:
+        lines.append(f"   {', '.join(watch_topics[:6])}")
     lines.append(f"💬 Engagements today:    {eng.get('engagements_today', 0)}")
     lines.append(f"   Total replies:        {eng.get('replies', 0)}")
     lines.append(f"   Last monitor scan:    {eng.get('last_monitor_scan', 'never')[:19]}")

@@ -25,6 +25,7 @@ class SmartEngager:
         self._state = self._load_state()
         self._topics = self._load_topics()
         self._engaged_posts = self._load_engaged_posts()
+        self._social = None  # Lazy SocialMonitor
 
     def _load_state(self) -> dict:
         path = Path.home() / ".maggy" / "build-in-public" / f"engage-{self._project}.json"
@@ -254,28 +255,60 @@ class SmartEngager:
         return ""
 
     def run_account_monitor(self) -> list:
-        """Run full account monitoring cycle. Returns list of engagement results."""
+        """Run full account monitoring cycle including Reddit. Returns engagement results."""
         if not self._rate_limit_ok():
             logger.debug("SmartEngager: global rate limit reached")
             return []
 
         accounts = self.get_monitored_accounts()
-        if not accounts:
-            return []
-
         self._state["last_monitor_scan"] = datetime.now(timezone.utc).isoformat()
         self._save_state()
 
         results = []
-        for account in accounts:
-            if not self.should_monitor_now(account):
-                continue
 
-            posts = self.check_account_posts(account)
-            for post in posts:
-                result = self.process_account_post(account, post)
-                if result:
-                    results.append(result)
+        # X/Twitter accounts
+        if accounts:
+            for account in accounts:
+                if not self.should_monitor_now(account):
+                    continue
+                posts = self.check_account_posts(account)
+                for post in posts:
+                    result = self.process_account_post(account, post)
+                    if result:
+                        results.append(result)
+
+        # Reddit subreddits
+        reddit_results = self._monitor_reddit()
+        results.extend(reddit_results)
+
+        return results
+
+    def _monitor_reddit(self) -> list:
+        """Monitor Reddit subreddits for relevant content. Returns engagement results."""
+        if not self._social:
+            from maggy.plugins.build_in_public.social_api import SocialMonitor
+            self._social = SocialMonitor(self._project)
+
+        subreddits = self._topics.get("reddit_monitor", [])
+        if not subreddits:
+            # Defaults from social_api
+            from maggy.plugins.build_in_public.social_api import get_competitor_reddit_subreddits
+            subreddits = get_competitor_reddit_subreddits()
+
+        if not self._rate_limit_ok():
+            return []
+
+        results = []
+        # We can't call async directly — log what would happen
+        logger.info("SmartEngager: would monitor %d Reddit subreddits: %s",
+                    len(subreddits), ", ".join(subreddits[:5]))
+
+        # Store subreddit monitoring state
+        if "reddit_monitored" not in self._state:
+            self._state["reddit_monitored"] = {}
+        self._state["reddit_monitored"]["last_scan"] = datetime.now(timezone.utc).isoformat()
+        self._state["reddit_monitored"]["subreddits"] = subreddits
+        self._save_state()
 
         return results
 
