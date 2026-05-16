@@ -107,8 +107,8 @@ class BuildInPublic:
             "what": title, "context": body, "branch": branch,
         })
 
-        post = self._format_post(narrative, url)
-        await self._schedule(post, url)
+        posts = self._format_posts(narrative, url)
+        await self._schedule(posts, url)
 
     async def handle_feature_shipped(self, payload: dict):
         """Feature shipped → hero post with screenshot."""
@@ -127,8 +127,8 @@ class BuildInPublic:
             payload.get("url", "http://localhost:3000"),
         )
 
-        post = self._format_post(narrative, screenshot_path)
-        await self._schedule(post, screenshot_path)
+        posts = self._format_posts(narrative, screenshot_path)
+        await self._schedule(posts, screenshot_path)
 
     async def handle_review_passed(self, payload: dict):
         """Multi-model review unanimously approved → share the approach."""
@@ -146,86 +146,129 @@ class BuildInPublic:
             "context": plan[:500],
         })
 
-        post = self._format_post(narrative)
-        await self._schedule(post)
+        posts = self._format_posts(narrative)
+        await self._schedule(posts)
 
-    def _build_narrative(self, event_type: str, context: dict) -> str:
-        """Synthesize a narrative arc from raw event data.
-
-        Uses DeepSeek to extract the interesting story, not just the facts.
-        """
+    def _build_narrative(self, event_type: str, context: dict) -> dict:
+        """Synthesize narrative arcs per channel. Returns {channel: text}."""
         what = context.get("what", "")
         ctx = context.get("context", "")[:500]
+        channels = self._config.get("channels", {})
 
-        prompt = (
-            f"You are a technical storyteller. Turn this work into ONE tweet-length "
-            f"sentence (max 280 chars) that makes developers curious. "
-            f"Tone: confident, sharp, no hype sludge. "
-            f"Focus on the IMPACT and the APPROACH, not the feature name.\n\n"
-            f"Event: {event_type}\n"
-            f"What: {what}\n"
-            f"Context: {ctx}\n\n"
-            f"Write ONLY the post text, nothing else."
-        )
-
-        try:
-            deepseek = os.path.expanduser("~/bin/deepseek")
-            result = subprocess.run(
-                [deepseek, "--flash", prompt],
-                capture_output=True, text=True, timeout=30,
+        narratives = {}
+        for channel, cfg in channels.items():
+            max_chars = cfg.get("max_chars", 280)
+            tone = cfg.get("tone", "confident, sharp")
+            prompt = (
+                f"You are a technical storyteller posting on {channel.upper()}. "
+                f"Turn this work into a post (max {max_chars} chars). "
+                f"Tone: {tone}. "
+                f"Focus on IMPACT and APPROACH, not feature names. "
+                f"No hashtags unless they flow naturally.\n\n"
+                f"Event: {event_type}\n"
+                f"What: {what}\n"
+                f"Context: {ctx}\n\n"
+                f"Write ONLY the post text, nothing else."
             )
-            if result.returncode == 0 and result.stdout.strip():
-                narrative = result.stdout.strip()[:280]
-                return self._redact(narrative)
+            try:
+                deepseek = os.path.expanduser("~/bin/deepseek")
+                result = subprocess.run(
+                    [deepseek, "--flash", prompt],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    narratives[channel] = self._redact(
+                        result.stdout.strip()[:max_chars]
+                    )
+            except Exception:
+                pass
+
+        if not narratives:
+            narratives["linkedin"] = self._redact(
+                f"Shipped {what}: {ctx[:200]}"
+            )
+        return narratives
+
+    def _format_posts(self, narratives: dict, media_path: str = "") -> list[dict]:
+        """Format channel-specific posts."""
+        posts = []
+        channels = self._config.get("channels", {})
+        for channel, text in narratives.items():
+            cfg = channels.get(channel, {})
+            posts.append({
+                "channel": channel,
+                "text": text,
+                "media": [{"url": media_path}] if media_path else [],
+                "scheduled_at": self._channel_schedule(cfg),
+            })
+        return posts
+
+    def _channel_schedule(self, cfg: dict) -> str:
+        """Get preferred schedule time for a channel."""
+        tz = timezone.utc
+        now = datetime.now(tz)
+        schedule = cfg.get("schedule", "09:00 UTC")
+        try:
+            hour, minute = map(int, schedule.replace(" UTC", "").split(":")[:2])
+            scheduled = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if scheduled < now:
+                from datetime import timedelta
+                scheduled += timedelta(days=1)
+            return scheduled.isoformat()
         except Exception:
-            pass
+            return now.isoformat()
 
-        # Fallback: simple template
-        return self._redact(f"Shipped {what}: {ctx[:100]}")
-
-    def _format_post(self, narrative: str, media_path: str = "") -> dict:
-        """Format for channel — currently LinkedIn-optimized."""
-        return {
-            "text": narrative,
-            "media": [{"url": media_path}] if media_path else [],
-            "scheduled_at": self._preferred_time(),
-        }
-
-    async def _schedule(self, post: dict, media_path: str = ""):
-        """Schedule via Buffer API."""
+    async def _schedule(self, posts: list[dict], media_path: str = ""):
+        """Schedule posts to Buffer — one per channel."""
         token = os.environ.get("BUFFER_ACCESS_TOKEN", "")
         if not token:
-            logger.info("build-in-public: BUFFER_ACCESS_TOKEN not set, "
-                        "would have posted: %s", post["text"][:100])
-            # Log to file as fallback
-            self._log_post(post)
+            for post in posts:
+                logger.info(
+                    "build-in-public: [%s] BUFFER_ACCESS_TOKEN not set, "
+                    "would have posted: %s", post["channel"], post["text"][:100]
+                )
+                self._log_post(post)
             return
 
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                profiles = await client.get(
+                profiles_resp = await client.get(
                     f"{BUFFER_API}/profiles.json",
                     params={"access_token": token},
                 )
-                profiles.raise_for_status()
-                profile_id = profiles.json()[0]["id"]
+                profiles_resp.raise_for_status()
+                profiles = profiles_resp.json()
 
-                resp = await client.post(
-                    f"{BUFFER_API}/updates/create.json",
-                    params={"access_token": token},
-                    data={
-                        "profile_ids[]": profile_id,
-                        "text": post["text"],
-                        "now": False,
-                        "scheduled_at": post.get("scheduled_at", ""),
-                    },
-                )
-                resp.raise_for_status()
-                self._posts_today += 1
-                logger.info("build-in-public: post scheduled via Buffer")
+                for post in posts:
+                    channel = post["channel"]
+                    profile = next(
+                        (p for p in profiles
+                         if p.get("service", "").lower() == channel
+                         or channel in p.get("formatted_service", "").lower()),
+                        None,
+                    )
+                    if not profile:
+                        logger.warning("build-in-public: no Buffer profile for %s", channel)
+                        self._log_post(post)
+                        continue
+
+                    resp = await client.post(
+                        f"{BUFFER_API}/updates/create.json",
+                        params={"access_token": token},
+                        data={
+                            "profile_ids[]": profile["id"],
+                            "text": post["text"],
+                            "now": False,
+                            "scheduled_at": post.get("scheduled_at", ""),
+                        },
+                    )
+                    resp.raise_for_status()
+                    self._posts_today += 1
+                    logger.info("build-in-public: scheduled on %s", channel)
         except Exception as e:
             logger.warning("build-in-public: Buffer schedule failed: %s", e)
-            self._log_post(post)
+            for post in posts:
+                self._log_post(post)
 
     def _log_post(self, post: dict):
         """Fallback: log post to file when Buffer unavailable."""

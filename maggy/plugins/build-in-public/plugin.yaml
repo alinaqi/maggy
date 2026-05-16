@@ -11,10 +11,20 @@ hooks:
     handler: handle_review_passed
 config:
   tone: "confident, sharp, no hype sludge — sounds like the builder, not a bot"
-  channels: ["linkedin"]
+  channels:
+    linkedin:
+      profile: "personal"
+      max_chars: 3000
+      tone: "professional, insightful, teaches something. 1-2 paragraphs. Engineers and CTOs read this."
+      schedule: "09:00 UTC weekdays"
+    x:
+      profile: "personal"
+      max_chars: 280
+      tone: "sharp, punchy, no threads unless the insight is too good. Developers who ship read this."
+      schedule: "10:30 UTC weekdays"
   approval_mode: "auto_if_safe"
   screenshot:
     mode: "playwright"
   schedule:
     preferred_time: "09:00 UTC"
-    max_posts_per_day: 1
+    max_posts_per_day: 2
