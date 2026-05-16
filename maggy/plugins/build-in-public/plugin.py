@@ -238,9 +238,56 @@ class BuildInPublic:
         self._manifest = manifest
         self._config = getattr(manifest, 'config', manifest.get('config', {}))
         self._anonymize = self._load_anonymize()
+        self._customization = self._load_customization()
         self._strategy = ContentStrategy(self._config)
         self._posts_today = 0
         self._last_post_date = ""
+        self._project_state = self._load_project_state()
+
+    def _load_customization(self) -> dict:
+        """Load user customization from customization.md."""
+        path = Path(__file__).parent / "customization.md"
+        try:
+            text = path.read_text()
+            # Parse markdown for explicit_brands and explicit_clickouts
+            brands = []
+            clickouts = []
+            in_brands = False
+            in_clickouts = False
+            for line in text.split("\n"):
+                if "explicit_brands:" in line:
+                    in_brands = True; continue
+                if "explicit_clickouts:" in line:
+                    in_clickouts = True; continue
+                if line.startswith("#") or not line.strip():
+                    in_brands = in_clickouts = False; continue
+                if in_brands and line.strip().startswith("-"):
+                    brand = line.strip().lstrip("-").strip().strip('"')
+                    if brand: brands.append(brand)
+                if in_clickouts and line.strip().startswith("-"):
+                    url = line.strip().lstrip("-").strip().strip('"')
+                    if url: clickouts.append(url)
+            return {"brands": brands, "clickouts": clickouts}
+        except Exception:
+            return {"brands": [], "clickouts": []}
+
+    def _load_project_state(self) -> dict:
+        """Load per-project enabled state."""
+        path = Path.home() / ".maggy" / "build-in-public" / "projects.json"
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return {}
+
+    def is_enabled_for(self, project: str) -> bool:
+        return self._project_state.get(project, {}).get("enabled", True)
+
+    def set_enabled(self, project: str, enabled: bool):
+        self._project_state[project] = self._project_state.get(project, {})
+        self._project_state[project]["enabled"] = enabled
+        path = Path.home() / ".maggy" / "build-in-public" / "projects.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self._project_state, indent=2))
 
     def _load_anonymize(self) -> dict:
         manifest_path = getattr(self._manifest, 'path', self._manifest.get('_path', ''))
@@ -251,9 +298,13 @@ class BuildInPublic:
             return {"rules": {}, "strip": [], "patterns": []}
 
     def _redact(self, text: str) -> str:
-        """Apply anonymization rules — replace sensitive terms."""
+        """Apply anonymization rules — replace sensitive terms, skip explicit brands."""
         rules = self._anonymize.get("rules", {})
+        explicit = self._customization.get("brands", [])
         for term, replacement in rules.items():
+            # Skip if brand is explicitly allowed by user
+            if term in explicit or term.lower() in [b.lower() for b in explicit]:
+                continue
             text = re.sub(re.escape(term), replacement, text, flags=re.IGNORECASE)
 
         patterns = self._anonymize.get("patterns", [])
@@ -353,9 +404,13 @@ class BuildInPublic:
                     capture_output=True, text=True, timeout=30,
                 )
                 if result.returncode == 0 and result.stdout.strip():
-                    narratives[channel] = self._redact(
-                        result.stdout.strip()[:max_chars]
-                    )
+                    text = self._redact(result.stdout.strip()[:max_chars])
+                    # X posts: always append clickout
+                    if channel == "x":
+                        clickouts = self._customization.get("clickouts", [])
+                        if clickouts and clickouts[0] not in text:
+                            text = text.rstrip() + " " + clickouts[0]
+                    narratives[channel] = text
             except Exception:
                 pass
 
