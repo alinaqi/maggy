@@ -515,6 +515,9 @@ class BuildInPublic:
                             "mode": "customScheduled",
                         }
                     }
+                    # Attach image to LinkedIn posts
+                    if media_path and post["channel"] == "linkedin" and media_path.startswith("http"):
+                        variables["input"]["assets"] = [{"image": {"url": media_path}}]
                     resp = await client.post(
                         BUFFER_API,
                         headers={
@@ -585,6 +588,27 @@ class BuildInPublic:
                 "ts": datetime.now(timezone.utc).isoformat(),
                 **post,
             }) + "\n")
+
+    def _public_url(self, path: str) -> str:
+        """Convert local image path to public GitHub raw URL."""
+        repo_root = Path(__file__).parent.parent.parent.parent
+        try:
+            rel = str(Path(path).relative_to(repo_root))
+            # Build raw.githubusercontent.com URL
+            remote = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                capture_output=True, text=True, cwd=str(repo_root),
+            ).stdout.strip()
+            # Extract org/repo from git URL
+            if "github.com" in remote:
+                parts = remote.rstrip(".git").split("github.com")[-1].strip("/:").split("/")
+                if len(parts) >= 2:
+                    org, repo = parts[0], parts[1]
+                    branch = "main"
+                    return f"https://raw.githubusercontent.com/{org}/{repo}/{branch}/{rel}"
+        except Exception:
+            pass
+        return path  # Fallback: local path
 
     async def _capture_screenshot(self, url: str) -> str:
         """Capture hero screenshot via Playwright."""
@@ -678,7 +702,8 @@ class BuildInPublic:
                     path = img_dir / f"hero-{ts}.png"
                     path.write_bytes(base64.b64decode(b64))
                     logger.info("build-in-public: generated image %s", path)
-                    return str(path)
+                    # Return public URL if image is in repo, else local path
+                    return self._public_url(path)
 
             return ""
         except Exception as e:
