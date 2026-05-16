@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.17.1] - 2026-05-16
+
+### Added
+
+#### Research Tool with Auto-Evaluation
+- **`~/bin/research`** — multi-backend research script with cascading fallback (deepseek-flash → deepseek-pro)
+- **Auto-evaluation** — scores results 0-10 on content quality, structure, length, error detection
+- **Backend preference auto-adjust** — tracks scores per backend and promotes the best performer
+- **Evaluation log** — `~/.claude/research-eval.jsonl` with per-call scoring
+- **Stats command** — `research --eval` shows per-backend success rates and average scores
+
+#### Cascading Classifier Fallback
+- **`route-task-hook`** — cascading classifier: qwen3 → kimi → deepseek-flash → cached tier
+- **Routing cache** — `~/.claude/routing-cache.json` persists last tier across compactions
+- **Per-call logging** — `classifier` field in routing log tracks which model did the classification
+
+#### Tool Fallback Protocol
+- Documented in `CLAUDE.md`: WebSearch/WebFetch failures → `~/bin/research` → `~/bin/deepseek`
+
+---
+
 ## [6.17.0] - 2026-05-16
 
 ### Added
