@@ -4,6 +4,8 @@
 
 This project started as **Claude Bootstrap** — an opinionated set of skills, hooks, and rules for Claude Code. Over time it grew into something much bigger: a multi-model routing system, a persistent memory layer, an intent-tracking code graph, container-based orchestration, and a full engineering command center. The bootstrap scaffolding is still here, but the future of this project is **Maggy** — an autonomous engineering system that routes work across AI models, learns from outcomes, and manages the full development lifecycle.
 
+We ship [**mWP**](docs/mwp.md) (minimum wowable product, 5-7 on the 11-star scale), not MVP. Every feature should make you think "I need this" — not just "it works."
+
 62 skills, TDD enforcement via Stop hooks, agent teams, persistent memory (Mnemos), intent tracking (iCPG), and multi-model AI command center. Works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**.
 
 ## Quick Start
@@ -58,7 +60,7 @@ The original scaffolding that sets up any project for AI-assisted development:
 
 ## Plugin System
 
-Maggy has an mWP-first plugin architecture. Drop a folder with `plugin.yaml` + `plugin.py` into `~/.maggy/plugins/` or `plugins/` — it's auto-discovered and loaded at startup. Works standalone with Claude Bootstrap (no Maggy server needed).
+Maggy has an [mWP](docs/mwp.md)-first plugin architecture. Drop a folder with `plugin.yaml` + `plugin.py` into `~/.maggy/plugins/` or `plugins/` — it's auto-discovered and loaded at startup. Works standalone with Claude Bootstrap (no Maggy server needed).
 
 ```yaml
 # plugin.yaml
