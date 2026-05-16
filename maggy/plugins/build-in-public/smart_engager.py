@@ -284,26 +284,88 @@ class SmartEngager:
         return results
 
     def _monitor_reddit(self) -> list:
-        """Monitor Reddit subreddits for relevant content. Returns engagement results."""
+        """Monitor Reddit subreddits for relevant content. Posts comments when warranted."""
         if not self._social:
-            from maggy.plugins.build_in_public.social_api import SocialMonitor
+            try:
+                from maggy.plugins.build_in_public.social_api import SocialMonitor
+            except ImportError:
+                return []
             self._social = SocialMonitor(self._project)
 
         subreddits = self._topics.get("reddit_monitor", [])
         if not subreddits:
-            # Defaults from social_api
-            from maggy.plugins.build_in_public.social_api import get_competitor_reddit_subreddits
+            try:
+                from maggy.plugins.build_in_public.social_api import get_competitor_reddit_subreddits
+            except ImportError:
+                pass
             subreddits = get_competitor_reddit_subreddits()
 
         if not self._rate_limit_ok():
             return []
 
-        results = []
-        # We can't call async directly — log what would happen
-        logger.info("SmartEngager: would monitor %d Reddit subreddits: %s",
-                    len(subreddits), ", ".join(subreddits[:5]))
+        async def _scan():
+            results = []
+            watch = self._topics.get("watch", [])
+            engage_on = self._topics.get("engage_on", [])
 
-        # Store subreddit monitoring state
+            # Scan top 3 priority subreddits
+            for sr in subreddits[:3]:
+                try:
+                    posts = await self._social.reddit_hot(sr, limit=5)
+                    for post in posts:
+                        pid = post.id
+                        if pid in self._engaged_posts:
+                            continue
+                        post_text = (post.text or "").lower()
+
+                        # Check if post matches our topics
+                        matched = [t for t in watch + engage_on if t.lower() in post_text]
+                        if not matched:
+                            continue
+
+                        # Generate engagement
+                        if not self.should_engage(matched[0], post.text):
+                            self._engaged_posts.add(pid)
+                            continue
+
+                        reply = self.generate_reply(
+                            f"Reddit r/{post.subreddit}: {matched[0]}",
+                            post.text[:500],
+                        )
+                        if reply:
+                            # Post comment via Reddit API
+                            fullname = f"t3_{pid}"
+                            ok = await self._social.reddit_comment(fullname, reply)
+                            result = {
+                                "ts": datetime.now(timezone.utc).isoformat(),
+                                "platform": "reddit",
+                                "subreddit": post.subreddit,
+                                "post_id": pid,
+                                "action": "comment",
+                                "reply": reply[:280],
+                                "topic": matched[0],
+                                "success": ok,
+                                "url": post.url,
+                            }
+                            results.append(result)
+                            self.record_engagement(matched[0], reply)
+                            logger.info("SmartEngager: Reddit comment posted in r/%s", sr)
+
+                        self._engaged_posts.add(pid)
+                except Exception as e:
+                    logger.debug("Reddit scan failed for r/%s: %s", sr, e)
+
+            self._save_engaged_posts()
+            return results
+
+        try:
+            import asyncio
+            results = asyncio.run(_scan())
+        except Exception as e:
+            logger.debug("Reddit monitoring error: %s", e)
+            results = []
+
+        # Store state
         if "reddit_monitored" not in self._state:
             self._state["reddit_monitored"] = {}
         self._state["reddit_monitored"]["last_scan"] = datetime.now(timezone.utc).isoformat()
