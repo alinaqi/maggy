@@ -253,39 +253,81 @@ class SocialMonitor:
             all_posts.extend(posts)
         return all_posts
 
-    async def reddit_post(self, subreddit: str, title: str,
-                          text: str = "") -> bool:
-        """Submit a post to Reddit. Requires OAuth2 user token with submit scope."""
+    async def reddit_comment(self, post_id: str, text: str) -> bool:
+        """Post a comment on a Reddit post. post_id = fullname (t3_abc123)."""
         refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
         if not refresh_token:
-            logger.debug("Reddit post skipped: no user refresh token")
+            logger.debug("Reddit comment skipped: no user refresh token")
             return False
         try:
-            # Get access token
+            access_token = await self._get_reddit_access_token()
+            if not access_token:
+                return False
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://oauth.reddit.com/api/comment",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    data={"thing_id": post_id, "text": text},
+                )
+                return resp.status_code == 200
+        except Exception as e:
+            logger.debug("Reddit comment failed: %s", e)
+        return False
+
+    async def reddit_reply_to_comment(self, comment_id: str, text: str) -> bool:
+        """Reply to a comment. comment_id = fullname (t1_abc123)."""
+        return await self.reddit_comment(comment_id, text)
+
+    async def _get_reddit_access_token(self) -> str:
+        """Get OAuth2 access token from refresh token."""
+        refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
+        if not refresh_token:
+            return ""
+        try:
+            import base64
             async with httpx.AsyncClient(timeout=15) as client:
                 auth = base64.b64encode(
                     f"{os.environ.get('REDDIT_CLIENT_ID','')}:{os.environ.get('REDDIT_CLIENT_SECRET','')}".encode()
                 ).decode()
                 resp = await client.post(
                     "https://www.reddit.com/api/v1/access_token",
-                    headers={"Authorization": f"Basic {auth}"},
-                    data={"grant_type": "refresh_token",
-                          "refresh_token": refresh_token},
+                    headers={
+                        "Authorization": f"Basic {auth}",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    data={"grant_type": "refresh_token", "refresh_token": refresh_token},
                 )
-                if resp.status_code != 200:
-                    return False
-                access_token = resp.json()["access_token"]
+                if resp.status_code == 200:
+                    return resp.json().get("access_token", "")
+                logger.debug("Reddit token refresh failed: %s", resp.text[:200])
+        except Exception as e:
+            logger.debug("Reddit auth failed: %s", e)
+        return ""
 
-                # Submit post
-                resp2 = await client.post(
+    async def reddit_post(self, subreddit: str, title: str,
+                          text: str = "", url: str = "") -> bool:
+        """Submit a post to Reddit. Requires OAuth2 refresh token with submit scope."""
+        refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
+        if not refresh_token:
+            logger.debug("Reddit post skipped: no user refresh token")
+            return False
+        try:
+            access_token = await self._get_reddit_access_token()
+            if not access_token:
+                return False
+
+            data = {"sr": subreddit, "title": title, "kind": "self", "text": text}
+            if url:
+                data["kind"] = "link"
+                data["url"] = url
+
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
                     "https://oauth.reddit.com/api/submit",
                     headers={"Authorization": f"Bearer {access_token}"},
-                    data={
-                        "sr": subreddit, "title": title,
-                        "text": text, "kind": "self",
-                    },
+                    data=data,
                 )
-                return resp2.status_code == 200
+                return resp.status_code == 200
         except Exception as e:
             logger.debug("Reddit post failed: %s", e)
         return False

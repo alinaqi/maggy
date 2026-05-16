@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""One-time Reddit OAuth2 setup — get refresh token for posting/commenting.
+
+Run once, authorize the app, get a permanent refresh token.
+Stores REDDIT_REFRESH_TOKEN in ~/.zshrc.
+
+Prerequisites: REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET in env.
+"""
+
+import os
+import sys
+import urllib.parse
+import webbrowser
+import httpx
+
+CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID", "")
+CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET", "")
+REDIRECT_URI = "http://localhost:8080"
+
+if not CLIENT_ID or not CLIENT_SECRET:
+    print("ERROR: REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET must be set in env.")
+    print("  source ~/.zshrc")
+    sys.exit(1)
+
+# Step 1: Open browser for authorization
+print("\n  Opening Reddit authorization page...")
+print("  1. Log in to your Reddit account")
+print("  2. Click 'Allow' to grant access")
+print("")
+
+auth_url = (
+    "https://www.reddit.com/api/v1/authorize?"
+    + urllib.parse.urlencode({
+        "client_id": CLIENT_ID,
+        "response_type": "code",
+        "state": "maggy-setup",
+        "redirect_uri": REDIRECT_URI,
+        "duration": "permanent",
+        "scope": "submit edit identity read privatemessages",
+    })
+)
+
+print(f"  URL: {auth_url[:100]}...")
+print(f"\n  Opening browser...")
+webbrowser.open(auth_url)
+
+# Step 2: Get authorization code from user
+print("\n  After authorizing, you will be redirected to a page that fails to load.")
+print("  Copy the FULL URL from your browser's address bar and paste it here.")
+print("")
+code_url = input("  Paste redirect URL: ").strip()
+
+try:
+    code = urllib.parse.parse_qs(urllib.parse.urlparse(code_url).query).get("code", [None])[0]
+    if not code:
+        # Try fragment
+        code = urllib.parse.parse_qs(urllib.parse.urlparse(code_url).fragment).get("code", [None])[0]
+
+    if not code:
+        print("\n  ERROR: Could not find authorization code in URL.")
+        print("  Make sure you pasted the full URL including ?code=...")
+        sys.exit(1)
+except Exception:
+    print("\n  ERROR: Could not parse URL. Paste the full redirect URL.")
+    sys.exit(1)
+
+# Step 3: Exchange code for refresh token
+print("\n  Exchanging authorization code for refresh token...")
+try:
+    resp = httpx.post(
+        "https://www.reddit.com/api/v1/access_token",
+        auth=(CLIENT_ID, CLIENT_SECRET),
+        data={"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT_URI},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        print(f"\n  ERROR: Token exchange failed: {resp.text[:300]}")
+        sys.exit(1)
+
+    data = resp.json()
+    refresh_token = data.get("refresh_token", "")
+    if not refresh_token:
+        print(f"\n  ERROR: No refresh token in response: {data}")
+        sys.exit(1)
+
+    print(f"  ✓ Got refresh token: {refresh_token[:20]}...")
+
+    # Step 4: Write to ~/.zshrc
+    zshrc = os.path.expanduser("~/.zshrc")
+    content = open(zshrc).read()
+
+    # Remove old entry if exists
+    lines = [l for l in content.split("\n") if "REDDIT_REFRESH_TOKEN" not in l]
+    lines.append(f'export REDDIT_REFRESH_TOKEN="{refresh_token}"')
+
+    with open(zshrc, "w") as f:
+        f.write("\n".join(lines))
+
+    print(f"  ✓ Added REDDIT_REFRESH_TOKEN to {zshrc}")
+    print(f"\n  To apply: source ~/.zshrc")
+    print(f"  Then test: python3 -c \"from maggy.plugins.build_in_public.social_api import SocialMonitor\"\n")
+
+except Exception as e:
+    print(f"\n  ERROR: {e}")
+    sys.exit(1)
