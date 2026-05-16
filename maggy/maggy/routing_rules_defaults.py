@@ -33,6 +33,9 @@ _OVERRIDES = {
     "architecture": ("claude", "Cross-context awareness", 0.8, "rule"),
     "tests": ("deepseek-pro", "Strong test generation", 0.9, "benchmark"),
     "planning": ("claude", "Structured reasoning", 0.8, "rule"),
+    "research": ("gemini-pro-search", "Google grounding + 2M context", 0.9, "rule"),
+    "competitor": ("gemini-pro-search", "Native search for market intel", 0.9, "rule"),
+    "bulk": ("gemini-flash-lite", "Cheapest bulk extraction", 0.8, "benchmark"),
 }
 
 _PHASES = {

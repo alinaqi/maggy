@@ -8,6 +8,7 @@ from __future__ import annotations
 from .claude import ClaudeAdapter
 from .codex import CodexAdapter
 from .deepseek import DeepSeekAdapter
+from .gemini import GeminiAdapter
 from .kimi import KimiAdapter
 
 _REGISTRY: dict[str, type] = {
@@ -16,6 +17,11 @@ _REGISTRY: dict[str, type] = {
     "deepseek": DeepSeekAdapter,
     "deepseek-flash": DeepSeekAdapter,
     "deepseek-pro": DeepSeekAdapter,
+    "gemini": GeminiAdapter,
+    "gemini-flash-lite": GeminiAdapter,
+    "gemini-flash": GeminiAdapter,
+    "gemini-pro": GeminiAdapter,
+    "gemini-pro-search": GeminiAdapter,
     "kimi": KimiAdapter,
 }
 
