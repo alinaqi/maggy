@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.21.0] - 2026-05-16
+
+### Added
+
+#### Autonomous Plan → Validate → Execute Pipeline
+- **`~/bin/validate-plan`** — sends plan to DeepSeek Pro + Codex + Gemini Pro in parallel
+- **Multi-model voting** — 2+/3 approvals → auto-execute without user intervention
+- **Goal detection** — route-task-hook: CLAUDE tier → PLAN FIRST with auto-validation
+- **Approval thresholds**: 3/3 silent execute, 2/3 execute with feedback, 1/3 surface to user, 0/3 revise
+- **`CLAUDE.md`** — documented autonomous plan→validate→execute flow
+
+#### Autonomous Testing Agent
+- **`services/autonomous_tester.py`** — full test lifecycle: discover → generate → execute → evaluate → fix
+- **`api/routes_testing.py`** — `/api/testing/gaps`, `/api/testing/run`, `/api/testing/autonomous`
+- **`skills/autonomous-testing/SKILL.md`** — reference for AI-driven test generation
+- AI classifies failures as TEST_BUG vs CODE_BUG vs ENV_BUG
+- AI auto-repairs TEST_BUGs, escalates CODE_BUGs to CLAUDE tier
+
+#### GitHub Profile README Updated
+- **Mission**: "Bringing personal super intelligence to every worker in the world"
+- **Multi-model philosophy**: 9-tier routing, memory-first, autonomous agents, right tool for the job
+
+---
+
 ## [6.20.0] - 2026-05-16
 
 ### Added
