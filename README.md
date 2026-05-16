@@ -71,12 +71,30 @@ See [full skills catalog](./docs/claude-bootstrap-reference.md#skills-catalog-62
 
 ## Cross-Tool Compatibility
 
-| Feature | Claude Code | Kimi CLI | Codex CLI |
-|---------|-------------|----------|-----------|
-| Skills | `.claude/skills/` | `.kimi/skills/` | `.codex/skills/` |
-| Instructions | `CLAUDE.md` | (uses skills) | `AGENTS.md` |
+| Feature | Claude Code | Kimi CLI | Codex CLI | DeepSeek V4 |
+|---------|-------------|----------|-----------|-------------|
+| Skills | `.claude/skills/` | `.kimi/skills/` | `.codex/skills/` | via Claude Code |
+| Instructions | `CLAUDE.md` | (uses skills) | `AGENTS.md` | via Claude Code |
+| Memory | 9-section XML summary | None | Encrypted blob / text summary | **Mnemos typed graph** |
+| Routing | Manual | Manual | Manual | **6-tier auto-routing** |
 
 `install.sh` auto-detects installed tools. `/sync-agents` syncs config across tools on demand.
+
+## Memory: Mnemos vs. Codex vs. Claude Code
+
+Every AI coding tool loses context on compaction — how it loses it and what survives defines the ceiling on session quality. Here's how Maggy's Mnemos differs:
+
+| | Codex | Claude Code | Maggy (Mnemos) |
+|---|---|---|---|
+| **Compaction trigger** | Token threshold (~167K of 200K), blind | Token threshold, blind | **4-dimension fatigue** (token utilization, scope scatter, reread ratio, error density) |
+| **What's preserved** | Encrypted blob (OpenAI models) or 4-point text summary | 9-section XML summary | **Typed memory nodes** with per-type eviction policies (code-refs survive longer than error traces) |
+| **Transparency** | Zero (fast path is opaque AES-encrypted) | Readable but lossy | **Fully auditable** — every node type, eviction, and checkpoint is on disk |
+| **Recursive degradation** | Known death spirals (compacts for hours before producing) | Same — no telemetry | **Fatigue score surfaces degradation before death spirals** — compacts semantically, not blindly |
+| **Cross-session memory** | Per-user, non-editable | None | **Typed, queryable, cross-project** — Engram store persists across sessions |
+| **Team memory** | None — no pooling across teammates | None | **Shared via Engram** — accumulated context available to new team members |
+| **Pre-compaction safety** | None — compacts reactively | None | **Checkpoint written before compaction** — critical nodes survive even if compaction fails |
+
+**Codex** compacts like a senior engineer tearing up drafts and writing a status report — effective but irreversible, and you can't audit the summary. **Claude Code** gives you readable summaries but nothing persists across sessions. **Maggy** tracks *why* each memory node exists, applies per-type eviction, and surfaces fatigue before degradation begins.
 
 ## Core Concepts
 
