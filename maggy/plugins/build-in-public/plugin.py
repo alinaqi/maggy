@@ -195,7 +195,15 @@ class ContentStrategy:
     def _space_out(self, posts):
         if not posts:
             return posts
-        used = {p["scheduled_at"][:13] for p in self._queue}
+        # Load ALL project queues to avoid conflicts across projects
+        used = set()
+        for qf in (Path.home() / ".maggy" / "build-in-public").glob("schedule*.json"):
+            try:
+                q = json.loads(qf.read_text())
+                for p in (q if isinstance(q, list) else [q]):
+                    used.add(p["scheduled_at"][:13])
+            except Exception:
+                pass
         for p in posts:
             dt = datetime.fromisoformat(p.scheduled_at)
             while dt.isoformat()[:13] in used:
@@ -207,12 +215,15 @@ class ContentStrategy:
     def commit(self, posts):
         for p in posts:
             self._queue.append({"channel": p.channel, "text": p.text[:100],
-                               "scheduled_at": p.scheduled_at, "format": p.format})
+                               "scheduled_at": p.scheduled_at,
+                               "project": getattr(self, '_project', 'unknown'),
+                               "format": p.format})
         self._save_queue()
 
     def _load_queue(self):
+        qf = Path.home() / ".maggy" / "build-in-public" / "schedule.json"
         try:
-            return json.loads((Path.home() / ".maggy" / "build-in-public" / "schedule.json").read_text())
+            return json.loads(qf.read_text())
         except Exception:
             return []
 
@@ -547,14 +558,17 @@ class BuildInPublic:
                     mutation = """
                     mutation SchedulePost($input: CreatePostInput!) {
                       createPost(input: $input) {
-                        post { id status dueAt text channelService }
+                        __typename
+                        ... on PostActionSuccess {
+                          post { id status dueAt text channelService }
+                        }
                       }
                     }"""
                     variables = {
                         "input": {
                             "channelId": ch["id"],
                             "text": post["text"],
-                            "schedulingType": "AUTOMATIC",
+                            "schedulingType": "automatic",
                             "dueAt": post.get("scheduled_at", ""),
                             "mode": "customScheduled",
                         }
