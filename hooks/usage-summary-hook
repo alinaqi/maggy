@@ -21,18 +21,15 @@ LOG="$HOME/.claude/routing-log.jsonl"
 TODAY=$(date -u +%Y-%m-%d)
 DECISIONS=$(grep -c "$TODAY" "$LOG" 2>/dev/null || echo "0")
 
-# Track per-session count
-SESSION_FILE="$HOME/.claude/usage-session-count"
-SESSION_COUNT=0
+# Track per-session count (baseline set by SessionStart hook)
+SESSION_FILE="$HOME/.claude/usage-session-baseline"
+BASELINE=0
 if [ -f "$SESSION_FILE" ]; then
-  LAST=$(cat "$SESSION_FILE" 2>/dev/null || echo "0")
-  SESSION_COUNT=$((DECISIONS - LAST))
-  if [ "$SESSION_COUNT" -lt 0 ] 2>/dev/null; then
-    echo "$DECISIONS" > "$SESSION_FILE"
-    SESSION_COUNT=0
-  fi
-else
-  echo "$DECISIONS" > "$SESSION_FILE"
+  BASELINE=$(cat "$SESSION_FILE" 2>/dev/null || echo "0")
+fi
+SESSION_COUNT=$((DECISIONS - BASELINE))
+if [ "$SESSION_COUNT" -lt 0 ] 2>/dev/null; then
+  SESSION_COUNT=0
 fi
 
 # Quick cost estimate
