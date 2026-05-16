@@ -31,7 +31,7 @@ _MUTATION = re.compile(
 
 
 _FORCE_RE = re.compile(
-    r"\buse\s+(claude|codex|kimi|local|deepseek)\b", re.IGNORECASE,
+    r"\buse\s+(claude|codex|kimi|local|deepseek|gemini)\b", re.IGNORECASE,
 )
 
 

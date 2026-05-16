@@ -43,9 +43,12 @@ _PHASES = {
 }
 
 _PERF = {
-    "claude": (["security", "architecture", "planning"], ["cost"], 6, 1.0),
+    "claude": (["security", "architecture", "planning"], ["cost"], 9, 1.0),
+    "gemini-pro-search": (["deep_research", "google_grounding", "competitor_intel", "market_research", "large_context"], ["code_generation"], 7, 1.0),
     "deepseek-pro": (["code_generation", "debugging", "refactor", "tests", "docs"], ["security"], 5, 1.0),
     "deepseek-flash": (["boilerplate", "simple_features", "crud", "tests"], ["complex_reasoning"], 3, 1.0),
+    "gemini-flash": (["multimodal", "video_analysis", "image_analysis", "brand_assets"], ["code_generation", "complex_reasoning"], 4, 1.0),
+    "gemini-flash-lite": (["bulk_extraction", "classification", "cheap_summarization"], ["code_generation", "complex_reasoning"], 2, 1.0),
     "codex": (["review", "bulk_generation", "api_design"], ["docs"], 5, 1.0),
     "kimi": (["documentation", "agentic_loops", "research"], ["complex_reasoning"], 1, 1.0),
     "local": (["code_formatting", "simple_edits"], ["docs", "prose"], 1, 1.0),
