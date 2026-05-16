@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.17.2] - 2026-05-16
+
+### Added
+- **Memory comparison table** — README now contrasts Maggy Mnemos vs Codex vs Claude Code across compaction triggers, preservation, transparency, recursive degradation, cross-session memory, team memory, and pre-compaction safety
+- **Updated cross-tool table** — added DeepSeek V4 and Memory rows to compatibility matrix
+
+---
+
 ## [6.17.1] - 2026-05-16
 
 ### Added
