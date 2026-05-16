@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.23.0] - 2026-05-16
+
+### Added
+
+#### Build-in-Public Customization System
+- **`customization.md`** — user-editable guidelines for channel voice, content rules, brands, and clickouts
+- **`/build-in-public enable|disable`** — per-project activation via `projects.json`
+- **`/build-in-public add brand <name>`** — explicitly allowlist brand names (all others redacted)
+- **`/build-in-public add clickouts to <url>`** — set clickout URLs auto-appended to X posts
+- **Per-project state** — `~/.maggy/build-in-public/projects.json` tracks enabled/disabled per project
+- **Plugin reads customization on every generation** — no restart needed after edits
+
+#### Buffer GraphQL API Migration
+- **GraphQL endpoint** — migrated from deprecated REST `api.bufferapp.com/1` to `api.buffer.com`
+- **`createPost` mutation** — posts scheduled via GraphQL with `customScheduled` mode
+- **Channel discovery** — org ID + channel IDs auto-fetched via GraphQL queries
+- **Auth** — Bearer token header (was query param in old REST API)
+
+#### Content Scheduling
+- **22 posts scheduled** — full monthly content calendar (May 18 - Jun 12)
+- **8 LinkedIn deep dives** — 2-4 paragraph professional posts, each teaches something
+- **14 X posts** — sharp singles + 6-tweet thread, all with `github.com/alinaqi/maggy` clickout
+- **No coding stats** — removed "96 files, 14 commits" style metrics per voice guidelines
+- **Per-channel differentiation** — LinkedIn teaches, X punches, each with distinct tone
+
+### Fixed
+- **PostCompact hook error** — removed invalid `PostCompact` from `settings.json` (not a valid Claude Code hook event)
+- **Buffer `UnexpectedError`** — resolved by simplifying special characters in post text
+
+### How It Works with Claude Bootstrap
+The build-in-public plugin works standalone via `~/.claude/hooks/plugin-trigger` — no Maggy server needed. Drop the plugin folder into `~/.maggy/plugins/` and trigger events from any Claude Code hook:
+```bash
+~/.claude/hooks/plugin-trigger on_pr_merged '{"title":"Add auth","branch":"feature/auth"}'
+~/.claude/hooks/plugin-trigger on_feature_shipped '{"feature":"JWT login"}'
+```
+
+---
+
 ## [6.22.0] - 2026-05-16
 
 ### Added
