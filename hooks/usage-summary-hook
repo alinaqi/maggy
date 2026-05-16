@@ -1,0 +1,43 @@
+#!/bin/bash
+# Stop hook — injects per-response usage summary into Claude's context.
+# Toggle: /usage-summary off | on
+# No set -euo pipefail: hook scripts must be defensive.
+
+INPUT=$(cat 2>/dev/null || true)
+
+# Check if disabled
+STATE_FILE="$HOME/.claude/usage-summary-state"
+if [ -f "$STATE_FILE" ] && grep -q "off" "$STATE_FILE" 2>/dev/null; then
+  exit 0
+fi
+
+# Get the last routing decision
+CACHE="$HOME/.claude/routing-cache.json"
+TIER=$(cat "$CACHE" 2>/dev/null | jq -r '.tier // "?"' 2>/dev/null || echo "?")
+CLASSIFIER=$(cat "$CACHE" 2>/dev/null | jq -r '.classifier // "?"' 2>/dev/null || echo "?")
+
+# Get today's usage summary
+LOG="$HOME/.claude/routing-log.jsonl"
+TODAY=$(date -u +%Y-%m-%d)
+DECISIONS=$(grep -c "$TODAY" "$LOG" 2>/dev/null || echo "0")
+
+# Quick cost estimate
+COST_MAP='{
+  "QWEN":"$0","DEEPSEEK_FLASH":"~$0.0001","GEMINI_FLASH_LITE":"~$0.0001",
+  "DEEPSEEK_PRO":"~$0.003","GEMINI_FLASH":"~$0.002","KIMI":"~$0.005",
+  "GEMINI_PRO_SEARCH":"~$0.02","GEMINI_CLI":"~$0.01","CODEX":"~$0.05",
+  "CLAUDE":"~$0.10"
+}'
+COST=$(echo "$COST_MAP" | jq -r ".[\"$TIER\"] // \"?\"" 2>/dev/null || echo "?")
+
+SUMMARY="📊 Route: ${TIER} (by ${CLASSIFIER}) · est: ${COST} · today: ${DECISIONS} decisions | /usage-summary off to hide"
+
+cat <<EOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "Stop",
+    "additionalContext": $(echo "$SUMMARY" | jq -Rs .)
+  }
+}
+EOF
+exit 0
