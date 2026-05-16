@@ -85,3 +85,10 @@ Maggy routes tasks to the optimal model based on complexity, security sensitivit
 - Retry with exponential backoff for API failures
 - Token budget management for cost control
 - External model delegation via ~/bin/ scripts
+- Tool fallback protocol: WebSearch failures → `~/bin/research`
+
+### Tool Fallback Protocol
+When built-in tools fail, cascade through external backends:
+- **WebSearch/WebFetch fails** → `~/bin/research "query"` (evaluates deepseek-flash → deepseek-pro, picks best result)
+- **Research eval stats** → `~/bin/research --eval`
+- Score log at `~/.claude/research-eval.jsonl` for auto-adjustment
