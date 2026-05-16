@@ -1,0 +1,191 @@
+# Full AI Ecosystem Watch Map — VCs, Researchers, Leaders, Builders
+# These extend tags.yaml for the "x" platform (most active there)
+# Use /build-in-public add influencer <name> to add more
+
+x_ecosystem:
+  VC_Investors:
+    - name: Pat Grady
+      handle: "@patgrady"
+      trigger_keywords: [sequoia, pat grady, ai investment]
+    - name: Sonya Huang
+      handle: "@sonyah"
+      trigger_keywords: [sonya huang, sequoia ai/ml]
+    - name: Konstantine Buhler
+      handle: "@konstantineb"
+      trigger_keywords: [sequoia, ai infrastructure]
+    - name: Stephanie Zhan
+      handle: "@steph_zhan"
+      trigger_keywords: [sequoia, ai applications]
+    - name: Martin Casado
+      handle: "@martin_casado"
+      trigger_keywords: [a16z, ai infrastructure, llm economics]
+    - name: Sarah Wang
+      handle: "@sarahdingwang"
+      trigger_keywords: [a16z, ai strategy, market maps]
+    - name: Anish Acharya
+      handle: "@AnishAcharya"
+      trigger_keywords: [a16z, ai enterprise, fintech]
+    - name: Elad Gil
+      handle: "@eladgil"
+      trigger_keywords: [elad gil, ai investor, early stage]
+    - name: Sarah Guo
+      handle: "@saranormous"
+      trigger_keywords: [conviction, ai canon, ai investment]
+    - name: Lachy Groom
+      handle: "@lachygroom"
+      trigger_keywords: [lachy groom, solo capitalist, ai]
+
+  Anthropic:
+    - name: Jack Clark
+      handle: "@jackclarkSF"
+      trigger_keywords: [anthropic, ai policy, import ai, safety]
+    - name: Tom Brown
+      handle: "@TomBrownNLP"
+      trigger_keywords: [gpt-3, claude, anthropic engineering]
+    - name: Jared Kaplan
+      handle: "@jared_kaplan_"
+      trigger_keywords: [scaling laws, anthropic research]
+    - name: Amanda Askell
+      handle: "@amanda_askell"
+      trigger_keywords: [constitutional ai, alignment, safety]
+    - name: Alex Tamkin
+      handle: "@alex_tamkin"
+      trigger_keywords: [model generalization, anthropic]
+
+  OpenAI:
+    - name: Sam Altman
+      handle: "@sama"
+      trigger_keywords: [openai, agi, sam altman]
+    - name: Greg Brockman
+      handle: "@gdb"
+      trigger_keywords: [openai engineering, gpt, demos]
+    - name: Mira Murati
+      handle: "@miramurati"
+      trigger_keywords: [openai cto, research strategy]
+    - name: Andrej Karpathy
+      handle: "@karpathy"
+      trigger_keywords: [karpathy, llm training, ai education]
+    - name: Jason Wei
+      handle: "@jasonwei__"
+      trigger_keywords: [chain of thought, prompting, openai research]
+    - name: John Schulman
+      handle: "@johnschulman2"
+      trigger_keywords: [reinforcement learning, ppo, rlhf]
+    - name: Lilian Weng
+      handle: "@lilianweng"
+      trigger_keywords: [ai safety, lils log, openai systems]
+    - name: Noam Brown
+      handle: "@noam_brown_"
+      trigger_keywords: [game ai, reasoning, search]
+    - name: Hyung Won Chung
+      handle: "@hyungkwonchung"
+      trigger_keywords: [instruction tuning, model scaling, flan]
+
+  Google_DeepMind:
+    - name: Demis Hassabis
+      handle: "@demishassabis"
+      trigger_keywords: [deepmind, alphago, isomorph, agi]
+    - name: Jeff Dean
+      handle: "@jeffdean"
+      trigger_keywords: [google ai, tensorflow, infrastructure]
+    - name: Oriol Vinyals
+      handle: "@oriolvinyalsml"
+      trigger_keywords: [transformers, gemini, deep learning]
+    - name: Zoubin Ghahramani
+      handle: "@zoubin"
+      trigger_keywords: [bayesian ml, uncertainty, google research]
+    - name: Koray Kavukcuoglu
+      handle: "@korayk"
+      trigger_keywords: [deepmind research, agi]
+    - name: Eli Collins
+      handle: "@elicollins"
+      trigger_keywords: [gemini product, deepmind]
+
+  Microsoft_GitHub:
+    - name: Satya Nadella
+      handle: "@satyanadella"
+      trigger_keywords: [microsoft ceo, ai strategy]
+    - name: Kevin Scott
+      handle: "@kevin_scott"
+      trigger_keywords: [microsoft cto, ai platform]
+    - name: Scott Guthrie
+      handle: "@scottgu"
+      trigger_keywords: [azure, cloud ai, microsoft]
+    - name: Eric Boyd
+      handle: "@eric_boyd"
+      trigger_keywords: [azure ai platform, microsoft]
+    - name: Peter Lee
+      handle: "@peterlee"
+      trigger_keywords: [microsoft research, ai healthcare]
+    - name: Thomas Dohmke
+      handle: "@dohmke"
+      trigger_keywords: [github ceo, copilot, developer]
+    - name: Mario Rodriguez
+      handle: "@brodrigu"
+      trigger_keywords: [github product, copilot suite]
+
+  Meta_AI:
+    - name: Yann LeCun
+      handle: "@ylecun"
+      trigger_keywords: [deep learning, self-supervised, open source ai, meta]
+    - name: Joelle Pineau
+      handle: "@joellepineau"
+      trigger_keywords: [fair, reinforcement learning, meta ai]
+    - name: Mark Zuckerberg
+      handle: "@finkd"
+      trigger_keywords: [meta, llama, open source, ai strategy]
+
+  AI_Research_Independent:
+    - name: Geoffrey Hinton
+      handle: "@geoffreyhinton"
+      trigger_keywords: [deep learning pioneer, neural networks, ai risk]
+    - name: Yoshua Bengio
+      handle: "@yoshuabengio"
+      trigger_keywords: [deep learning, ai governance, mila]
+    - name: Fei-Fei Li
+      handle: "@drfeifei"
+      trigger_keywords: [imagenet, stanford hai, human-centered ai]
+    - name: Andrew Ng
+      handle: "@andrewyng"
+      trigger_keywords: [deeplearning.ai, data-centric ai, education]
+    - name: Percy Liang
+      handle: "@percyliang"
+      trigger_keywords: [foundation models, helm, stanford crfm]
+    - name: Chris Manning
+      handle: "@chrmanning"
+      trigger_keywords: [nlp, stanford ai, computational linguistics]
+    - name: Timnit Gebru
+      handle: "@timnitGebru"
+      trigger_keywords: [ai ethics, algorithmic bias, dair]
+    - name: Emily Bender
+      handle: "@emilymbender"
+      trigger_keywords: [linguistics, stochastic parrots, ai criticism]
+    - name: Simon Willison
+      handle: "@simonw"
+      trigger_keywords: [ai tools, llm experiments, datasette]
+    - name: Riley Goodside
+      handle: "@goodside"
+      trigger_keywords: [prompt engineering, scale ai, prompting]
+
+  AI_Dev_Tools:
+    - name: Amjad Masad
+      handle: "@amasad"
+      trigger_keywords: [replit, ai-native ide, programming future]
+    - name: Guillermo Rauch
+      handle: "@rauchg"
+      trigger_keywords: [vercel, ai ui, frontend deployment]
+    - name: Clem Delangue
+      handle: "@ClementDelangue"
+      trigger_keywords: [huggingface, open source ai, transformers]
+    - name: Thomas Wolf
+      handle: "@Thom_wolf"
+      trigger_keywords: [huggingface, transformers library, open source]
+    - name: Harrison Chase
+      handle: "@hwchase17"
+      trigger_keywords: [langchain, llm framework, agents]
+    - name: Nathan Sobo
+      handle: "@nathansobo"
+      trigger_keywords: [zed editor, ai code editor, multiplayer]
+    - name: David Crawshaw
+      handle: "@davidcrawshaw"
+      trigger_keywords: [zed, programming tools, developer experience]
