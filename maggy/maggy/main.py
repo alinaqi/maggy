@@ -23,6 +23,7 @@ from maggy.api.routes_aggregator import router as aggregator_router
 from maggy.api.routes_budget import router as budget_router
 from maggy.api.routes_plugins import router as plugins_router
 from maggy.api.routes_testing import router as testing_router
+from maggy.api.routes_usage import router as usage_router
 from maggy.api.routes_cikg import router as cikg_router
 from maggy.api.routes_deploy import router as deploy_router
 from maggy.api.routes_engram import router as engram_router

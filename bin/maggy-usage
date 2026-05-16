@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""maggy-usage — cross-model consumption stats across all providers.
+
+Usage:
+  maggy-usage             # Today's stats
+  maggy-usage --week      # Last 7 days
+  maggy-usage --month     # Last 30 days
+  maggy-usage --all       # All time
+  maggy-usage --json      # Machine-readable output
+"""
+
+import argparse, json, sys
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+
+MODEL_COSTS = {
+    "qwen3": 0.0, "local": 0.0,
+    "gemini-flash-lite": 0.10, "deepseek-flash": 0.14,
+    "deepseek-pro": 0.44, "gemini-flash": 0.15,
+    "kimi": 0.60, "gemini-pro-search": 1.25,
+    "codex": 2.50, "claude": 3.00,
+}
+CLAUDE_COST = 3.00
+
+def load_routing_log():
+    entries = []
+    path = Path.home() / ".claude" / "routing-log.jsonl"
+    if path.exists():
+        for line in path.read_text().strip().split("\n"):
+            try: entries.append(json.loads(line))
+            except: pass
+    return entries
+
+def parse_ts(ts):
+    try: return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except: return datetime(2020,1,1,tzinfo=timezone.utc)
+
+def main():
+    p = argparse.ArgumentParser(description="Cross-model usage stats")
+    p.add_argument("--week", action="store_true")
+    p.add_argument("--month", action="store_true")
+    p.add_argument("--all", action="store_true")
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args()
+
+    period = "today"
+    if args.week: period = "week"
+    elif args.month: period = "month"
+    elif vars(args).get("all"): period = "all"
+
+    now = datetime.now(timezone.utc)
+    if period == "today": since = now.replace(hour=0,minute=0,second=0,microsecond=0)
+    elif period == "week": since = now - timedelta(days=7)
+    elif period == "month": since = now - timedelta(days=30)
+    else: since = datetime(2020,1,1,tzinfo=timezone.utc)
+
+    entries = [e for e in load_routing_log() if parse_ts(e.get("ts","")) >= since]
+
+    # Model usage
+    model_calls = {}
+    model_tokens = {}
+    classifiers = {}
+    for e in entries:
+        tier = e.get("tier","unknown").lower().replace("_","-")
+        model_calls[tier] = model_calls.get(tier,0) + 1
+        saved = e.get("tokens_saved",0) or 0
+        est = saved * 2
+        model_tokens[tier] = model_tokens.get(tier,0) + est
+        c = e.get("classifier","unknown")
+        classifiers[c] = classifiers.get(c,0) + 1
+
+    total_calls = sum(model_calls.values())
+    total_tokens = sum(model_tokens.values())
+
+    cost = 0
+    for m, tokens in model_tokens.items():
+        rate = MODEL_COSTS.get(m, 0.44)
+        cost += (tokens / 1e6) * rate
+
+    claude_est = (total_tokens / 1e6) * CLAUDE_COST if total_tokens else 0
+    savings = claude_est - cost
+    top_classifier = max(classifiers, key=classifiers.get) if classifiers else "?"
+
+    if args.json:
+        print(json.dumps({
+            "period": period, "calls": total_calls, "cost": round(cost,4),
+            "savings": round(savings,2), "classifier": top_classifier,
+            "models": {m: {"calls": c, "cost": round((model_tokens.get(m,0)/1e6)*MODEL_COSTS.get(m,0.44),4)}
+                       for m, c in sorted(model_calls.items(), key=lambda x: -x[1])},
+        }, indent=2))
+        return
+
+    print(f"\n  Cross-Model Usage — {period} ({len(entries)} routing decisions)")
+    print(f"  {'─'*50}")
+    if total_calls:
+        for m, c in sorted(model_calls.items(), key=lambda x: -x[1]):
+            pct = f"{c/total_calls*100:.0f}%"
+            mcost = round((model_tokens.get(m,0)/1e6)*MODEL_COSTS.get(m,0.44), 4)
+            print(f"  {m:<22s} {c:>5d} calls ({pct:>3s})  ~${mcost:.4f}")
+    print(f"  {'─'*50}")
+    print(f"  Total: {total_calls} calls, ~${cost:.4f} (vs ~${claude_est:.2f} Claude-only)")
+    print(f"  Savings: ~${savings:.2f}")
+    print(f"  Classifier: {top_classifier}")
+    print()
+
+if __name__ == "__main__":
+    main()
