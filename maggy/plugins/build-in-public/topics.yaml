@@ -38,3 +38,98 @@ my_handles:
   - "github.com/alinaqi"
 
 max_engagements_per_day: 2
+
+# ── Account Monitoring ───────────────────────────────────────────────────
+# Watch specific accounts for their posts/comments and engage when relevant
+monitor_accounts:
+  # AI & Dev Tools
+  - platform: "x"
+    handle: "@AnthropicAI"
+    include_comments: true
+    interval_minutes: 60
+    max_items_per_fetch: 10
+    engagement_rules:
+      - topic: "claude code"
+        action: "like+reply"
+      - topic: "ai agent"
+        action: "like+reply"
+
+  - platform: "x"
+    handle: "@OpenAI"
+    include_comments: false
+    interval_minutes: 60
+    max_items_per_fetch: 10
+    engagement_rules:
+      - topic: "codex"
+        action: "like+reply"
+      - topic: "gpt"
+        action: "like"
+
+  - platform: "x"
+    handle: "@GoogleDeepMind"
+    include_comments: false
+    interval_minutes: 120
+    max_items_per_fetch: 5
+    engagement_rules:
+      - topic: "gemini"
+        action: "like+reply"
+
+  - platform: "x"
+    handle: "@deepseek_ai"
+    include_comments: false
+    interval_minutes: 120
+    max_items_per_fetch: 5
+    engagement_rules:
+      - topic: "deepseek"
+        action: "like+reply"
+
+  - platform: "x"
+    handle: "@ollama"
+    include_comments: false
+    interval_minutes: 120
+    max_items_per_fetch: 5
+    engagement_rules:
+      - topic: "local model"
+        action: "like+reply"
+      - topic: "qwen"
+        action: "like"
+
+  # AI Engineering Community
+  - platform: "x"
+    handle: "@LangChainAI"
+    include_comments: false
+    interval_minutes: 180
+    max_items_per_fetch: 5
+    engagement_rules:
+      - topic: "langchain"
+        action: "like"
+      - topic: "langgraph"
+        action: "like"
+
+  - platform: "x"
+    handle: "@buffer"
+    include_comments: false
+    interval_minutes: 180
+    max_items_per_fetch: 5
+    engagement_rules:
+      - topic: "build in public"
+        action: "like+reply"
+
+  # GitHub Engineering
+  - platform: "x"
+    handle: "@GitHub"
+    include_comments: false
+    interval_minutes: 180
+    max_items_per_fetch: 5
+    engagement_rules:
+      - topic: "open source"
+        action: "like"
+      - topic: "copilot"
+        action: "like"
+
+# Global monitoring config
+monitor_config:
+  interval_minutes: 30      # default fetch interval
+  max_accounts: 20          # max accounts to monitor
+  rate_limit_per_hour: 200  # API call cap
+  retry_backoff_minutes: 15 # backoff on rate limit hits
