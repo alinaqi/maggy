@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.19.0] - 2026-05-16
+
+### Added
+
+#### Autonomous Multi-Model Review
+- **`~/bin/review`** — runs deepseek-pro + kimi + codex in parallel, merges findings
+- **`auto-review-hook` (Stop)** — triggers reviews autonomously, no user prompt needed
+- **Cascading classifier** for review decisions: qwen3 → kimi → deepseek-flash → skip
+- **Dynamic qwen3 gatekeeper** — evaluates git state to decide if review is warranted
+- **Cooldown** — minimum 5 turns between checks, 10 turns between reviews
+
+#### Install Integration
+- **`bin/`** — all delegation scripts (deepseek, gemini, kimi, qwen3, research, review)
+- **`hooks/route-task-hook`** + **`hooks/auto-review-hook`** — packaged for install
+- **`install.sh`** — copies scripts to `~/bin/`, hooks to `~/.claude/hooks/`
+- **`skills/model-routing/SKILL.md`** — 159-line routing pipeline reference
+
+#### PostCompact Recovery
+- **`PostCompact` hook** — `mnemos-post-compact-inject.sh` restores context after compaction
+- Routing cache survives compaction via `~/.claude/routing-cache.json`
+
+---
+
 ## [6.18.0] - 2026-05-16
 
 ### Added
