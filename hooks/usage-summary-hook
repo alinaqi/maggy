@@ -21,6 +21,20 @@ LOG="$HOME/.claude/routing-log.jsonl"
 TODAY=$(date -u +%Y-%m-%d)
 DECISIONS=$(grep -c "$TODAY" "$LOG" 2>/dev/null || echo "0")
 
+# Track per-session count
+SESSION_FILE="$HOME/.claude/usage-session-count"
+SESSION_COUNT=0
+if [ -f "$SESSION_FILE" ]; then
+  LAST=$(cat "$SESSION_FILE" 2>/dev/null || echo "0")
+  SESSION_COUNT=$((DECISIONS - LAST))
+  if [ "$SESSION_COUNT" -lt 0 ] 2>/dev/null; then
+    echo "$DECISIONS" > "$SESSION_FILE"
+    SESSION_COUNT=0
+  fi
+else
+  echo "$DECISIONS" > "$SESSION_FILE"
+fi
+
 # Quick cost estimate
 COST_MAP='{
   "QWEN":"$0","DEEPSEEK_FLASH":"~$0.0001","GEMINI_FLASH_LITE":"~$0.0001",
@@ -30,7 +44,7 @@ COST_MAP='{
 }'
 COST=$(echo "$COST_MAP" | jq -r ".[\"$TIER\"] // \"?\"" 2>/dev/null || echo "?")
 
-SUMMARY="📊 Route: ${TIER} (by ${CLASSIFIER}) · est: ${COST} · today: ${DECISIONS} decisions | /usage-summary off to hide"
+SUMMARY="📊 Route: ${TIER} (by ${CLASSIFIER}) · est: ${COST} · today: ${DECISIONS} (+${SESSION_COUNT} this session) | /usage-summary off to hide"
 
 cat <<EOF
 {
