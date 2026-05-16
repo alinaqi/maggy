@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.24.0] - 2026-05-16
+
+### Added
+- **Routing landscape comparison** in README — Maggy vs OpenRouter, Martian, Portkey, Semantic Router
+- **Three unique differentiators**: fatigue-aware routing, cascading classifier resilience, semantic memory routing
+- **Semantic cascading classifier** — `model_escalation.py`: qwen3 → kimi → deepseek-flash → Claude → keyword (keyword only as last resort)
+- **Language-agnostic routing** — blast/intent now fully semantic, works across languages and domain jargon
+
+---
+
 ## [6.23.0] - 2026-05-16
 
 ### Added

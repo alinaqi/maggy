@@ -135,6 +135,28 @@ Every AI coding tool loses context on compaction. The difference is whether it p
 | **Cross-session memory** | None | None | **Engram store** — typed, queryable, persists across sessions |
 | **Pre-compaction safety** | None — compacts reactively | None | **Checkpoint written before compaction** — critical nodes survive even if compaction fails |
 
+## Routing: Maggy vs. the Landscape
+
+Every AI tool claims to pick the right model. Here's how they actually compare:
+
+| | OpenRouter | Martian | Portkey | Semantic Router | **Maggy** |
+|---|---|---|---|---|---|
+| **Approach** | Performance-based, user-defined fallbacks | LLM-as-Classifier, trained router model | Gateway: retries, load balancing, rule-based | Embedding similarity, pre-defined routes | **LLM-as-Classifier with cascading fallback** |
+| **Classification cost** | None (user picks) | API call (~$0.001) | None (rule-based) | None (embeddings) | **$0 (local qwen3)** |
+| **Classifier resilience** | N/A | Single point of failure | N/A | N/A | **Cascade: qwen3 → kimi → deepseek → cache** |
+| **Fatigue-aware** | No | No | No | No | **Yes — 4-dimension fatigue, PRE_SLEEP/REM escalation** |
+| **Mid-task switching** | No | No | No | No | **Checkpoint-based state transfer (in progress)** |
+| **Memory-aware** | Token count only | No | Token count only | No | **Semantic: typed nodes, per-type eviction, re-read ratio** |
+| **Self-learning** | No | No | No | No | **Per-project routing profiles with success/failure tracking** |
+
+**Three things only Maggy has:**
+
+1. **Fatigue-aware routing** — nobody routes based on agent state. When Mnemos detects PRE_SLEEP (0.60), Maggy skips cheap tiers. At REM (0.75), it forces premium models. OpenRouter can't do this. Martian can't. No paper proposes it.
+
+2. **Cascading classifier resilience** — every other router has a single point of failure. If Martian's classifier is down, routing stops. Maggy cascades through qwen3 → kimi → deepseek-flash → cached tier. The classifier itself is multi-model.
+
+3. **Semantic memory, not token counting** — Portkey checks `token_count > 8000` to switch context windows. Maggy tracks what KIND of memory matters: goals survive compaction, error traces decay, code-refs persist. Routes based on semantic importance, not a counter.
+
 ## Core Concepts
 
 **TDD via Stop Hooks** — tests run after every Claude response. Failures feed back automatically. No plugins needed. [Details →](./docs/claude-bootstrap-reference.md#tdd-loops-via-stop-hooks)
