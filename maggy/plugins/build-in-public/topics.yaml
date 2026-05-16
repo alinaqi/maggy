@@ -1,0 +1,40 @@
+# Autonomous engagement topics — default (all projects)
+# Project-specific overrides: topics-<project>.yaml
+
+watch:
+  - "claude code"
+  - "ai coding agent"
+  - "ai engineering"
+  - "model routing"
+  - "ai memory"
+  - "agent fatigue"
+  - "compaction"
+  - "llm orchestration"
+  - "multi-model ai"
+  - "ai developer tools"
+  - "build in public"
+  - "autonomous agent"
+  - "ai testing"
+  - "plugin architecture"
+
+engage_on:
+  - "claude code"
+  - "deepseek"
+  - "gemini"
+  - "model routing"
+  - "ai memory"
+  - "agent fatigue"
+
+never_engage:
+  - "politics"
+  - "crypto"
+  - "nft"
+  - "hiring"
+  - "looking for job"
+
+my_handles:
+  - "@alinaqi"
+  - "alinaqi"
+  - "github.com/alinaqi"
+
+max_engagements_per_day: 2

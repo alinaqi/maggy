@@ -242,10 +242,19 @@ class BuildInPublic:
         self._config = getattr(manifest, 'config', manifest.get('config', {}))
         self._anonymize = self._load_anonymize()
         self._customization = self._load_customization()
+        self._tags = self._load_tags()
         self._strategy = ContentStrategy(self._config)
         self._posts_today = 0
         self._last_post_date = ""
         self._project_state = self._load_project_state()
+
+    def _load_tags(self) -> dict:
+        """Load smart tagging rules from tags.yaml."""
+        path = Path(__file__).parent / "tags.yaml"
+        try:
+            return yaml.safe_load(path.read_text())
+        except Exception:
+            return {"platforms": {}}
 
     def _load_customization(self) -> dict:
         """Load user customization from customization.md."""
@@ -284,6 +293,39 @@ class BuildInPublic:
 
     def is_enabled_for(self, project: str) -> bool:
         return self._project_state.get(project, {}).get("enabled", True)
+
+    def _smart_tag(self, text: str, channel: str) -> str:
+        """Auto-tag relevant accounts based on post content."""
+        platform = "linkedin" if channel == "linkedin" else "x"
+        accounts = self._tags.get("platforms", {}).get(platform, {}).get("accounts", [])
+        if not accounts:
+            return text
+
+        text_lower = text.lower()
+        tagged = set()
+        mentions = []
+        for acct in accounts:
+            for kw in acct.get("trigger_keywords", []):
+                if kw in text_lower and acct["handle"] not in tagged:
+                    mentions.append(acct["handle"])
+                    tagged.add(acct["handle"])
+                    break
+
+        if not mentions:
+            return text
+
+        # X: append @handles at end (up to 3)
+        if channel == "x":
+            tag_str = " ".join(mentions[:3])
+            if tag_str not in text:
+                text = text.rstrip() + "\n\n" + tag_str
+        # LinkedIn: append company mentions
+        else:
+            tag_str = " ".join(f"@{h}" for h in mentions[:3])
+            if tag_str not in text:
+                text = text.rstrip() + "\n\n" + tag_str
+
+        return text
 
     def set_enabled(self, project: str, enabled: bool):
         self._project_state[project] = self._project_state.get(project, {})
@@ -419,6 +461,8 @@ class BuildInPublic:
                         clickouts = self._customization.get("clickouts", [])
                         if clickouts and clickouts[0] not in text:
                             text = text.rstrip() + " " + clickouts[0]
+                    # Apply smart tagging
+                    text = self._smart_tag(text, channel)
                     narratives[channel] = text
             except Exception:
                 pass

@@ -1,0 +1,77 @@
+# Smart tagging — who to mention on each platform
+# Maps topic/brand → social handles
+
+platforms:
+  linkedin:
+    accounts:
+      # AI & Dev Tools
+      - name: GitHub
+        handle: github
+        trigger_keywords: [github, git, repo, open source, PR, pull request]
+      - name: Anthropic
+        handle: anthropic
+        trigger_keywords: [claude, anthropic, sonnet, opus, haiku]
+      - name: OpenAI
+        handle: openai
+        trigger_keywords: [openai, gpt, codex, chatgpt]
+      - name: Google DeepMind
+        handle: google-deepmind
+        trigger_keywords: [gemini, google, deepmind, gemma]
+      - name: DeepSeek
+        handle: deepseek
+        trigger_keywords: [deepseek]
+      - name: Moonshot AI
+        handle: moonshot-ai
+        trigger_keywords: [kimi, moonshot]
+      - name: Buffer
+        handle: buffer
+        trigger_keywords: [buffer, social media scheduling]
+      - name: Ollama
+        handle: ollama
+        trigger_keywords: [ollama, qwen, local model]
+      # Competitors & landscape
+      - name: OpenRouter
+        handle: openrouter
+        trigger_keywords: [openrouter]
+      - name: Portkey
+        handle: portkey-ai
+        trigger_keywords: [portkey]
+      - name: LangChain
+        handle: langchain
+        trigger_keywords: [langchain, langgraph]
+      - name: Semantic Router
+        handle: aurelio
+        trigger_keywords: [semantic router, aurelio]
+
+  x:
+    accounts:
+      - name: GitHub
+        handle: "@github"
+        trigger_keywords: [github, git, repo, open source]
+      - name: Anthropic
+        handle: "@AnthropicAI"
+        trigger_keywords: [claude, anthropic, sonnet]
+      - name: OpenAI
+        handle: "@OpenAI"
+        trigger_keywords: [openai, gpt, codex]
+      - name: Google DeepMind
+        handle: "@GoogleDeepMind"
+        trigger_keywords: [gemini, google, deepmind]
+      - name: DeepSeek
+        handle: "@deepseek_ai"
+        trigger_keywords: [deepseek]
+      - name: Buffer
+        handle: "@buffer"
+        trigger_keywords: [buffer]
+      - name: Ollama
+        handle: "@ollama"
+        trigger_keywords: [ollama, qwen]
+      - name: OpenRouter
+        handle: "@OpenRouterAI"
+        trigger_keywords: [openrouter]
+      - name: LangChain
+        handle: "@LangChainAI"
+        trigger_keywords: [langchain]
+      - name: Semantic Router
+        handle: "@AurelioAI"
+        trigger_keywords: [semantic router, aurelio]
