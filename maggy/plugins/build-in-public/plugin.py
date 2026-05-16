@@ -21,7 +21,11 @@ from pathlib import Path
 import httpx
 import yaml
 
-from maggy.plugins.manager import HookBus, PluginManifest
+try:
+    from maggy.plugins.manager import HookBus, PluginManifest
+except ImportError:
+    HookBus = None  # type: ignore
+    PluginManifest = dict  # type: ignore  # Standalone fallback
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +47,16 @@ def register(bus: HookBus, manifest: PluginManifest):
 class BuildInPublic:
     """Autonomous build-in-public storyteller."""
 
-    def __init__(self, manifest: PluginManifest):
+    def __init__(self, manifest):
         self._manifest = manifest
-        self._config = manifest.config
+        self._config = getattr(manifest, 'config', manifest.get('config', {}))
         self._anonymize = self._load_anonymize()
         self._posts_today = 0
         self._last_post_date = ""
 
     def _load_anonymize(self) -> dict:
-        rules_path = Path(self._manifest.path) / "anonymize.yaml"
+        manifest_path = getattr(self._manifest, 'path', self._manifest.get('_path', ''))
+        rules_path = Path(manifest_path) / "anonymize.yaml" if manifest_path else Path(__file__).parent / "anonymize.yaml"
         try:
             return yaml.safe_load(rules_path.read_text())
         except Exception:

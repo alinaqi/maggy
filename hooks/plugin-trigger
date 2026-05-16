@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Standalone plugin trigger for Claude Bootstrap (no Maggy server needed).
+
+Called from Claude Code hooks to emit events to plugins.
+Usage:
+  plugin-trigger on_pr_merged '{"title":"Add auth","branch":"feature/auth"}'
+  plugin-trigger on_feature_shipped '{"feature":"JWT login"}'
+  plugin-trigger on_review_passed '{"verdict":"APPROVED","plan":"..."}'
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+# Discover plugins
+PLUGIN_DIRS = [
+    Path.home() / ".maggy" / "plugins",
+    Path(__file__).parent.parent / "plugins",  # Repo plugins/
+]
+
+
+def discover():
+    manifests = []
+    for base in PLUGIN_DIRS:
+        if not base.exists():
+            continue
+        for yaml_file in base.rglob("plugin.yaml"):
+            try:
+                import yaml
+                m = yaml.safe_load(yaml_file.read_text())
+                m["_path"] = str(yaml_file.parent)
+                manifests.append(m)
+            except Exception:
+                pass
+    return manifests
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: plugin-trigger <event_name> [json_payload]", file=sys.stderr)
+        sys.exit(1)
+
+    event_name = sys.argv[1]
+    payload = {}
+    if len(sys.argv) > 2:
+        try:
+            payload = json.loads(sys.argv[2])
+        except json.JSONDecodeError:
+            payload = {"raw": sys.argv[2]}
+
+    manifests = discover()
+    triggered = 0
+
+    for manifest in manifests:
+        hooks = manifest.get("hooks", [])
+        for hook in hooks:
+            if hook.get("event") == event_name:
+                entry = Path(manifest["_path"]) / manifest["entrypoint"]
+                if entry.exists():
+                    # Import and call handler directly
+                    import importlib.util
+                    import sys as _sys
+                    spec = importlib.util.spec_from_file_location(
+                        f"plugin_{manifest['id']}", entry
+                    )
+                    if spec and spec.loader:
+                        module = importlib.util.module_from_spec(spec)
+                        _sys.modules[spec.name] = module
+                        spec.loader.exec_module(module)
+
+                        # Find and call the handler
+                        handler_name = hook.get("handler")
+                        handler = getattr(module, "BuildInPublic", None)
+                        if handler:
+                            try:
+                                import asyncio
+                                instance = handler(manifest)
+                                method = getattr(instance, handler_name, None)
+                                if method:
+                                    asyncio.run(method(payload))
+                                    triggered += 1
+                                    print(f"[plugin-trigger] {manifest['id']}: "
+                                          f"{event_name} → {handler_name}")
+                            except Exception as e:
+                                print(f"[plugin-trigger] {manifest['id']} "
+                                      f"error: {e}", file=sys.stderr)
+
+    print(f"[plugin-trigger] {event_name}: {triggered} plugin(s) triggered")
+    return 0 if triggered > 0 else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
