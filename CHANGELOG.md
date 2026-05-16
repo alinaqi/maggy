@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.18.0] - 2026-05-16
+
+### Added
+
+#### Gemini Integration — 9-Tier Model Routing
+- **`~/bin/gemini`** — delegation script calling Gemini via OpenAI-compatible endpoint
+- **Gemini 2.5 Flash-Lite** (Tier 2, $0.10/$0.40 per M) — bulk extraction, classification, CIG pipelines, cheapest model
+- **Gemini 2.5 Flash** (Tier 5, $0.15/$0.60 per M) — multimodal (images, video, audio), brand asset analysis
+- **Gemini 3.1 Pro + Search** (Tier 7, $1.25/$10 per M) — deep research, native Google Search grounding, 2M context window
+- **`route-task-hook`** — expanded to 9 tiers with GEMINI_FLASH_LITE, GEMINI_FLASH, GEMINI_PRO_SEARCH
+- **`model_router.py`** — DEFAULT_TIERS expanded from 6 to 9 entries with Google provider
+- **`pi.py`** — DEFAULT_MODELS with Gemini entries and delegation conventions
+- **`routing_rules_defaults.py`** — Gemini performance profiles (multimodal, bulk_extraction, deep_research, google_grounding)
+- **`chat_router.py`** — added `use gemini` force pattern
+
+### Changed
+- **`CLAUDE.md`** — updated routing heuristic: bulk extraction → Gemini Flash-Lite, multimodal → Gemini Flash, deep research → Gemini Pro Search
+- **`CLAUDE.md`** — 9-tier table with costs and roles
+
+---
+
 ## [6.17.2] - 2026-05-16
 
 ### Added
