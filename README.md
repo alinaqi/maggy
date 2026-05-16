@@ -52,6 +52,8 @@ The original scaffolding that sets up any project for AI-assisted development:
 | **Agents** | Team Lead + Quality + Security + Review + Merger + Feature | Coordinated pipeline: spec → test → implement → review → PR |
 | **Memory** | Mnemos (typed graph on disk) | Survives compaction, crashes, restarts |
 | **Intent** | iCPG (code property graph) | Tracks *why* code exists, detects drift |
+| **Explore** | iCPG-powered code explorer | `trace_path`, `search_graph`, `query_graph` instead of grep |
+| **Routing** | Plan-vs-execute classifier | CLAUDE tier → PLAN FIRST. DEEPSEEK/GEMINI → EXECUTE DIRECTLY |
 
 ## Skills (62)
 

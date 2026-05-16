@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.20.0] - 2026-05-16
+
+### Added
+
+#### iCPG-Powered Explore Agent
+- **`agents/explore.md`** — enhanced Explorer that uses codebase-memory-mcp graph tools first
+- **`search_graph`**, **`trace_path`**, **`get_code_snippet`** over grep/glob for code discovery
+- **`query_graph`** for complex dependency analysis and ReasonNode traversal
+- Falls back to Grep/Glob/Read only for text content, config, non-code files
+
+#### Plan-vs-Execute Decision Routing
+- **route-task-hook** now classifies into PLAN FIRST vs EXECUTE DIRECTLY
+- **CLAUDE tier** → "PLAN FIRST — explore, design approach, get approval"
+- **DEEPSEEK_PRO / GEMINI_CLI tiers** → "EXECUTE DIRECTLY — no plan needed"
+- Prevents unnecessary planning for workhorse coding tasks
+
+#### Gemini CLI Integration
+- **`~/bin/gemini-cli`** — full coding agent delegation (v0.42.0)
+- Headless mode via `-p`, model selection via `-m` (pro/flash/flash-lite/auto)
+- `--skip-trust` for automated environments, `--output-format json`
+- Installed and tested: uses gemini-3-flash-preview, full tool support
+
+### Changed
+- **`onboard.sh`** — fixed cost display `$0` expansion bug
+- **`gemini-cli`** — binary discovery path to avoid `~/bin/gemini` API delegator collision
+
+---
+
 ## [6.19.0] - 2026-05-16
 
 ### Added
