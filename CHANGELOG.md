@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.26.0] - 2026-05-17
+
+### Added
+- **Mid-task model escalation** — real-time struggle detection with automatic tier switching
+- **3-signal struggle detection**: consecutive errors, re-read loops, tool stagnation
+- **Two-stage escalation**: warning (monitor) → escalate (force premium)
+- **Dual-path integration**: PreToolUse hook (Claude Bootstrap) + ExecutorService (Maggy)
+- **Max 3 escalations per session** to prevent escalation death spirals
+- **Auto-resolve**: clears escalation flag when struggle patterns stop
+- **Tested**: 6/6 Claude Bootstrap phases pass, 3/3 Maggy phases pass
+
+### Changed
+- **route-task-hook**: reads mid-task escalation flag, forces premium tier on next prompt
+- **ExecutorService**: tracks per-session model failures, pushes fatigue to REM at 3+ failures
+- **settings.json**: registered mid-task-escalation as PreToolUse hook
+
+---
+
 ## [6.25.0] - 2026-05-17
 
 ### Added
