@@ -131,6 +131,26 @@ if [[ "$CWD" == "$EDUBITES_ROOT"* ]]; then
   fi
 fi
 
+# ── Mid-task escalation override ─────────────────────────────────────────
+ESCALATION_FLAG="$HOME/.claude/mid-task-state/escalate"
+if [ -f "$ESCALATION_FLAG" ]; then
+  ESCALATION_COUNT=$(cat "$ESCALATION_FLAG" 2>/dev/null || echo "0")
+  if [ "$ESCALATION_COUNT" -gt 0 ] 2>/dev/null; then
+    # Force premium tier — escalate from current tier
+    case "$TIER" in
+      QWEN|DEEPSEEK_FLASH|GEMINI_FLASH_LITE) TIER="DEEPSEEK_PRO" ;;
+      DEEPSEEK_PRO|GEMINI_FLASH) TIER="CLAUDE" ;;
+      KIMI) TIER="CLAUDE" ;;
+    esac
+    REASON="escalation: mid-task struggle detected, forced premium"
+    # Increment counter (max 3 escalations per session)
+    NEW_COUNT=$((ESCALATION_COUNT + 1))
+    if [ "$NEW_COUNT" -le 3 ] 2>/dev/null; then
+      echo "$NEW_COUNT" > "$ESCALATION_FLAG"
+    fi
+  fi
+fi
+
 # ── Build context based on tier ──────────────────────────────────────────
 case "$TIER" in
   QWEN)

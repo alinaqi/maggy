@@ -181,6 +181,24 @@ class ExecutorService:
         self._emit_status(name, "done")
         if result.model != name and (e := self._pi.get_model(result.model)):
             self._fatigue.on_model_switch(e.context_window)
+        # Mid-task struggle detection: if model failed 3+ times consecutively, escalate
+        if decision.primary.name != "claude" and not result.success:
+            esc_key = f"failures_{ctx.session['id']}"
+            fails = getattr(self, '_mid_task_fails', {}).get(esc_key, 0) + 1
+            if not hasattr(self, '_mid_task_fails'):
+                self._mid_task_fails = {}
+            self._mid_task_fails[esc_key] = fails
+            if fails >= 3:
+                logger.warning("Mid-task escalation: %d failures on %s, switching to claude",
+                             fails, decision.primary.name)
+                # Force premium on next _run_model
+                self._fatigue.record("handoff_risk", 0.85)  # Push to REM state
+        elif result.success:
+            # Reset on success
+            esc_key = f"failures_{ctx.session['id']}"
+            if hasattr(self, '_mid_task_fails'):
+                self._mid_task_fails.pop(esc_key, None)
+
         H.track_fatigue(self._fatigue, result)
         if result.cost_usd > 0 or result.input_tokens > 0:
             self._budget.record_spend(

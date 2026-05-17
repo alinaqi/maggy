@@ -1,0 +1,76 @@
+#!/bin/bash
+# PreToolUse hook — detects struggle signals and triggers mid-task escalation.
+#
+# Tracks tool call patterns. When struggle detected:
+# 1. Writes an escalation flag that route-task-hook reads
+# 2. Next routing decision forces a premium tier
+# 3. Mnemos checkpoint preserves context through the switch
+#
+# No set -euo pipefail: hook scripts must be defensive.
+
+INPUT=$(cat 2>/dev/null || true)
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
+TOOL_INPUT=$(echo "$INPUT" | jq -r '.tool_input // empty' 2>/dev/null || echo "")
+
+STATE_DIR="$HOME/.claude/mid-task-state"
+mkdir -p "$STATE_DIR"
+
+TOOL_HISTORY="$STATE_DIR/tool-history.jsonl"
+ESCALATION_FLAG="$STATE_DIR/escalate"
+STRUGGLE_LOG="$STATE_DIR/struggle.json"
+
+# ── Track tool calls ─────────────────────────────────────────────────────
+if [ -n "$TOOL_NAME" ]; then
+  echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tool\":\"$TOOL_NAME\",\"input\":$(echo "$TOOL_INPUT" | jq -Rc .)}" >> "$TOOL_HISTORY"
+fi
+
+# ── Struggle detection ────────────────────────────────────────────────────
+HISTORY=$(cat "$TOOL_HISTORY" 2>/dev/null | tail -20)
+
+# Signal 1: Consecutive tool errors (3+ failures in a row)
+ERRORS=$(echo "$HISTORY" | jq -r '.tool // empty' | grep -c "error\|fail\|timeout" 2>/dev/null || echo "0")
+CONSECUTIVE_ERRORS=0
+if [ "$ERRORS" -ge 3 ] 2>/dev/null; then
+  CONSECUTIVE_ERRORS=1
+fi
+
+# Signal 2: Re-read loop — same file opened 4+ times
+RE_READS=$(echo "$HISTORY" | jq -r '.tool // empty' | grep -c "Read\|read_file\|open" 2>/dev/null || echo "0")
+RE_READ_PATTERN=$(echo "$HISTORY" | jq -r '.input // empty' | sort | uniq -c | sort -rn | head -1 | awk '{print $1}' 2>/dev/null || echo "0")
+if [ "$RE_READ_PATTERN" -ge 4 ] 2>/dev/null || [ "$RE_READS" -ge 8 ] 2>/dev/null; then
+  CONSECUTIVE_ERRORS=1
+fi
+
+# Signal 3: Stagnation — same tool called 5+ times with no progress marker
+SAME_TOOL=$(echo "$HISTORY" | jq -r '.tool // empty' | sort | uniq -c | sort -rn | head -1 | awk '{print $1}' 2>/dev/null || echo "0")
+if [ "$SAME_TOOL" -ge 6 ] 2>/dev/null; then
+  CONSECUTIVE_ERRORS=1
+fi
+
+# ── Escalation logic ─────────────────────────────────────────────────────
+STRUGGLE_STATE=$(cat "$STRUGGLE_LOG" 2>/dev/null | jq -r '.level // "none"' 2>/dev/null || echo "none")
+
+if [ "$CONSECUTIVE_ERRORS" -eq 1 ]; then
+  if [ "$STRUGGLE_STATE" = "none" ]; then
+    STRUGGLE_STATE="warning"
+    echo "{\"level\":\"warning\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"reason\":\"consecutive errors or re-read loop\"}" > "$STRUGGLE_LOG"
+    echo "[mid-task] ⚠️ Struggle detected (${STRUGGLE_STATE}) — monitoring" >&2
+  elif [ "$STRUGGLE_STATE" = "warning" ]; then
+    STRUGGLE_STATE="escalate"
+    echo "{\"level\":\"escalate\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"reason\":\"sustained struggle — escalating\"}" > "$STRUGGLE_LOG"
+    # Set escalation flag — route-task-hook reads this
+    echo "1" > "$ESCALATION_FLAG"
+    echo "[mid-task] 🚨 Escalating to premium tier on next prompt" >&2
+  fi
+elif [ "$CONSECUTIVE_ERRORS" -eq 0 ] && [ "$STRUGGLE_STATE" != "none" ]; then
+  # Struggle resolved — clear
+  STRUGGLE_STATE="none"
+  echo "{\"level\":\"none\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > "$STRUGGLE_LOG"
+  rm -f "$ESCALATION_FLAG"
+fi
+
+# ── Return permission ─────────────────────────────────────────────────────
+cat <<'EOF'
+{"permissionDecision": "allow"}
+EOF
+exit 0
