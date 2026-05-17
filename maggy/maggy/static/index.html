@@ -200,7 +200,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=14"></script>
   <script>
     document.addEventListener('keydown', function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -388,7 +388,13 @@
       fetch('/api/projects').then(function(r){return r.json()}).then(function(data){
         var projects = (data.projects||[]).map(function(p){return typeof p === 'string' ? p : (p.name || p.key || '')}).filter(Boolean);
         window._projectList = projects;
-        if (projects.length) updateCurrentProject(projects[0]);
+        if (projects.length) {
+          updateCurrentProject(projects[0]);
+          // Seed current project as active so it shows in recent
+          if (!localStorage.getItem('maggy-recent-projects')) {
+            localStorage.setItem('maggy-recent-projects', JSON.stringify([projects[0]]));
+          }
+        }
         renderActiveProjects();
       }).catch(function(){
         window._projectList = [];
