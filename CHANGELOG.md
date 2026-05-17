@@ -15,6 +15,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Intent bug detection** — finds flaws in original design assumptions
 - **Plugin system upgrades** — router auto-registration, heartbeat jobs from manifests
 - **Provider plugins extracted** — GitHub, Asana moved from core to plugins
+#### Architecture Refactoring — Core → Plugin Extraction
+- **Plugin system upgraded** —  now supports router auto-registration and heartbeat job registration
+- **PluginManager** accepts FastAPI `app` and `HeartbeatScheduler` — plugins self-register routes and jobs on load
+- **Plugin contract**: `plugin.yaml` declares `router: "module:var"` and `heartbeat: [{name, interval, fn}]`
+- **Providers extracted from core**: GitHub Issues (`provider-github`), Asana (`provider-asana`) → plugins
+- **IssueTrackerProvider protocol** stays in core as abstract interface
+- **Forge connector** extracted →  with gap scan heartbeat
+- **Kept in core**: routing, memory (Mnemos/Engram), execution, blueprints (learning patterns), competitor intel (autonomous market understanding)
+- **8 plugins now**: build-in-public, e2e-testkit, provider-github, provider-asana, forge, and built-in plugins
+
 - **Grok (xAI) integration** — 10th model tier via OpenAI-compatible API at `api.x.ai/v1`
 - **10-tier routing**: Qwen3 → Gemini FL → DeepSeek Flash → DeepSeek Pro → Gemini Flash → Gemini CLI → Kimi → Grok → Gemini Pro Search → Codex → Claude
 - **Competitor Intelligence Dashboard** — per-project competitor tracking (maggy, chess, edtech)
