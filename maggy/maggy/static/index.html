@@ -74,11 +74,16 @@
       <span class="font-bold text-white text-sm tracking-tight">Maggy</span>
       <span class="text-[10px] text-gray-600 ml-auto font-mono">v0.2</span>
     </div>
-    <div class="px-3 py-2.5">
+    <div class="px-3 py-2.5 space-y-2">
       <button onclick="openProjectSearch()" class="w-full text-left flex items-center gap-2 text-xs py-1.5 px-2.5 rounded-md glass-input" style="font-size:0.75rem;cursor:pointer">
         <i class="fas fa-search text-gray-500 text-[10px]"></i>
         <span class="flex-1 truncate" id="current-project-label">Select project...</span>
         <kbd class="text-[9px] text-gray-600 ml-1 font-mono">⌘K</kbd>
+      </button>
+      <div id="sidebar-active-projects" class="space-y-0.5"></div>
+      <button onclick="openNewProject()" class="w-full text-left flex items-center gap-2 text-xs py-1.5 px-2.5 rounded-md hover:bg-orange-500/10 text-gray-500 hover:text-orange-400 transition-colors" style="font-size:0.75rem">
+        <i class="fas fa-plus text-[10px]"></i>
+        <span>New Project</span>
       </button>
     </div>
     <nav class="flex-1 px-2 py-1 overflow-y-auto scroll-thin space-y-0.5">
@@ -148,6 +153,34 @@
       <div id="project-search-results" class="text-xs space-y-0.5"></div>
     </div>
   </div>
+  <!-- New Project Modal -->
+  <div id="new-project-overlay" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+    <div class="glass-card w-[440px] max-w-[90vw] p-5 shadow-2xl">
+      <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2"><i class="fas fa-plus text-orange-500"></i> New Project</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Project Name</label>
+          <input id="new-project-name" type="text" placeholder="my-awesome-app"
+                 class="glass-input w-full text-sm py-2 px-3" onkeydown="if(event.key==='Enter')createNewProject()" autofocus />
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Directory</label>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500">~/Documents/</span>
+            <input id="new-project-dir" type="text" placeholder="my-awesome-app"
+                   class="glass-input flex-1 text-sm py-2 px-3" />
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
+          <button onclick="createNewProject()" class="btn btn-primary flex-1 py-2 text-sm font-medium">
+            <i class="fas fa-magic mr-2"></i>Create & Initialize
+          </button>
+          <button onclick="closeNewProject()" class="btn btn-ghost text-sm px-4 py-2">Cancel</button>
+        </div>
+        <div id="new-project-status" class="hidden text-xs"></div>
+      </div>
+    </div>
+  </div>
   <!-- Drawer -->
   <div id="drawer" class="fixed top-0 right-0 h-full w-[40rem] max-w-full glass-card border-l p-4 overflow-y-auto translate-x-full transition-transform z-40" style="border-color:var(--border);border-radius:0">
     <div class="flex items-center justify-between mb-3">
@@ -206,6 +239,75 @@
     }
     function updateCurrentProject(name) {
       document.getElementById('current-project-label').textContent = name || 'Select project...';
+      // Track as recently active
+      if (name) {
+        var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
+        recent = recent.filter(function(p) { return p !== name; });
+        recent.unshift(name);
+        localStorage.setItem('maggy-recent-projects', JSON.stringify(recent.slice(0, 10)));
+      }
+    }
+
+    function openNewProject() {
+      document.getElementById('new-project-overlay').classList.remove('hidden');
+      var inp = document.getElementById('new-project-name');
+      inp.focus();
+      // Auto-fill dir from name
+      inp.addEventListener('input', function() {
+        document.getElementById('new-project-dir').value = this.value.toLowerCase().replace(/\\s+/g, '-');
+      });
+    }
+    function closeNewProject() {
+      document.getElementById('new-project-overlay').classList.add('hidden');
+    }
+
+    async function createNewProject() {
+      var name = document.getElementById('new-project-name').value.trim();
+      var dir = document.getElementById('new-project-dir').value.trim() || name.toLowerCase().replace(/\\s+/g, '-');
+      if (!name) return;
+
+      var status = document.getElementById('new-project-status');
+      status.classList.remove('hidden');
+      status.className = 'text-xs text-gray-400 mt-2';
+      status.innerHTML = '<i class=\"fas fa-spinner fa-spin mr-1\"></i>Creating ' + dir + '...';
+
+      try {
+        var resp = await fetch('/api/projects/create-new', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: name, directory: dir})
+        });
+        var data = await resp.json();
+        if (data.ok) {
+          status.className = 'text-xs text-green-400 mt-2';
+          status.innerHTML = '<i class=\"fas fa-check mr-1\"></i>' + data.message;
+          setTimeout(function() {
+            closeNewProject();
+            jumpToProject(name);
+            location.reload();
+          }, 1500);
+        } else {
+          status.className = 'text-xs text-red-400 mt-2';
+          status.innerHTML = '<i class=\"fas fa-exclamation-triangle mr-1\"></i>' + (data.error || 'Failed');
+        }
+      } catch(e) {
+        status.className = 'text-xs text-red-400 mt-2';
+        status.innerHTML = '<i class=\"fas fa-exclamation-triangle mr-1\"></i>' + e.message;
+      }
+    }
+
+    function renderActiveProjects() {
+      var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
+      var all = window._projectList || [];
+      var active = recent.filter(function(p) { return all.indexOf(p) >= 0; }).slice(0, 4);
+      var el = document.getElementById('sidebar-active-projects');
+      if (!el || !active.length) return;
+      var html = '';
+      for (var i = 0; i < active.length; i++) {
+        var p = active[i];
+        html += '<div class="flex items-center gap-2 px-2 py-1 rounded text-[10px] text-gray-500 hover:text-gray-300 hover:bg-white/[0.03] cursor-pointer transition-colors" onclick="jumpToProject(\'' + p.replace(/'/g, "\\'") + '\')"><i class="fas fa-circle text-[5px] text-green-500/50"></i><span class="truncate">' + p + '</span></div>';
+      }
+      el.innerHTML = html;
     }
 
     window.addEventListener('load', function() {
@@ -213,6 +315,7 @@
         var projects = (data.projects||[]).map(function(p){return typeof p === 'string' ? p : (p.name || p.key || '')}).filter(Boolean);
         window._projectList = projects;
         if (projects.length) updateCurrentProject(projects[0]);
+        renderActiveProjects();
       }).catch(function(){
         window._projectList = [];
       });

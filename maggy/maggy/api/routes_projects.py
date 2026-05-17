@@ -76,6 +76,46 @@ async def add_project(
         raise HTTPException(409, str(exc)) from exc
     return {"name": project.name, "status": "created"}
 
+@router.post("/create-new")
+async def create_new_project(
+    body: _NewProjectIn,
+    request: Request,
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Create a new project directory and register it."""
+    import subprocess
+    from pathlib import Path
+
+    check_auth(request, x_api_key)
+    registry = request.app.state.registry
+    if not registry:
+        raise HTTPException(503, "Not configured")
+
+    dir_name = body.directory or body.name.lower().replace(" ", "-")
+    project_path = Path.home() / "Documents" / dir_name
+
+    try:
+        project_path.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise HTTPException(500, f"Cannot create directory: {e}") from e
+
+    # Register the project
+    from maggy.config import ProjectConfig
+    project = ProjectConfig(
+        name=body.name, repo=f"local/{dir_name}",
+        path=str(project_path), default_branch="main",
+    )
+    try:
+        registry.add(project)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    return {
+        "ok": True,
+        "name": body.name,
+        "path": str(project_path),
+        "message": f"Created {dir_name}/ — open terminal and run: cd {project_path} && claude"
+    }
 
 @router.delete("/{name}")
 async def remove_project(
