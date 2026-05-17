@@ -1,0 +1,14 @@
+id: e2e-testkit
+version: 1
+entrypoint: plugin.py
+permissions: [test.run, benchmark.run, drift.analyze, ai.generate]
+router: "plugin:router"
+heartbeat:
+  - name: regression_scan
+    interval_seconds: 3600
+    fn: run_regression_scan
+config:
+  benchmark_runs: 3
+  drift_threshold: 0.15
+  intent_analysis: true
+  output_dir: "~/.maggy/testkit"

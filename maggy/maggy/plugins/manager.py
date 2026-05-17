@@ -130,13 +130,13 @@ class PluginManager:
 
         try:
             entry = Path(manifest.path) / manifest.entrypoint
-            spec = importlib.util.spec_from_file_location(
-                f"maggy_plugin_{manifest.id}", entry,
-            )
+            mod_name = f"maggy_plugin_{manifest.id}"
+            spec = importlib.util.spec_from_file_location(mod_name, entry)
             if not spec or not spec.loader:
                 return False
             module = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = module
+            module.__package__ = mod_name  # Fix Python 3.14 dataclass importlib bug
+            sys.modules[mod_name] = module
             spec.loader.exec_module(module)
 
             # Register hooks
