@@ -1,0 +1,12 @@
+id: provider-monday
+version: 1
+entrypoint: plugin.py
+permissions: [monday.read, monday.write]
+router: "plugin:router"
+heartbeat:
+  - name: monday_inbox_poll
+    interval_seconds: 300
+    fn: poll_inbox
+config:
+  token_env: "MONDAY_TOKEN"
+  board_env: "MONDAY_BOARD_ID"
