@@ -78,7 +78,13 @@ async def get_config(request: Request, x_api_key: str | None = Header(None)) -> 
     _auth(request, x_api_key)
     cfg = request.app.state.cfg
     # Redact secrets before returning
+    import os as _os
     return {
+        "env": {
+            "GITHUB_TOKEN": bool(_os.environ.get("GITHUB_TOKEN")),
+            "ASANA_TOKEN": bool(_os.environ.get("ASANA_TOKEN")),
+            "MONDAY_TOKEN": bool(_os.environ.get("MONDAY_TOKEN")),
+        },
         "org": {"name": cfg.org.name, "domain": cfg.org.domain},
         "issue_tracker": {"provider": cfg.issue_tracker.provider},
         "codebases": [{"key": c.key, "path": c.path} for c in cfg.codebases],

@@ -246,6 +246,28 @@
       document.getElementById('current-project-label').textContent = name;
       if (typeof switchProject === 'function') switchProject(name);
     }
+    function getTrackerStatus() {
+      // Check which trackers have credentials available
+      var status = {native: true};
+      // These are checked via API — we show what the environment has
+      fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
+        var env = cfg.env || {};
+        status.github = !!(env.GITHUB_TOKEN);
+        status.asana = !!(env.ASANA_TOKEN);
+        status.monday = !!(env.MONDAY_TOKEN);
+        // Update dropdown to show available trackers
+        var sel = document.getElementById('sidebar-tracker');
+        if (!sel) return;
+        var opts = sel.options;
+        for (var i = 0; i < opts.length; i++) {
+          var v = opts[i].value || 'native';
+          if (v === 'native') continue;
+          opts[i].text = status[v] ? v : v + ' (needs key)';
+          if (!status[v]) opts[i].style.color = '#ef4444';
+          else opts[i].style.color = '';
+        }
+      }).catch(function(){});
+    }
     function setProjectTracker(type) {
       var proj = document.getElementById('current-project-label').textContent;
       if (!proj || proj === 'Select project...') return;
@@ -332,6 +354,7 @@
     }
 
     window.addEventListener('load', function() {
+      getTrackerStatus();
       fetch('/api/projects').then(function(r){return r.json()}).then(function(data){
         var projects = (data.projects||[]).map(function(p){return typeof p === 'string' ? p : (p.name || p.key || '')}).filter(Boolean);
         window._projectList = projects;
