@@ -18,6 +18,11 @@ class _ProjectIn(BaseModel):
     default_branch: str = "main"
 
 
+class _NewProjectIn(BaseModel):
+    name: str
+    directory: str = ""
+
+
 @router.get("")
 async def list_projects(
     request: Request,
