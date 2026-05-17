@@ -224,47 +224,43 @@
       var all = window._projectList || [];
       var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
       var html = '';
+      function itemRow(name, icon) {
+        return '<div class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors" data-project="' + name + '" onclick="jumpToProject(this.getAttribute('data-project'))">' + icon + '<span>' + name + '</span></div>';
+      }
 
       if (!all.length) {
-        html = '<div class="px-3 py-3 text-gray-500">No projects configured. Add one in Settings.</div>';
+        html = '<div class="px-3 py-3 text-gray-500">No projects configured.</div>';
       } else if (!q) {
-        // No query: show recently active first, then "Show all..."
         var shown = {};
         var active = recent.filter(function(p) { return all.indexOf(p) >= 0; });
-        var count = 0;
-        // Recently active with green dot
         if (active.length) {
           html += '<div class="text-[9px] text-gray-600 uppercase tracking-wider px-3 py-1">Recently Active</div>';
           for (var i = 0; i < Math.min(active.length, 6); i++) {
-            html += '<div class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors" onclick="jumpToProject(\'' + active[i].replace(/'/g, "\\\\'") + '\')"><i class="fas fa-circle text-[5px] text-green-500/60"></i><span>' + active[i] + '</span></div>';
+            html += itemRow(active[i], '<i class="fas fa-circle text-[5px] text-green-500/60"></i>');
             shown[active[i]] = true;
-            count++;
           }
         }
-        // "Show all projects" expander
         html += '<div class="border-t border-white/5 mt-1 pt-1"></div>';
         html += '<div class="text-[9px] text-gray-600 uppercase tracking-wider px-3 py-1">All Projects (' + all.length + ')</div>';
         for (var j = 0; j < all.length; j++) {
           if (shown[all[j]]) continue;
-          html += '<div class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors" onclick="jumpToProject(\'' + all[j].replace(/'/g, "\\\\'") + '\')"><i class="fas fa-folder text-gray-600 text-[10px]"></i><span>' + all[j] + '</span></div>';
+          html += itemRow(all[j], '<i class="fas fa-folder text-gray-600 text-[10px]"></i>');
         }
       } else {
-        // Search query: show filtered results
         var filtered = all.filter(function(i) { return i.toLowerCase().includes(q); });
         if (filtered.length) {
-          html += '<div class="text-[9px] text-gray-600 uppercase tracking-wider px-3 py-1">' + filtered.length + ' match' + (filtered.length !== 1 ? 'es' : '') + '</div>';
+          html += '<div class="text-[9px] text-gray-600 uppercase tracking-wider px-3 py-1">' + filtered.length + ' matches</div>';
           for (var k = 0; k < Math.min(filtered.length, 15); k++) {
-            var isRecent = recent.indexOf(filtered[k]) >= 0;
-            var icon = isRecent ? '<i class="fas fa-circle text-[5px] text-green-500/60"></i>' : '<i class="fas fa-folder text-gray-600 text-[10px]"></i>';
-            html += '<div class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors" onclick="jumpToProject(\'' + filtered[k].replace(/'/g, "\\\\'") + '\')">' + icon + '<span>' + filtered[k] + '</span></div>';
+            var isActive = recent.indexOf(filtered[k]) >= 0;
+            var icon = isActive ? '<i class="fas fa-circle text-[5px] text-green-500/60"></i>' : '<i class="fas fa-folder text-gray-600 text-[10px]"></i>';
+            html += itemRow(filtered[k], icon);
           }
         } else {
-          html = '<div class="px-3 py-3 text-gray-600">No matches for "' + q + '"</div>';
+          html = '<div class="px-3 py-3 text-gray-600">No matches.</div>';
         }
       }
       document.getElementById('project-search-results').innerHTML = html;
-    }
-    function handleProjectSearchKey(e) {
+    }    function handleProjectSearchKey(e) {
       if (e.key === 'Escape') { closeProjectSearch(); return; }
       if (e.key === 'Enter') {
         var first = document.querySelector('#project-search-results div.cursor-pointer, #project-search-results div[onclick]');
