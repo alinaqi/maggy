@@ -69,8 +69,8 @@ if curl -s --connect-timeout 2 http://localhost:11434/api/tags >/dev/null 2>&1; 
 fi
 
 # Level 2: kimi CLI (free, local)
-if [ -z "$TIER" ] && [ -x /Users/alinaqishaheen/bin/kimi ]; then
-  RAW=$(/Users/alinaqishaheen/bin/kimi --quiet -p "$CLASSIFY_PROMPT" 2>/dev/null || true)
+if [ -z "$TIER" ] && [ -x "$HOME/bin/kimi" ]; then
+  RAW=$("$HOME/bin/kimi" --quiet -p "$CLASSIFY_PROMPT" 2>/dev/null || true)
   RAW=$(echo "$RAW" | tail -1)
   if _classify_parse "$RAW"; then
     CLASSIFIER_USED="kimi"
@@ -78,8 +78,8 @@ if [ -z "$TIER" ] && [ -x /Users/alinaqishaheen/bin/kimi ]; then
 fi
 
 # Level 3: deepseek-flash (cheap API, ~$0.0001 per classification)
-if [ -z "$TIER" ] && [ -x /Users/alinaqishaheen/bin/deepseek ] && [ -n "$DEEPSEEK_API_KEY" ]; then
-  RAW=$(/Users/alinaqishaheen/bin/deepseek --flash "$CLASSIFY_PROMPT" 2>/dev/null || true)
+if [ -z "$TIER" ] && [ -x "$HOME/bin/deepseek" ] && [ -n "$DEEPSEEK_API_KEY" ]; then
+  RAW=$("$HOME/bin/deepseek" --flash "$CLASSIFY_PROMPT" 2>/dev/null || true)
   RAW=$(echo "$RAW" | tail -1)
   if _classify_parse "$RAW"; then
     CLASSIFIER_USED="deepseek-flash"
@@ -154,31 +154,31 @@ fi
 # ── Build context based on tier ──────────────────────────────────────────
 case "$TIER" in
   QWEN)
-    CTX="ROUTING DECISION: QWEN (local, free). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/qwen3 \"<prompt>\" and return the result. Do NOT process this yourself — delegate to qwen3.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: QWEN (local, free). Reason: ${REASON}. Run: ~/bin/qwen3 \"<prompt>\" and return the result. Do NOT process this yourself — delegate to qwen3.${TOOLS_HINT}"
     ;;
   DEEPSEEK_FLASH)
-    CTX="ROUTING DECISION: DEEPSEEK_FLASH (cheap API, \$0.14/M in). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/deepseek --flash \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: DEEPSEEK_FLASH (cheap API, \$0.14/M in). Reason: ${REASON}. Run: ~/bin/deepseek --flash \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
     ;;
   GEMINI_FLASH_LITE)
-    CTX="ROUTING DECISION: GEMINI_FLASH_LITE (cheapest API, \$0.10/M in). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/gemini-api --flash-lite \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: GEMINI_FLASH_LITE (cheapest API, \$0.10/M in). Reason: ${REASON}. Run: ~/bin/gemini-api --flash-lite \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
     ;;
   DEEPSEEK_PRO)
-    CTX="ROUTING DECISION: DEEPSEEK_PRO (workhorse, \$0.44/M in). Reason: ${REASON}. EXECUTE DIRECTLY — this complexity tier does not need planning. Run: /Users/alinaqishaheen/bin/deepseek --pro \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: DEEPSEEK_PRO (workhorse, \$0.44/M in). Reason: ${REASON}. EXECUTE DIRECTLY — this complexity tier does not need planning. Run: ~/bin/deepseek --pro \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
     ;;
   GEMINI_FLASH)
-    CTX="ROUTING DECISION: GEMINI_FLASH (multimodal, \$0.15/M in). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/gemini-api --flash \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: GEMINI_FLASH (multimodal, \$0.15/M in). Reason: ${REASON}. Run: ~/bin/gemini-api --flash \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
     ;;
   GEMINI_CLI)
-    CTX="ROUTING DECISION: GEMINI_CLI (coding agent, \$0.25-1.25/M in). Reason: ${REASON}. EXECUTE DIRECTLY — Gemini CLI has tools for implementation. Run: /Users/alinaqishaheen/bin/gemini-cli --pro \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini-cli.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: GEMINI_CLI (coding agent, \$0.25-1.25/M in). Reason: ${REASON}. EXECUTE DIRECTLY — Gemini CLI has tools for implementation. Run: ~/bin/gemini-cli --pro \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini-cli.${TOOLS_HINT}"
     ;;
   GROK)
-    CTX="ROUTING DECISION: GROK (xAI, competitive reasoning). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/grok \"<prompt>\" and return the result. Do NOT process this yourself — delegate to grok.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: GROK (xAI, competitive reasoning). Reason: ${REASON}. Run: ~/bin/grok \"<prompt>\" and return the result. Do NOT process this yourself — delegate to grok.${TOOLS_HINT}"
     ;;
   KIMI)
-    CTX="ROUTING DECISION: KIMI (local). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/kimi --quiet -p \"<prompt>\" and return the result. Do NOT process this yourself — delegate to kimi.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: KIMI (local). Reason: ${REASON}. Run: ~/bin/kimi --quiet -p \"<prompt>\" and return the result. Do NOT process this yourself — delegate to kimi.${TOOLS_HINT}"
     ;;
   GEMINI_PRO_SEARCH)
-    CTX="ROUTING DECISION: GEMINI_PRO_SEARCH (deep research + Google grounding, \$1.25/M in + search). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/gemini-api --pro-search \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: GEMINI_PRO_SEARCH (deep research + Google grounding, \$1.25/M in + search). Reason: ${REASON}. Run: ~/bin/gemini-api --pro-search \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
     ;;
   CODEX)
     CTX="ROUTING DECISION: CODEX. Reason: ${REASON}. Suggest the user run codex for this task, or use codex exec. Do NOT do bulk generation yourself.${TOOLS_HINT}"
