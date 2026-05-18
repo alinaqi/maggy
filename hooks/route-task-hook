@@ -154,13 +154,13 @@ fi
 # ── Build context based on tier ──────────────────────────────────────────
 case "$TIER" in
   QWEN)
-    CTX="ROUTING DECISION: QWEN (local, free). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/qwen3 \"<prompt>\" and return the result. Do NOT process this yourself — delegate to qwen3.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: QWEN (local, free). Reason: ${REASON}. You MUST delegate this task — run /Users/alinaqishaheen/bin/qwen3, return its output exactly as-is. Do NOT process, think about, or execute this prompt yourself. Your only job is to run the delegation command and relay the result.${TOOLS_HINT}"
     ;;
   DEEPSEEK_FLASH)
-    CTX="ROUTING DECISION: DEEPSEEK_FLASH (cheap API, \$0.14/M in). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/deepseek --flash \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: DEEPSEEK_FLASH (cheap API, \$0.14/M in). Reason: ${REASON}. You MUST delegate this task — run /Users/alinaqishaheen/bin/deepseek --flash, return its output exactly as-is. Do NOT process, think about, or execute this prompt yourself.${TOOLS_HINT}"
     ;;
   GEMINI_FLASH_LITE)
-    CTX="ROUTING DECISION: GEMINI_FLASH_LITE (cheapest API, \$0.10/M in). Reason: ${REASON}. Run: /Users/alinaqishaheen/bin/gemini-api --flash-lite \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: GEMINI_FLASH_LITE (cheapest API, \$0.10/M in). Reason: ${REASON}. You MUST delegate this task — run /Users/alinaqishaheen/bin/gemini-api --flash-lite, return its output exactly as-is. Do NOT process, think about, or execute this prompt yourself.${TOOLS_HINT}"
     ;;
   DEEPSEEK_PRO)
     CTX="ROUTING DECISION: DEEPSEEK_PRO (workhorse, \$0.44/M in). Reason: ${REASON}. EXECUTE DIRECTLY — this complexity tier does not need planning. Run: /Users/alinaqishaheen/bin/deepseek --pro \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
