@@ -58,10 +58,14 @@ _classify_parse() {
 }
 
 # Level 1: qwen3 via Ollama (free, local)
-if curl -s --connect-timeout 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
+# Model + host are env-var configurable; defaults work on any machine with
+# Ollama installed and `ollama pull qwen2.5-coder:3b` run.
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:3b}"
+OLLAMA_BASE="${OLLAMA_BASE:-http://localhost:11434}"
+if curl -s --connect-timeout 2 "${OLLAMA_BASE}/api/tags" >/dev/null 2>&1; then
   CONTENT=$(echo "$CLASSIFY_PROMPT" | jq -Rs .)
-  RAW=$(curl -s --max-time 8 http://localhost:11434/api/chat \
-    -d "{\"model\": \"qwen3-coder:30b-a3b-q8_0\", \"messages\": [{\"role\": \"user\", \"content\": ${CONTENT}}], \"stream\": false, \"options\": {\"temperature\": 0.1, \"num_predict\": 40}}" \
+  RAW=$(curl -s --max-time 8 "${OLLAMA_BASE}/api/chat" \
+    -d "{\"model\": \"${OLLAMA_MODEL}\", \"messages\": [{\"role\": \"user\", \"content\": ${CONTENT}}], \"stream\": false, \"options\": {\"temperature\": 0.1, \"num_predict\": 40}}" \
     2>/dev/null | jq -r '.message.content // ""' | head -1 || true)
   if _classify_parse "$RAW"; then
     CLASSIFIER_USED="qwen3"

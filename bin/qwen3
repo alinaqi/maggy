@@ -1,4 +1,9 @@
 #!/bin/bash
-curl -s http://localhost:11434/api/chat \
-  -d "{\"model\": \"qwen3-coder:30b-a3b-q8_0\", \"messages\": [{\"role\": \"user\", \"content\": $(echo "$1" | jq -Rs .)}], \"stream\": false, \"options\": {\"temperature\": 0.3}}" \
+# Ollama qwen executor. Model + host are env-var configurable so the script
+# works regardless of which qwen variant is pulled and whether Ollama runs
+# locally or on a remote (e.g. Tailscale) host.
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:3b}"
+OLLAMA_BASE="${OLLAMA_BASE:-http://localhost:11434}"
+curl -s "${OLLAMA_BASE}/api/chat" \
+  -d "{\"model\": \"${OLLAMA_MODEL}\", \"messages\": [{\"role\": \"user\", \"content\": $(echo "$1" | jq -Rs .)}], \"stream\": false, \"options\": {\"temperature\": 0.3}}" \
   | jq -r '.message.content'
