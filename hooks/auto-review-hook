@@ -55,10 +55,13 @@ DECISION=""
 CLASSIFIER=""
 
 # Level 1: qwen3 via Ollama (free, local)
-if [ -z "$DECISION" ] && curl -s --connect-timeout 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
+# Model + host env-var configurable (see bin/qwen3 for the matching pattern).
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:3b}"
+OLLAMA_BASE="${OLLAMA_BASE:-http://localhost:11434}"
+if [ -z "$DECISION" ] && curl -s --connect-timeout 2 "${OLLAMA_BASE}/api/tags" >/dev/null 2>&1; then
   CONTENT=$(echo "$CLASSIFY_PROMPT" | jq -Rs .)
-  DECISION=$(curl -s --max-time 6 http://localhost:11434/api/chat \
-    -d "{\"model\": \"qwen3-coder:30b-a3b-q8_0\", \"messages\": [{\"role\": \"user\", \"content\": ${CONTENT}}], \"stream\": false, \"options\": {\"temperature\": 0.1, \"num_predict\": 20}}" \
+  DECISION=$(curl -s --max-time 6 "${OLLAMA_BASE}/api/chat" \
+    -d "{\"model\": \"${OLLAMA_MODEL}\", \"messages\": [{\"role\": \"user\", \"content\": ${CONTENT}}], \"stream\": false, \"options\": {\"temperature\": 0.1, \"num_predict\": 20}}" \
     2>/dev/null | jq -r '.message.content // ""' | head -1 || true)
   [ -n "$DECISION" ] && CLASSIFIER="qwen3"
 fi
