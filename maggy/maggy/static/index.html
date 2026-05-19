@@ -63,11 +63,20 @@
     .pane-content { padding: 1rem; height: 100%; overflow-y: auto; }
     .pane-content::-webkit-scrollbar { width: 3px; }
     .pane-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+    .sidebar-collapsed { width: 56px !important; }
+    .sidebar-collapsed .sidebar-link span, .sidebar-collapsed #current-project-label,
+    .sidebar-collapsed #sidebar-tracker, .sidebar-collapsed #sidebar-fatigue,
+    .sidebar-collapsed .tracking-widest, .sidebar-collapsed .tracking-wider,
+    .sidebar-collapsed #sidebar-active-projects, .sidebar-collapsed button[id="sidebar-collapse-btn"] + div button { display: none; }
+    .sidebar-collapsed .sidebar-link { justify-content: center; padding: 0.5rem 0; }
+    .sidebar-collapsed .sidebar-link i { margin: 0; font-size: 14px !important; }
+    .sidebar-collapsed .px-2 { padding: 0 4px !important; }
+    .sidebar-collapsed #fatigue-badge { text-align: center; display: block; font-size: 9px !important; }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden">
   <!-- Sidebar -->
-  <aside class="w-[220px] flex-shrink-0 border-r flex flex-col glass-sidebar" style="border-color:var(--border)">
+  <aside id="maggy-sidebar" class="relative w-[220px] flex-shrink-0 border-r flex flex-col glass-sidebar transition-all duration-300" style="border-color:var(--border)">
     <button onclick="toggleSidebarCollapse()" class="absolute -right-3 top-4 w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-500 hover:text-white flex items-center justify-center text-[10px] z-10 transition-transform" id="sidebar-collapse-btn" title="Collapse sidebar">◀</button>
     <div class="px-4 py-3.5 flex items-center gap-2.5 border-b" style="border-color:var(--border)">
       <i class="fas fa-robot text-orange-500 text-lg"></i>
@@ -403,7 +412,7 @@
   <script>
     (function() {
       var KEY = 'maggy-sidebar-collapsed';
-      var sidebar = document.querySelector('aside');
+      var sidebar = document.getElementById('maggy-sidebar');
       var btn = document.getElementById('sidebar-collapse-btn');
       function apply(state) {
         if (state) { sidebar.classList.add('sidebar-collapsed'); btn.textContent = '▶'; }
