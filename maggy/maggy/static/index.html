@@ -7,8 +7,8 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net 'unsafe-inline';
-    style-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com 'unsafe-inline';
-    font-src 'self' https://cdnjs.cloudflare.com data:;
+    style-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net 'unsafe-inline';
+    font-src 'self' https://cdn.jsdelivr.net data:;
     connect-src 'self';
     img-src 'self' data:;
     frame-ancestors 'none';
@@ -16,8 +16,7 @@
   " />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-        integrity="sha512-SzlrxWUlpfuzQ+pcUCosxcglQRNAq/DZjVsC0lE40xsADsfeQoEypE+enwcOiGjk/bSuGGKHEyjSoQ1zVisanQ=="
+        href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css"
         crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
     :root { --bg: #060912; --surface: rgba(15,19,26,0.85); --border: rgba(255,255,255,0.06); --text: #c9cdd4; --text-muted: #5e6570; --accent: #f97316; --accent-glow: rgba(249,115,22,0.12); --green: #22c55e; --red: #ef4444; --yellow: #eab308; }
@@ -36,7 +35,7 @@
     .btn { transition: all 0.15s ease; border-radius: 0.375rem; padding: 0.375rem 0.75rem; font-size: 0.8125rem; cursor: pointer; }
     .btn-primary { background: var(--accent); color: white; border: none; } .btn-primary:hover { background: #ea580c; }
     .btn-ghost { color: var(--text-muted); background: transparent; border: 1px solid transparent; } .btn-ghost:hover { background: rgba(255,255,255,0.04); color: #d1d5db; border-color: rgba(255,255,255,0.06); }
-    pre { white-space: pre-wrap; word-break: break-word; }
+    #chat-ghost { pointer-events: none; } pre { white-space: pre-wrap; word-break: break-word; }
     @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
     .shimmer-bar { background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:shimmer 1.5s infinite; }
     @keyframes pulse-glow { 0%,100%{box-shadow:0 0 4px var(--accent-glow)} 50%{box-shadow:0 0 12px rgba(249,115,22,0.3)} }
@@ -64,11 +63,34 @@
     .pane-content { padding: 1rem; height: 100%; overflow-y: auto; }
     .pane-content::-webkit-scrollbar { width: 3px; }
     .pane-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+    #maggy-sidebar { transition: width 0.25s ease; }
+    #maggy-sidebar.sidebar-collapsed { width: 52px !important; }
+    #maggy-sidebar.sidebar-collapsed > * { overflow: hidden; }
+    #maggy-sidebar.sidebar-collapsed span,
+    #maggy-sidebar.sidebar-collapsed kbd,
+    #maggy-sidebar.sidebar-collapsed button:not(#sidebar-collapse-btn),
+    #maggy-sidebar.sidebar-collapsed select,
+    #maggy-sidebar.sidebar-collapsed input,
+    #maggy-sidebar.sidebar-collapsed .text-\[9px\],
+    #maggy-sidebar.sidebar-collapsed .text-\[10px\],
+    #maggy-sidebar.sidebar-collapsed #fatigue-badge,
+    #maggy-sidebar.sidebar-collapsed div[class*="tracking-"] { display: none !important; }
+    #maggy-sidebar.sidebar-collapsed .sidebar-link { display: flex; justify-content: center; padding: 6px 0 !important; }
+    #maggy-sidebar.sidebar-collapsed .sidebar-link i { margin: 0 !important; font-size: 15px !important; }
+    #maggy-sidebar.sidebar-collapsed .px-4 { padding: 8px 4px !important; }
+    #maggy-sidebar.sidebar-collapsed .px-2 { padding: 2px 4px !important; }
+    #maggy-sidebar.sidebar-collapsed .px-3 { padding: 4px !important; }
+    #maggy-sidebar.sidebar-collapsed .py-2 { padding-top: 4px !important; padding-bottom: 4px !important; }
+    #maggy-sidebar.sidebar-collapsed .py-2\.5 { padding-top: 4px !important; padding-bottom: 4px !important; }
+    #maggy-sidebar.sidebar-collapsed .space-y-0\.5 > * { margin: 0 !important; }
+    #maggy-sidebar.sidebar-collapsed i.fa-robot { margin: 0 auto !important; }
+    #maggy-sidebar.sidebar-collapsed .border-b { border: none !important; }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden">
   <!-- Sidebar -->
-  <aside class="w-[220px] flex-shrink-0 border-r flex flex-col glass-sidebar" style="border-color:var(--border)">
+  <aside id="maggy-sidebar" class="relative w-[220px] flex-shrink-0 border-r flex flex-col glass-sidebar transition-all duration-300" style="border-color:var(--border)">
+    <button onclick="toggleSidebarCollapse()" class="absolute -right-3 top-3 w-5 h-5 rounded-full bg-gray-700 border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-600 flex items-center justify-center text-[8px] z-20 cursor-pointer" id="sidebar-collapse-btn" title="Toggle sidebar">◀</button>
     <div class="px-4 py-3.5 flex items-center gap-2.5 border-b" style="border-color:var(--border)">
       <i class="fas fa-robot text-orange-500 text-lg"></i>
       <span class="font-bold text-white text-sm tracking-tight">Maggy</span>
@@ -81,9 +103,9 @@
         <kbd class="text-[9px] text-gray-600 ml-1 font-mono">⌘K</kbd>
       </button>
       <div id="sidebar-active-projects" class="space-y-0.5"></div>
-      <button onclick="openNewProject()" class="w-full text-left flex items-center gap-2 text-xs py-1.5 px-2.5 rounded-md hover:bg-orange-500/10 text-gray-500 hover:text-orange-400 transition-colors" style="font-size:0.75rem">
+      <button onclick="newChatSession()" class="w-full text-left flex items-center gap-2 text-xs py-1.5 px-2.5 rounded-md hover:bg-orange-500/10 text-gray-500 hover:text-orange-400 transition-colors" style="font-size:0.75rem">
         <i class="fas fa-plus text-[10px]"></i>
-        <span>New Project</span>
+        <span>New Session</span>
       </button>
     </div>
     <nav class="flex-1 px-2 py-1 overflow-y-auto scroll-thin space-y-0.5">
@@ -92,10 +114,14 @@
       <a href="#" onclick="switchTab('inbox')" data-tab="inbox" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-list-check text-[11px] w-4 text-center opacity-60"></i> Inbox</a>
       <a href="#" onclick="switchTab('followed')" data-tab="followed" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-eye text-[11px] w-4 text-center opacity-60"></i> Watching</a>
       <a href="#" onclick="switchTab('progress')" data-tab="progress" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-bars-progress text-[11px] w-4 text-center opacity-60"></i> Progress</a>
-      <div class="text-[9px] text-gray-600 uppercase tracking-widest px-2.5 pt-2 pb-1 font-mono">Intel</div>
-      <a href="#" onclick="switchTab('competitors')" data-tab="competitors" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-chess text-[11px] w-4 text-center opacity-60"></i> Competitors</a>
-      <a href="#" onclick="switchTab('process')" data-tab="process" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-chart-line text-[11px] w-4 text-center opacity-60"></i> Insights</a>
+      <div class="text-[9px] text-gray-600 uppercase tracking-widest px-2.5 pt-2 pb-1 font-mono">
+        <span>Project</span>
+        <span id="sidebar-project-label" class="text-gray-500 font-normal ml-1 lowercase">—</span>
+      </div>
       <a href="#" onclick="switchTab('icpg')" data-tab="icpg" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-project-diagram text-[11px] w-4 text-center opacity-60"></i> iCPG</a>
+      <a href="#" onclick="switchTab('competitors')" data-tab="competitors" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-chess text-[11px] w-4 text-center opacity-60"></i> Competitors</a>
+      <div class="text-[9px] text-gray-600 uppercase tracking-widest px-2.5 pt-2 pb-1 font-mono">Intel</div>
+      <a href="#" onclick="switchTab('process')" data-tab="process" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-chart-line text-[11px] w-4 text-center opacity-60"></i> Insights</a>
       <div class="text-[9px] text-gray-600 uppercase tracking-widest px-2.5 pt-2 pb-1 font-mono">System</div>
       <a href="#" onclick="switchTab('memory')" data-tab="memory" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-brain text-[11px] w-4 text-center opacity-60"></i> Memory</a>
       <a href="#" onclick="switchTab('routing')" data-tab="routing" class="sidebar-link flex items-center gap-2.5 px-3 py-1.5 text-xs rounded-r"><i class="fas fa-route text-[11px] w-4 text-center opacity-60"></i> Models</a>
@@ -150,7 +176,7 @@
     </main>
   </div>
   <!-- Project Search Modal -->
-  <div id="project-search-overlay" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+  <div id="project-search-overlay" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onclick="if(event.target===this)closeProjectSearch()" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
     <div class="glass-card w-[480px] max-w-[90vw] p-4 shadow-2xl">
       <div class="flex items-center gap-2.5 mb-3">
         <i class="fas fa-search text-gray-500 text-xs"></i>
@@ -200,7 +226,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/app.js?v=14"></script>
+  <script src="/static/app.js?v=15"></script>
   <script>
     document.addEventListener('keydown', function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -308,6 +334,8 @@
     }
     function updateCurrentProject(name) {
       document.getElementById('current-project-label').textContent = name || 'Select project...';
+      var sl = document.getElementById('sidebar-project-label');
+      if (sl) sl.textContent = name ? '· ' + name : '—';
       // Track as recently active
       if (name) {
         var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
@@ -368,7 +396,7 @@
     function renderActiveProjects() {
       var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
       var all = window._projectList || [];
-      var active = recent.filter(function(p) { return all.indexOf(p) >= 0; }).slice(0, 4);
+      var active = recent.filter(function(p) { return all.indexOf(p) >= 0; }).slice(0, 5);
       var el = document.getElementById('sidebar-active-projects');
       if (!el || !active.length) return;
       var html = '';
@@ -380,6 +408,8 @@
     }
 
     window.addEventListener('load', function() {
+      setTimeout(loadChat, 300);
+      getTrackerStatus();
       getTrackerStatus();
       fetch('/api/projects').then(function(r){return r.json()}).then(function(data){
         var projects = (data.projects||[]).map(function(p){return typeof p === 'string' ? p : (p.name || p.key || '')}).filter(Boolean);
@@ -396,6 +426,36 @@
         window._projectList = [];
       });
     });
+  </script>
+
+  <script>
+    (function() {
+      var KEY = 'maggy-sidebar-collapsed';
+      var sidebar = document.getElementById('maggy-sidebar');
+      var btn = document.getElementById('sidebar-collapse-btn');
+      function apply(state) {
+        if (state) {
+          sidebar.classList.add('sidebar-collapsed');
+          btn.textContent = '▶';
+          btn.title = 'Expand sidebar';
+        } else {
+          sidebar.classList.remove('sidebar-collapsed');
+          btn.textContent = '◀';
+          btn.title = 'Collapse sidebar';
+        }
+      }
+      var saved = localStorage.getItem(KEY);
+      apply(saved === 'true');
+      window.toggleSidebarCollapse = function() {
+        var now = sidebar.classList.contains('sidebar-collapsed');
+        apply(!now);
+        localStorage.setItem(KEY, !now);
+      };
+      // Make sure button exists before using
+      if (!sidebar || !btn) {
+        console.warn('Sidebar elements not found');
+      }
+    })();
   </script>
 </body>
 </html>

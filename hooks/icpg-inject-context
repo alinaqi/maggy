@@ -1,0 +1,64 @@
+#!/bin/bash
+# iCPG PreToolUse Hook — injects intent context before tool use.
+#
+# Shows the agent: what ReasonNodes exist for affected files,
+# what invariants apply, and drift status.
+# Works with icpg-record-intent hook — intents are auto-created on first edit.
+#
+# Install: add to .claude/settings.json under hooks.PreToolUse
+# Timeout: 2 seconds — never blocks
+
+INPUT=$(cat 2>/dev/null || true)
+TOOL_INPUT=$(echo "$INPUT" | jq -r '.tool_input // empty' 2>/dev/null || echo "")
+
+# Check icpg available
+ICPG_CMD=""
+if command -v icpg &>/dev/null; then
+  ICPG_CMD="icpg"
+elif python3 -c "import icpg" 2>/dev/null; then
+  ICPG_CMD="python3 -m icpg"
+else
+  exit 0
+fi
+
+# Extract file path from tool input (supports multiple formats)
+FILE_PATH=""
+if [ -n "$TOOL_INPUT" ]; then
+  FILE_PATH=$(echo "$TOOL_INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin.read()) if hasattr(sys.stdin, 'read') else json.loads(sys.stdin)
+    print(d.get('file_path', d.get('path', '')))
+except:
+    pass" 2>/dev/null | head -1)
+fi
+
+[ -z "$FILE_PATH" ] && exit 0
+[ ! -f "$FILE_PATH" ] && exit 0
+
+# Query existing intents
+INTENTS=$($ICPG_CMD query context "$FILE_PATH" 2>/dev/null)
+if [ -z "$INTENTS" ]; then
+  exit 0
+fi
+
+# Build context message
+CTX="iCPG Intent Context for ${FILE_PATH}:"
+CTX="$CTX\n${INTENTS}"
+
+# Also check for drift
+DRIFT=$($ICPG_CMD drift file "$FILE_PATH" 2>/dev/null)
+if [ -n "$DRIFT" ] && [ "$DRIFT" != "No drift detected" ]; then
+  CTX="$CTX\n\n⚠️ DRIFT: ${DRIFT}"
+fi
+
+# Inject as additional context
+cat <<EOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "additionalContext": $(echo "$CTX" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))" 2>/dev/null || echo "\"$CTX\"")
+  }
+}
+EOF
+exit 0

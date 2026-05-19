@@ -1,0 +1,85 @@
+#!/bin/bash
+# iCPG PreToolUse Hook — auto-records intent ReasonNode before Edit/Write.
+#
+# Flow:
+# 1. Agent states intent → this hook records a ReasonNode BEFORE editing
+# 2. Agent implements → icpg-stop-record links symbols to that intent
+# 3. Agent changes → icpg-pre-edit shows existing intents as guardrails
+#
+# Install: add to .claude/settings.json under hooks.PreToolUse
+# Timeout: 3 seconds — never blocks tool execution
+# No set -euo pipefail: hook scripts must be defensive.
+
+INPUT=$(cat 2>/dev/null || true)
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
+TOOL_INPUT=$(echo "$INPUT" | jq -r '.tool_input // empty' 2>/dev/null || echo "")
+
+# Only fire for Edit/Write/MultiEdit tools
+case "$TOOL_NAME" in
+  Edit|Write|MultiEdit|NotebookEdit) ;;
+  *) exit 0 ;;
+esac
+
+# Extract file path and check for existing ReasonNodes
+FILE_PATH=$(echo "$TOOL_INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin) if sys.stdin.read() else {}
+    print(d.get('file_path', d.get('path', '')))
+except:
+    pass" 2>/dev/null | head -1)
+
+[ -z "$FILE_PATH" ] && exit 0
+
+# Skip if icpg not available
+ICPG_CMD=""
+if command -v icpg &>/dev/null; then
+  ICPG_CMD="icpg"
+elif python3 -c "import icpg" 2>/dev/null; then
+  ICPG_CMD="python3 -m icpg"
+else
+  exit 0
+fi
+
+# Check if ReasonNode already exists for this file
+EXISTING=$($ICPG_CMD query intent "$FILE_PATH" 2>/dev/null)
+if [ -n "$EXISTING" ]; then
+  # Already has intent — inject as context, don't create new
+  cat <<EOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "permissionDecisionReason": "Existing iCPG intents found for this file",
+    "updatedInput": $(echo "$TOOL_INPUT" | jq -c '. + {"icpg_context": "'"$(echo "$EXISTING" | head -3 | tr '\n' ' ')"'"}' 2>/dev/null || echo "$TOOL_INPUT")
+  }
+}
+EOF
+  exit 0
+fi
+
+# No ReasonNode exists — record one automatically
+# Use git blame to get the original intent context
+LAST_COMMIT_MSG=$(git log -1 --format="%s" -- "$FILE_PATH" 2>/dev/null | head -1)
+LAST_AUTHOR=$(git log -1 --format="%an" -- "$FILE_PATH" 2>/dev/null | head -1)
+
+if [ -n "$LAST_COMMIT_MSG" ]; then
+  # Record the ReasonNode with auto-generated intent from commit history
+  $ICPG_CMD record \
+    --reason "auto-from-commit: $LAST_COMMIT_MSG" \
+    --file "$FILE_PATH" \
+    --auto-invariants \
+    2>/dev/null
+
+  # Set as current active intent
+  mkdir -p .icpg
+  echo "$FILE_PATH: auto-from-commit" > .icpg/.current-intent
+
+  echo "[icpg] Auto-recorded ReasonNode for $FILE_PATH (from: $LAST_COMMIT_MSG)" >&2
+fi
+
+# Allow the tool to proceed
+cat <<'EOF'
+{"permissionDecision": "allow"}
+EOF
+exit 0

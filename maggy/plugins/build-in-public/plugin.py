@@ -669,7 +669,7 @@ class BuildInPublic:
         return path  # Fallback: local path
 
     async def _capture_screenshot(self, url: str) -> str:
-        """Capture hero screenshot via Playwright."""
+        """Capture hero screenshot via Peekaboo (preferred) or Playwright (fallback)."""
         if not url:
             return ""
         screenshot_dir = Path.home() / ".maggy" / "build-in-public" / "screenshots"
@@ -677,6 +677,21 @@ class BuildInPublic:
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         out_path = screenshot_dir / f"hero-{ts}.png"
 
+        # Try Peekaboo first (native macOS, pixel-perfect)
+        import shutil
+        if shutil.which("peekaboo"):
+            try:
+                result = subprocess.run(
+                    ["peekaboo", "image", "--mode", "screen", "--path", str(out_path)],
+                    capture_output=True, text=True, timeout=15,
+                )
+                if result.returncode == 0 and out_path.exists():
+                    logger.info("build-in-public: Peekaboo screenshot captured")
+                    return str(out_path)
+            except Exception:
+                pass
+
+        # Fallback to Playwright
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:

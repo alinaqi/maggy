@@ -907,18 +907,16 @@ function getSuggestion() {
 }
 
 function updateGhostText() {
-  const input = document.getElementById('chat-input');
-  const ghost = document.getElementById('chat-ghost');
+  var input = document.getElementById('chat-input');
+  var ghost = document.getElementById('chat-ghost');
   if (!input || !ghost) return;
-  const val = input.value;
-  if (val.length > 0 && _currentSuggestion.toLowerCase().startsWith(val.toLowerCase())) {
-    ghost.textContent = _currentSuggestion;
-    ghost.style.color = '';
-  } else if (val.length === 0 && _currentSuggestion) {
-    ghost.textContent = _currentSuggestion;
-    ghost.style.color = '';
+  var val = input.value;
+  if (val.length > 0 && _currentSuggestion && _currentSuggestion.toLowerCase().startsWith(val.toLowerCase())) {
+    ghost.textContent = val + _currentSuggestion.slice(val.length);
+    ghost.style.display = '';
   } else {
     ghost.textContent = '';
+    ghost.style.display = 'none';
   }
 }
 
@@ -1072,8 +1070,9 @@ async function streamChatResponse(message, el) {
         }
         if (data.type === 'error') { streamEl.innerHTML = `<span class="text-red-400">${esc(data.content)}</span>`; continue; }
         if (data.type === 'tool_use' && toolsEl) {
-          const tool = data.tool || data.content || 'tool';
-          toolsEl.innerHTML += `<div class="text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50 mr-1"></i>${esc(tool)}</div>`;
+          var tool = data.tool || data.content || 'tool';
+          var toolInput = data.input ? JSON.stringify(data.input).substring(0, 200) : '';
+          toolsEl.innerHTML += '<div class="card p-1.5 my-1 cursor-pointer" onclick="var d=this.querySelector(\'.tool-detail\');if(d)d.classList.toggle(\'hidden\')"><div class="flex items-center gap-1.5 text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50"></i><span class="text-orange-400/60">' + esc(tool) + '</span><i class="fas fa-chevron-down text-[7px] ml-auto text-gray-600"></i></div><div class="tool-detail hidden mt-1 p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div></div>';
           el.scrollTop = el.scrollHeight;
           continue;
         }
@@ -1563,6 +1562,13 @@ function renderICPGProject(key, reasons, drift) {
     <button onclick="ICPG_PROJECT=null;loadICPG()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
     <h2 class="text-sm font-bold text-white"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>${esc(key)}</h2>
     <span class="text-[10px] text-gray-500">${(reasons.reasons||[]).length} intents</span>
+    <div class="flex-1"></div>
+    <div class="relative">
+      <input id="icpg-search" type="text" placeholder="Search intents..." 
+        class="glass-input text-[11px] py-1 px-2 w-40" style="font-size:11px"
+        oninput="filterICPGIntents()" />
+      <i class="fas fa-search absolute right-2 top-1.5 text-gray-600 text-[10px]"></i>
+    </div>
   </div>`;
   // Drift alerts
   const driftList = drift.drift || [];
@@ -1580,7 +1586,7 @@ function renderICPGProject(key, reasons, drift) {
   }
   // ReasonNodes
   const rlist = reasons.reasons || [];
-  html += `<div class="card p-3 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-bullseye mr-1"></i>Intents</div>`;
+  html += `<div class="card p-3 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-bullseye mr-1"></i>Intents</div><div id="icpg-intents-list">`;
   if (!rlist.length) {
     html += `<div class="text-[10px] text-gray-600">No ReasonNodes found.</div>`;
   } else {
@@ -1613,6 +1619,17 @@ function renderICPGProject(key, reasons, drift) {
     <a href="/api/icpg/${encodeURIComponent(key)}/graph?limit=200" target="_blank" class="text-[10px] px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-blue-400 ml-2">Raw JSON</a>
   </div>`;
   return html + `</div>`;
+}
+
+// Search/filter iCPG intents
+function filterICPGIntents() {
+  var q = (document.getElementById('icpg-search') || {}).value || '';
+  q = q.toLowerCase();
+  var items = document.querySelectorAll('#icpg-intents-list > div');
+  for (var i = 0; i < items.length; i++) {
+    var text = items[i].textContent.toLowerCase();
+    items[i].style.display = q && !text.includes(q) ? 'none' : '';
+  }
 }
 
 async function loadICPGGraph(key) {
@@ -1774,6 +1791,32 @@ function updateHeartbeat() {
 }
 setInterval(updateHeartbeat, 30000);
 updateHeartbeat();
+
+
+// ── Multi-tab chat ─────────────────────────────────────────────────────
+var _chatTabs = [];
+var _activeChatTab = null;
+
+function openChatTab(sessionId, label) {
+  // Set as active
+  CHAT_SESSION_ID = sessionId;
+  loadChatMessages(sessionId);
+  // Update tab bar
+  updateChatTabs(label);
+}
+
+function updateChatTabs(label) {
+  var container = document.getElementById('chat-tabs');
+  if (!container) return;
+  if (!_activeChatTab || _activeChatTab !== CHAT_SESSION_ID) {
+    _activeChatTab = CHAT_SESSION_ID;
+    var tab = document.createElement('span');
+    tab.className = 'text-[10px] px-2 py-1 rounded bg-gray-800 text-gray-300 cursor-pointer hover:bg-gray-700 flex items-center gap-1';
+    tab.innerHTML = '<i class=\'fas fa-circle text-[6px] text-green-400\'></i>' + (label || 'Chat');
+    tab.onclick = function() { CHAT_SESSION_ID = _activeChatTab; loadChatMessages(_activeChatTab); };
+    container.appendChild(tab);
+  }
+}
 
 // ── Init ────────────────────────────────────────────────────────────────
 async function loadAll() {

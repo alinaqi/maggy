@@ -75,6 +75,25 @@ if [ -z "$DECISION" ] && [ -x "$HOME/bin/deepseek" ] && [ -n "$DEEPSEEK_API_KEY"
   [ -n "$DECISION" ] && CLASSIFIER="deepseek-flash"
 fi
 
+# ── Visual verification for static/ changes ──────────────────────────────
+STATIC_CHANGED=$(git diff --name-only HEAD 2>/dev/null | grep "static/" || true)
+if [ -n "$STATIC_CHANGED" ]; then
+  if command -v peekaboo >/dev/null 2>&1; then
+    PEEK_DIR="$HOME/.maggy/visual-verify"
+    mkdir -p "$PEEK_DIR"
+    BEFORE="$PEEK_DIR/before-$(date -u +%Y%m%d-%H%M%S).png"
+    AFTER="$PEEK_DIR/after-$(date -u +%Y%m%d-%H%M%S).png"
+    # Take screenshot
+    peekaboo image --mode screen --path "$AFTER" 2>/dev/null &
+    echo "[auto-review] 📸 visual verification screenshot captured" >&2
+    # Link previous as before for comparison
+    LATEST=$(ls -t "$PEEK_DIR"/after-*.png 2>/dev/null | head -2 | tail -1)
+    if [ -n "$LATEST" ] && [ "$LATEST" != "$AFTER" ]; then
+      echo "[auto-review] 📊 compare: $LATEST vs $AFTER" >&2
+    fi
+  fi
+fi
+
 # All classifiers unavailable — skip, retry next time
 if [ -z "$DECISION" ]; then
   echo "[auto-review] all classifiers unavailable — skip (turn $TURN_COUNT)" >&2

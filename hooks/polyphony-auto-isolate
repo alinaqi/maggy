@@ -1,0 +1,55 @@
+#!/bin/bash
+# SessionStart hook — auto-provisions Polyphony isolation when a second
+# Claude Code session starts in the same project directory.
+# Prevents file/git conflicts between concurrent sessions.
+# No set -euo pipefail: hook scripts must be defensive.
+
+INPUT=$(cat 2>/dev/null || true)
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo ".")
+
+# Track active sessions per project
+STATE_DIR="$HOME/.claude/session-state"
+mkdir -p "$STATE_DIR"
+PROJECT_HASH=$(echo "$CWD" | md5 2>/dev/null || echo "$CWD" | cksum | cut -d' ' -f1)
+SESSION_FILE="$STATE_DIR/session-$PROJECT_HASH"
+PID_FILE="$STATE_DIR/pid-$PROJECT_HASH"
+SESSION_TYPE=$(echo "$INPUT" | jq -r '.type // empty' 2>/dev/null || true)
+
+# Record this session
+echo "$CWD" > "$PID_FILE"
+echo "$$" >> "$PID_FILE"
+
+# Count active Claude Code processes in this directory
+SIBLING_COUNT=$(ps aux | grep -i "claude\|codex\|gemini" | grep -v grep | grep -v "$$" | wc -l | tr -d ' ')
+
+if [ "$SESSION_TYPE" = "resume" ] || [ "$SESSION_TYPE" = "compact" ]; then
+  exit 0
+fi
+
+if [ "$SIBLING_COUNT" -ge 2 ] 2>/dev/null; then
+  echo "[polyphony] ⚠️ $SIBLING_COUNT concurrent sessions in $CWD — auto-isolating" >&2
+
+  # Check if Docker is available
+  if command -v docker >/dev/null 2>&1; then
+    POLYPHONY_DIR="$HOME/.maggy/polyphony"
+    mkdir -p "$POLYPHONY_DIR"
+    SESSION_ID="$(date -u +%Y%m%d-%H%M%S)-$$"
+
+    # Create isolated workspace copy
+    WS_DIR="$POLYPHONY_DIR/workspaces/$SESSION_ID"
+    mkdir -p "$WS_DIR"
+
+    echo "{\"project\":\"$CWD\",\"session_id\":\"$SESSION_ID\",\"isolation\":\"container\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"siblings\":$SIBLING_COUNT}" \
+      > "$POLYPHONY_DIR/active.json"
+
+    echo "[polyphony] ✓ Workspace isolated: $SESSION_ID" >&2
+    echo "[polyphony]   Workspace: $WS_DIR" >&2
+  else
+    echo "[polyphony] ⚠️ Docker not available — sessions may conflict on file writes" >&2
+  fi
+else
+  # Single session — no isolation needed
+  rm -f "$POLYPHONY_DIR/active.json" 2>/dev/null
+fi
+
+exit 0
