@@ -1562,6 +1562,13 @@ function renderICPGProject(key, reasons, drift) {
     <button onclick="ICPG_PROJECT=null;loadICPG()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
     <h2 class="text-sm font-bold text-white"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>${esc(key)}</h2>
     <span class="text-[10px] text-gray-500">${(reasons.reasons||[]).length} intents</span>
+    <div class="flex-1"></div>
+    <div class="relative">
+      <input id="icpg-search" type="text" placeholder="Search intents..." 
+        class="glass-input text-[11px] py-1 px-2 w-40" style="font-size:11px"
+        oninput="filterICPGIntents()" />
+      <i class="fas fa-search absolute right-2 top-1.5 text-gray-600 text-[10px]"></i>
+    </div>
   </div>`;
   // Drift alerts
   const driftList = drift.drift || [];
@@ -1579,7 +1586,7 @@ function renderICPGProject(key, reasons, drift) {
   }
   // ReasonNodes
   const rlist = reasons.reasons || [];
-  html += `<div class="card p-3 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-bullseye mr-1"></i>Intents</div>`;
+  html += `<div class="card p-3 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-bullseye mr-1"></i>Intents</div><div id="icpg-intents-list">`;
   if (!rlist.length) {
     html += `<div class="text-[10px] text-gray-600">No ReasonNodes found.</div>`;
   } else {
@@ -1612,6 +1619,17 @@ function renderICPGProject(key, reasons, drift) {
     <a href="/api/icpg/${encodeURIComponent(key)}/graph?limit=200" target="_blank" class="text-[10px] px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-blue-400 ml-2">Raw JSON</a>
   </div>`;
   return html + `</div>`;
+}
+
+// Search/filter iCPG intents
+function filterICPGIntents() {
+  var q = (document.getElementById('icpg-search') || {}).value || '';
+  q = q.toLowerCase();
+  var items = document.querySelectorAll('#icpg-intents-list > div');
+  for (var i = 0; i < items.length; i++) {
+    var text = items[i].textContent.toLowerCase();
+    items[i].style.display = q && !text.includes(q) ? 'none' : '';
+  }
 }
 
 async function loadICPGGraph(key) {
