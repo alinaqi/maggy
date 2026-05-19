@@ -90,7 +90,7 @@
 <body class="h-screen flex overflow-hidden">
   <!-- Sidebar -->
   <aside id="maggy-sidebar" class="relative w-[220px] flex-shrink-0 border-r flex flex-col glass-sidebar transition-all duration-300" style="border-color:var(--border)">
-    <button onclick="toggleSidebarCollapse()" class="absolute -right-3 top-4 w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-500 hover:text-white flex items-center justify-center text-[10px] z-10 transition-transform" id="sidebar-collapse-btn" title="Collapse sidebar">◀</button>
+    <button onclick="toggleSidebarCollapse()" class="absolute -right-3 top-3 w-5 h-5 rounded-full bg-gray-700 border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-600 flex items-center justify-center text-[8px] z-20 cursor-pointer" id="sidebar-collapse-btn" title="Toggle sidebar">◀</button>
     <div class="px-4 py-3.5 flex items-center gap-2.5 border-b" style="border-color:var(--border)">
       <i class="fas fa-robot text-orange-500 text-lg"></i>
       <span class="font-bold text-white text-sm tracking-tight">Maggy</span>
@@ -430,11 +430,11 @@
       function apply(state) {
         if (state) {
           sidebar.classList.add('sidebar-collapsed');
-          btn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+          btn.textContent = '▶';
           btn.title = 'Expand sidebar';
         } else {
           sidebar.classList.remove('sidebar-collapsed');
-          btn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+          btn.textContent = '◀';
           btn.title = 'Collapse sidebar';
         }
       }
@@ -445,6 +445,10 @@
         apply(!now);
         localStorage.setItem(KEY, !now);
       };
+      // Make sure button exists before using
+      if (!sidebar || !btn) {
+        console.warn('Sidebar elements not found');
+      }
     })();
   </script>
 </body>
