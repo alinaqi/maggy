@@ -1024,11 +1024,12 @@ var _CLIENT_COMMANDS = {
       + '  /icpg             intent graph overview\n'
       + '  /competitors      competitor intel summary\n'
       + '  /budget           token spend summary\n'
-      + '  /routing          model routing stats\n'
+      + '  /routing          model routing heatmap\n'
       + '  /progress         execution progress\n'
       + '  /forge            tool registry status\n'
       + '  /plan <topic>     draft a build-in-public plan\n'
       + '  /status           system health overview\n\n'
+      + 'Unknown commands auto-suggest similar matches.\n'
       + 'Anything else is sent to AI chat.';
   },
 };
@@ -1040,19 +1041,22 @@ var _SLASH_COMMANDS = {
   '/mnemos': async function() {
     var diag = await api('/engram/diagnostics').catch(function() { return {}; });
     var q = await api('/engram/query?limit=8').catch(function() { return { records: [] }; });
-    var f = diag.fatigue_score || 0;
-    var state = f < 0.4 ? 'FLOW' : f < 0.6 ? 'COMPRESS' : f < 0.75 ? 'PRE_SLEEP' : f < 0.9 ? 'REM' : 'EMERGENCY';
-    var out = 'Memory: ' + (f * 100).toFixed(0) + '% ' + state
-      + '  |  Engrams: ' + (diag.total_engrams || 0)
-      + '  |  Checkpoints: ' + (diag.checkpoints || 0)
-      + '  |  Expired: ' + (diag.expired || 0) + '\n';
-    var recs = q.records || [];
+    var total = diag.total_memories || diag.total_engrams || 0;
+    var active = diag.active_count || total;
+    var superseded = diag.superseded_count || 0;
+    var out = 'Mnemos Memory:\n';
+    out += '  Total: ' + total + '  |  Active: ' + active + '  |  Superseded: ' + superseded + '\n';
+    if (diag.facts || diag.decisions || diag.code_refs || diag.handoffs) {
+      out += '  Facts: ' + (diag.facts || 0) + '  Decisions: ' + (diag.decisions || 0)
+        + '  Code refs: ' + (diag.code_refs || 0) + '  Handoffs: ' + (diag.handoffs || 0) + '\n';
+    }
+    var recs = q.records || q.memories || [];
     if (recs.length) {
       out += '\nRecent memories:\n';
       for (var i = 0; i < recs.length; i++) {
         var r = recs[i];
-        var tag = (r.memory_type || 'fact').toUpperCase();
-        var content = (r.content || '').substring(0, 100);
+        var tag = (r.memory_type || r.type || 'fact').toUpperCase();
+        var content = (r.content || r.text || '').substring(0, 100);
         out += '  [' + tag + '] ' + content + '\n';
       }
     }
@@ -1119,19 +1123,27 @@ var _SLASH_COMMANDS = {
   },
 
   '/routing': async function() {
-    var data = await api('/routing/heatmap').catch(function() { return {}; });
-    var models = data.models || Object.keys(data);
-    var out = 'Model Routing:\n';
-    if (Array.isArray(models) && models.length) {
-      for (var i = 0; i < models.length; i++) {
-        var m = typeof models[i] === 'string' ? models[i] : (models[i].name || '');
-        var info = data[m] || models[i] || {};
-        var calls = info.calls || info.count || '?';
-        var avg = info.avg_latency || info.latency || '';
-        out += '  ' + m + '  calls: ' + calls + (avg ? '  avg: ' + avg + 'ms' : '') + '\n';
+    var data = await api('/routing/heatmap').catch(function() { return []; });
+    if (!Array.isArray(data)) data = [];
+    var out = 'Model Routing Heatmap:\n';
+    if (!data.length) { out += '  No routing data yet.\n'; return out; }
+    var byModel = {};
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+      var m = row.model || '?';
+      if (!byModel[m]) byModel[m] = [];
+      byModel[m].push(row);
+    }
+    var models = Object.keys(byModel);
+    for (var j = 0; j < models.length; j++) {
+      var model = models[j];
+      var entries = byModel[model];
+      out += '  ' + model + ':\n';
+      for (var k = 0; k < entries.length; k++) {
+        var e = entries[k];
+        out += '    ' + (e.task_type || '?') + '  tier=' + (e.blast_tier || '?')
+          + '  reward=' + (e.avg_reward || 0).toFixed(2) + '  n=' + (e.samples || 0) + '\n';
       }
-    } else {
-      out += '  No routing data yet.\n';
     }
     return out;
   },
@@ -1170,11 +1182,10 @@ var _SLASH_COMMANDS = {
     var health = await api('/health').catch(function() { return {}; });
     var diag = await api('/engram/diagnostics').catch(function() { return {}; });
     var b = await api('/budget').catch(function() { return {}; });
-    var f = diag.fatigue_score || 0;
-    var state = f < 0.4 ? 'FLOW' : f < 0.6 ? 'COMPRESS' : f < 0.75 ? 'PRE_SLEEP' : f < 0.9 ? 'REM' : 'EMERGENCY';
+    var total = diag.total_memories || diag.total_engrams || 0;
     var out = 'System Status:\n';
     out += '  Server:  ' + (health.status || 'ok') + '\n';
-    out += '  Memory:  ' + (f * 100).toFixed(0) + '% ' + state + '  (' + (diag.total_engrams || 0) + ' engrams)\n';
+    out += '  Memory:  ' + total + ' engrams  (active: ' + (diag.active_count || total) + ')\n';
     out += '  Budget:  $' + ((b.today_cost || 0)).toFixed(4) + ' today  /  $' + ((b.daily_limit || 0)).toFixed(2) + ' limit\n';
     out += '  Mode:    ' + (health.mode || '?') + '\n';
     return out;
@@ -1198,12 +1209,97 @@ var _SHELL_PREFIXES = [
   'uname', 'hostname',
 ];
 
+// Known programs — recognized but blocked in web terminal
+var _KNOWN_PROGRAMS = [
+  'vim', 'vi', 'nvim', 'nano', 'emacs', 'less', 'more', 'code',
+  'open', 'python', 'python3', 'node', 'npm', 'npx', 'pip',
+  'pip3', 'cargo', 'go', 'ruby', 'java', 'javac', 'gcc', 'g++',
+  'docker', 'docker-compose', 'kubectl', 'terraform',
+  'make', 'cmake', 'man', 'top', 'htop', 'ps',
+  'curl', 'wget', 'ssh', 'scp', 'rsync',
+  'tar', 'zip', 'unzip', 'gzip', 'gunzip',
+  'kill', 'killall', 'pkill', 'mv', 'cp', 'rm', 'mkdir', 'rmdir',
+  'chmod', 'chown', 'chgrp', 'sudo', 'su',
+  'brew', 'apt', 'apt-get', 'yum', 'dnf', 'pacman',
+  'tmux', 'screen', 'nohup', 'watch', 'xargs', 'tee',
+  'sed', 'awk', 'sort', 'uniq', 'cut', 'tr', 'diff', 'patch',
+  'touch', 'ln', 'readlink', 'basename', 'dirname',
+  'nc', 'nmap', 'ping', 'traceroute', 'dig', 'nslookup', 'ifconfig',
+];
+
 function _isShellCommand(msg) {
   if (!msg) return false;
   if (msg.charAt(0) === '/') return true; // slash command
   var first = msg.split(/\s/)[0];
   if (_CLIENT_COMMANDS[first]) return true;
-  return _SHELL_PREFIXES.indexOf(first) >= 0;
+  if (_SHELL_PREFIXES.indexOf(first) >= 0) return true;
+  if (_KNOWN_PROGRAMS.indexOf(first) >= 0) return true;
+  return false;
+}
+
+// ── Self-healing: fuzzy match + unknown command handling ──────────────
+function _levenshtein(a, b) {
+  var m = a.length, n = b.length;
+  var dp = [];
+  for (var i = 0; i <= m; i++) {
+    dp[i] = [i];
+    for (var j = 1; j <= n; j++) dp[i][j] = i === 0 ? j : 0;
+  }
+  for (var i = 1; i <= m; i++) {
+    for (var j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function _looksLikeCommand(msg) {
+  if (msg.length > 100) return false;
+  var first = msg.split(/\s/)[0];
+  if (first.length > 20) return false;
+  if (/^[a-z][a-z0-9._-]*$/i.test(first)) {
+    if (/\s-/.test(msg) || /\s[.\/~]/.test(msg) || /\s\w+\.\w+/.test(msg)) return true;
+    if (msg === first && /^[a-z][a-z0-9-]*$/.test(first) && first.length <= 12) return true;
+  }
+  return false;
+}
+
+async function _handleUnknownCommand(cmd) {
+  var outer = document.getElementById('chat-messages');
+  var el = document.getElementById('chat-messages-inner') || outer;
+  var first = cmd.split(/\s/)[0];
+  var cwd = _getShellCwd();
+
+  el.innerHTML += _renderTerminalPrompt(cmd, cwd);
+
+  var msg = "'" + first + "' is not a recognized command.\n\n";
+
+  // Fuzzy-match against all known commands
+  var allCmds = _SHELL_PREFIXES
+    .concat(Object.keys(_SLASH_COMMANDS).map(function(s) { return s.slice(1); }))
+    .concat(Object.keys(_CLIENT_COMMANDS));
+  var suggestions = allCmds.filter(function(c) {
+    return c.indexOf(first) >= 0 || first.indexOf(c) >= 0
+      || _levenshtein(c, first) <= 2;
+  });
+  // Deduplicate
+  var seen = {};
+  suggestions = suggestions.filter(function(s) {
+    if (seen[s]) return false;
+    seen[s] = true;
+    return true;
+  });
+
+  if (suggestions.length) {
+    msg += 'Did you mean: ' + suggestions.slice(0, 5).join(', ') + '?\n\n';
+  }
+  msg += 'Type "help" for available commands.\n';
+  msg += 'Or type naturally to chat with AI.';
+
+  el.innerHTML += _renderTerminalOutput(cmd, msg, 127, cwd);
+  if (outer) outer.scrollTop = outer.scrollHeight;
 }
 
 function _renderTerminalOutput(cmd, output, exitCode, cwd) {
@@ -1264,7 +1360,18 @@ async function _execShellCommand(cmd) {
     var handler = _SLASH_COMMANDS[slashCmd];
     if (!handler) {
       el.innerHTML += _renderSlashPrompt(cmd);
-      el.innerHTML += _renderSlashOutput('Unknown command: ' + slashCmd + '\nType /help for available commands.', true);
+      // Fuzzy-match slash commands
+      var slashKeys = Object.keys(_SLASH_COMMANDS);
+      var slashSuggestions = slashKeys.filter(function(k) {
+        return k.indexOf(slashCmd) >= 0 || slashCmd.indexOf(k) >= 0
+          || _levenshtein(k, slashCmd) <= 3;
+      });
+      var errMsg = 'Unknown command: ' + slashCmd;
+      if (slashSuggestions.length) {
+        errMsg += '\nDid you mean: ' + slashSuggestions.join(', ') + '?';
+      }
+      errMsg += '\nType /help for available commands.';
+      el.innerHTML += _renderSlashOutput(errMsg, true);
       if (outer) outer.scrollTop = outer.scrollHeight;
       return;
     }
@@ -1287,6 +1394,17 @@ async function _execShellCommand(cmd) {
     if (result === null) return; // e.g. 'clear'
     el.innerHTML += _renderTerminalPrompt(cmd, cwd);
     el.innerHTML += _renderTerminalOutput(cmd, result, 0, cwd);
+    if (outer) outer.scrollTop = outer.scrollHeight;
+    return;
+  }
+
+  // Known but blocked programs — show helpful message
+  if (_KNOWN_PROGRAMS.indexOf(first) >= 0 && _SHELL_PREFIXES.indexOf(first) < 0) {
+    el.innerHTML += _renderTerminalPrompt(cmd, cwd);
+    el.innerHTML += _renderTerminalOutput(cmd,
+      first + ' is not available in web terminal.\n'
+      + 'Interactive and write commands are blocked for safety.\n'
+      + 'Use your local terminal instead.', 126, cwd);
     if (outer) outer.scrollTop = outer.scrollHeight;
     return;
   }
@@ -1336,6 +1454,15 @@ async function sendChatMessage() {
     await _execShellCommand(message);
     input.focus();
     refreshSuggestion();
+    return;
+  }
+
+  // Self-healing: intercept command-like input before AI chat
+  if (!_pendingFiles.length && _looksLikeCommand(message)) {
+    input.value = '';
+    input.style.height = 'auto';
+    await _handleUnknownCommand(message);
+    input.focus();
     return;
   }
 
