@@ -556,8 +556,14 @@ function renderChatMain() {
     html += `<div id="chat-model-badge" class="hidden shrink-0 px-5 py-1.5 text-[10px] text-gray-500 border-b border-gray-800/50">
       <i class="fas fa-robot mr-1 text-orange-400/60"></i><span id="chat-model-name"></span>
     </div>`;
-    // Messages scroll area
+    // Editor tab bar (hidden until an editor tab opens)
+    html += `<div id="editor-tab-bar" class="hidden shrink-0 flex items-center gap-0 border-b overflow-x-auto scroll-thin" style="border-color:var(--border);background:rgba(10,13,20,0.6);min-height:28px;"></div>`;
+    // Messages scroll area (wrapped for show/hide)
+    html += `<div id="chat-content-area" class="flex-1 overflow-hidden min-h-0 flex flex-col">`;
     html += `<div id="chat-messages" class="flex-1 overflow-y-auto min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3"></div></div>`;
+    html += `</div>`;
+    // Editor panes container (hidden by default)
+    html += `<div id="editor-panes-container" class="hidden flex-1 overflow-hidden min-h-0"></div>`;
     // Working status bar (single line, compact)
     html += `<div id="working-zone" class="hidden shrink-0 px-5 py-1.5 border-t border-gray-700/30 flex items-center gap-2">
       <span class="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
@@ -1018,6 +1024,10 @@ var _CLIENT_COMMANDS = {
       + '  grep/find/tree    search\n'
       + '  git <cmd>         git operations\n'
       + '  clear             clear chat\n\n'
+      + 'Editor commands:\n'
+      + '  vim/edit <file>   open file in editor tab\n'
+      + '  Ctrl+S            save current file\n'
+      + '  Ctrl+W            close editor tab\n\n'
       + 'Slash commands:\n'
       + '  /help             this help\n'
       + '  /mnemos           memory status & recent nodes\n'
@@ -1201,6 +1211,277 @@ var _SLASH_COMMANDS = {
   },
 };
 
+// ── Editor tab system ────────────────────────────────────────────────
+var _editorTabs = {};
+var _editorTabOrder = [];
+var _activeEditorTab = '__chat__';
+
+var _EDITOR_PROGRAMS = ['vim', 'vi', 'nvim', 'nano', 'emacs', 'edit', 'code'];
+
+function _genTabId(filePath) {
+  return 'ed-' + filePath.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function renderEditorTabBar() {
+  var bar = document.getElementById('editor-tab-bar');
+  if (!bar) return;
+  if (!_editorTabOrder.length) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  var html = '';
+  // Chat tab (always first)
+  var chatActive = _activeEditorTab === '__chat__';
+  html += '<div class="editor-tab ' + (chatActive ? 'active' : '') + ' flex items-center gap-1.5 px-3 py-1.5 text-[10px] border-r" '
+    + 'style="border-right-color:var(--border);" onclick="switchEditorTab(\'__chat__\')">'
+    + '<i class="fas fa-terminal text-[9px] text-orange-400/70"></i>'
+    + '<span>Chat</span></div>';
+  // Editor tabs
+  for (var i = 0; i < _editorTabOrder.length; i++) {
+    var tid = _editorTabOrder[i];
+    var tab = _editorTabs[tid];
+    if (!tab) continue;
+    var isActive = _activeEditorTab === tid;
+    html += '<div class="editor-tab ' + (isActive ? 'active' : '') + ' flex items-center gap-1.5 px-3 py-1.5 text-[10px] border-r" '
+      + 'style="border-right-color:var(--border);" onclick="switchEditorTab(\'' + tid + '\')">'
+      + '<i class="fas fa-file-code text-[9px] text-blue-400/60"></i>'
+      + '<span class="max-w-[120px] truncate">' + esc(tab.fileName) + '</span>';
+    if (tab.dirty) {
+      html += '<span class="dirty-dot w-1.5 h-1.5 rounded-full bg-orange-400 ml-0.5 inline-block"></span>';
+    }
+    html += '<button onclick="event.stopPropagation();closeEditorTab(\'' + tid + '\')" '
+      + 'class="text-gray-600 hover:text-red-400 ml-1 text-[8px]"><i class="fas fa-xmark"></i></button>'
+      + '</div>';
+  }
+  bar.innerHTML = html;
+}
+
+function switchEditorTab(tabId) {
+  // Save state of current editor tab
+  if (_activeEditorTab !== '__chat__' && _editorTabs[_activeEditorTab]) {
+    var ta = document.getElementById('editor-textarea-' + _activeEditorTab);
+    if (ta) {
+      _editorTabs[_activeEditorTab].cursorStart = ta.selectionStart;
+      _editorTabs[_activeEditorTab].cursorEnd = ta.selectionEnd;
+      _editorTabs[_activeEditorTab].scrollTop = ta.scrollTop;
+    }
+  }
+  _activeEditorTab = tabId;
+  var chatArea = document.getElementById('chat-content-area');
+  var editorArea = document.getElementById('editor-panes-container');
+  var workingZone = document.getElementById('working-zone');
+  if (tabId === '__chat__') {
+    if (chatArea) chatArea.classList.remove('hidden');
+    if (editorArea) editorArea.classList.add('hidden');
+  } else {
+    if (chatArea) chatArea.classList.add('hidden');
+    if (editorArea) { editorArea.classList.remove('hidden'); _showEditorPane(tabId); }
+  }
+  renderEditorTabBar();
+  // Restore cursor in new tab
+  if (tabId !== '__chat__' && _editorTabs[tabId]) {
+    var ta = document.getElementById('editor-textarea-' + tabId);
+    if (ta) {
+      ta.focus();
+      ta.selectionStart = _editorTabs[tabId].cursorStart || 0;
+      ta.selectionEnd = _editorTabs[tabId].cursorEnd || 0;
+      ta.scrollTop = _editorTabs[tabId].scrollTop || 0;
+    }
+  }
+}
+
+function _showEditorPane(tabId) {
+  var container = document.getElementById('editor-panes-container');
+  if (!container) return;
+  var panes = container.children;
+  for (var i = 0; i < panes.length; i++) {
+    panes[i].classList.add('hidden');
+  }
+  var pane = document.getElementById('editor-pane-' + tabId);
+  if (pane) pane.classList.remove('hidden');
+}
+
+function _createEditorPane(tabId) {
+  var container = document.getElementById('editor-panes-container');
+  if (!container) return;
+  var tab = _editorTabs[tabId];
+  if (!tab) return;
+  var pane = document.createElement('div');
+  pane.id = 'editor-pane-' + tabId;
+  pane.className = 'h-full flex flex-col';
+  var shortPath = tab.filePath.replace(/^\/Users\/[^/]+/, '~');
+  pane.innerHTML = '<div class="shrink-0 flex items-center gap-2 px-4 py-1.5 border-b" style="border-color:var(--border);background:rgba(10,13,20,0.4);">'
+    + '<i class="fas fa-file-code text-blue-400/60 text-xs"></i>'
+    + '<span class="text-[11px] text-gray-300 font-mono truncate">' + esc(shortPath) + '</span>'
+    + '<span class="text-[9px] text-gray-600 ml-1">(' + esc(tab.language) + ')</span>'
+    + '<span id="editor-line-info-' + tabId + '" class="ml-auto text-[9px] text-gray-600">Ln 1, Col 1</span>'
+    + '<span id="editor-save-status-' + tabId + '" class="text-[9px] text-green-400/70"></span>'
+    + '<button onclick="saveEditorTab(\'' + tabId + '\')" class="text-[10px] px-2.5 py-0.5 rounded bg-orange-600 hover:bg-orange-700 text-white">'
+    + '<i class="fas fa-save mr-1"></i>Save</button>'
+    + '<span class="text-[9px] text-gray-600">\u2318S</span>'
+    + '</div>'
+    + '<textarea id="editor-textarea-' + tabId + '" '
+    + 'class="editor-textarea flex-1 w-full resize-none outline-none font-mono text-[12px] leading-5 p-4" '
+    + 'style="background:rgba(6,9,18,0.9);color:var(--text);tab-size:4;border:none;" '
+    + 'spellcheck="false" '
+    + 'oninput="markEditorDirty(\'' + tabId + '\')" '
+    + 'onkeydown="handleEditorKeydown(event,\'' + tabId + '\')" '
+    + 'onkeyup="_updateEditorLineInfo(\'' + tabId + '\')" '
+    + 'onclick="_updateEditorLineInfo(\'' + tabId + '\')">'
+    + '</textarea>';
+  container.appendChild(pane);
+  var textarea = document.getElementById('editor-textarea-' + tabId);
+  if (textarea) textarea.value = tab.content;
+}
+
+function markEditorDirty(tabId) {
+  var tab = _editorTabs[tabId];
+  if (!tab) return;
+  var ta = document.getElementById('editor-textarea-' + tabId);
+  if (!ta) return;
+  var wasDirty = tab.dirty;
+  tab.dirty = ta.value !== tab.originalContent;
+  tab.content = ta.value;
+  if (tab.dirty !== wasDirty) renderEditorTabBar();
+}
+
+function _updateEditorLineInfo(tabId) {
+  var ta = document.getElementById('editor-textarea-' + tabId);
+  var info = document.getElementById('editor-line-info-' + tabId);
+  if (!ta || !info) return;
+  var pos = ta.selectionStart;
+  var text = ta.value.substring(0, pos);
+  var line = (text.match(/\n/g) || []).length + 1;
+  var lastNl = text.lastIndexOf('\n');
+  var col = pos - (lastNl >= 0 ? lastNl : 0);
+  info.textContent = 'Ln ' + line + ', Col ' + col;
+}
+
+function handleEditorKeydown(event, tabId) {
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault();
+    saveEditorTab(tabId);
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key === 'w') {
+    event.preventDefault();
+    closeEditorTab(tabId);
+    return;
+  }
+  if (event.key === 'Tab' && !event.shiftKey) {
+    event.preventDefault();
+    var ta = document.getElementById('editor-textarea-' + tabId);
+    if (!ta) return;
+    var start = ta.selectionStart;
+    var end = ta.selectionEnd;
+    ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = start + 2;
+    markEditorDirty(tabId);
+  }
+}
+
+async function saveEditorTab(tabId) {
+  var tab = _editorTabs[tabId];
+  if (!tab) return;
+  var ta = document.getElementById('editor-textarea-' + tabId);
+  if (ta) tab.content = ta.value;
+  var statusEl = document.getElementById('editor-save-status-' + tabId);
+  if (statusEl) statusEl.textContent = 'Saving...';
+  try {
+    var apiKey = localStorage.getItem('maggy-api-key') || '';
+    var headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['X-API-Key'] = apiKey;
+    var resp = await fetch(API + '/editor/write', {
+      method: 'POST', headers: headers,
+      body: JSON.stringify({ path: tab.filePath, content: tab.content }),
+    });
+    if (!resp.ok) {
+      var errText = await resp.text();
+      if (statusEl) { statusEl.textContent = 'Save failed'; statusEl.className = 'text-[9px] text-red-400'; }
+      return;
+    }
+    tab.originalContent = tab.content;
+    tab.dirty = false;
+    renderEditorTabBar();
+    if (statusEl) {
+      statusEl.textContent = 'Saved';
+      statusEl.className = 'text-[9px] text-green-400/70';
+      setTimeout(function() { statusEl.textContent = ''; }, 2000);
+    }
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.className = 'text-[9px] text-red-400'; }
+  }
+}
+
+function closeEditorTab(tabId) {
+  var tab = _editorTabs[tabId];
+  if (!tab) return;
+  if (tab.dirty && !confirm('Unsaved changes in ' + tab.fileName + '. Close anyway?')) return;
+  // Remove pane DOM
+  var pane = document.getElementById('editor-pane-' + tabId);
+  if (pane) pane.remove();
+  // Remove state
+  delete _editorTabs[tabId];
+  var idx = _editorTabOrder.indexOf(tabId);
+  if (idx >= 0) _editorTabOrder.splice(idx, 1);
+  // Switch to previous tab or Chat
+  if (_activeEditorTab === tabId) {
+    var nextTab = _editorTabOrder.length ? _editorTabOrder[_editorTabOrder.length - 1] : '__chat__';
+    switchEditorTab(nextTab);
+  } else {
+    renderEditorTabBar();
+  }
+}
+
+async function openFileInEditor(filePathArg) {
+  var cwd = _getShellCwd();
+  var filePath = filePathArg;
+  if (filePath && filePath.charAt(0) !== '/' && filePath.charAt(0) !== '~') {
+    filePath = (cwd || '') + '/' + filePath;
+  }
+  // Check if already open
+  var tabId = _genTabId(filePath);
+  if (_editorTabs[tabId]) { switchEditorTab(tabId); return; }
+  // Fetch file
+  try {
+    var data = await api('/editor/read?path=' + encodeURIComponent(filePath) + (cwd ? '&cwd=' + encodeURIComponent(cwd) : ''));
+    if (data.binary) {
+      var outer = document.getElementById('chat-messages');
+      var el = document.getElementById('chat-messages-inner') || outer;
+      el.innerHTML += _renderTerminalOutput('open ' + filePathArg,
+        filePath + ' is a binary file (' + (data.mime || 'unknown') + ', ' + data.size + ' bytes).\n'
+        + 'Binary files cannot be opened in the editor.\n'
+        + 'Use your local terminal instead.', 1, cwd);
+      if (outer) outer.scrollTop = outer.scrollHeight;
+      return;
+    }
+    if (data.too_large) {
+      var outer = document.getElementById('chat-messages');
+      var el = document.getElementById('chat-messages-inner') || outer;
+      el.innerHTML += _renderTerminalOutput('open ' + filePathArg,
+        filePath + ' is too large (' + (data.size / 1024).toFixed(0) + ' KB).\n'
+        + 'Max editor size is 1 MB. Use head or tail to view parts.', 1, cwd);
+      if (outer) outer.scrollTop = outer.scrollHeight;
+      return;
+    }
+    var fileName = filePath.split('/').pop();
+    _editorTabs[tabId] = {
+      filePath: filePath, fileName: fileName,
+      content: data.content || '', originalContent: data.content || '',
+      dirty: false, cursorStart: 0, cursorEnd: 0, scrollTop: 0,
+      language: data.language || 'plaintext', readOnly: false,
+    };
+    _editorTabOrder.push(tabId);
+    renderEditorTabBar();
+    _createEditorPane(tabId);
+    switchEditorTab(tabId);
+  } catch (e) {
+    var outer = document.getElementById('chat-messages');
+    var el = document.getElementById('chat-messages-inner') || outer;
+    el.innerHTML += _renderTerminalOutput('open ' + filePathArg,
+      'Failed to open: ' + e.message, 1, cwd);
+    if (outer) outer.scrollTop = outer.scrollHeight;
+  }
+}
+
 // Shell commands that go to backend /api/shell/exec
 var _SHELL_PREFIXES = [
   'ls', 'll', 'la', 'pwd', 'cd', 'cat', 'head', 'tail', 'wc',
@@ -1209,10 +1490,10 @@ var _SHELL_PREFIXES = [
   'uname', 'hostname',
 ];
 
-// Known programs — recognized but blocked in web terminal
+// Known programs — recognized but blocked in web terminal (editors handled separately)
 var _KNOWN_PROGRAMS = [
-  'vim', 'vi', 'nvim', 'nano', 'emacs', 'less', 'more', 'code',
-  'open', 'python', 'python3', 'node', 'npm', 'npx', 'pip',
+  'less', 'more', 'open',
+  'python', 'python3', 'node', 'npm', 'npx', 'pip',
   'pip3', 'cargo', 'go', 'ruby', 'java', 'javac', 'gcc', 'g++',
   'docker', 'docker-compose', 'kubectl', 'terraform',
   'make', 'cmake', 'man', 'top', 'htop', 'ps',
@@ -1234,6 +1515,7 @@ function _isShellCommand(msg) {
   if (_CLIENT_COMMANDS[first]) return true;
   if (_SHELL_PREFIXES.indexOf(first) >= 0) return true;
   if (_KNOWN_PROGRAMS.indexOf(first) >= 0) return true;
+  if (_EDITOR_PROGRAMS.indexOf(first) >= 0) return true;
   return false;
 }
 
@@ -1395,6 +1677,23 @@ async function _execShellCommand(cmd) {
     el.innerHTML += _renderTerminalPrompt(cmd, cwd);
     el.innerHTML += _renderTerminalOutput(cmd, result, 0, cwd);
     if (outer) outer.scrollTop = outer.scrollHeight;
+    return;
+  }
+
+  // Editor programs — open in-browser editor tab
+  if (_EDITOR_PROGRAMS.indexOf(first) >= 0) {
+    var filePath = cmd.split(/\s+/).slice(1).join(' ').trim();
+    if (!filePath) {
+      el.innerHTML += _renderTerminalPrompt(cmd, cwd);
+      el.innerHTML += _renderTerminalOutput(cmd,
+        'Usage: ' + first + ' <filename>\nOpens the file in the browser editor tab.', 1, cwd);
+      if (outer) outer.scrollTop = outer.scrollHeight;
+      return;
+    }
+    el.innerHTML += _renderTerminalPrompt(cmd, cwd);
+    el.innerHTML += _renderTerminalOutput(cmd, 'Opening ' + filePath + ' in editor...', 0, cwd);
+    if (outer) outer.scrollTop = outer.scrollHeight;
+    await openFileInEditor(filePath);
     return;
   }
 

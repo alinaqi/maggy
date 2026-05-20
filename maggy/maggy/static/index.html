@@ -40,6 +40,16 @@
     .shimmer-bar, .progress-shimmer { background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:shimmer 1.5s infinite; }
     @keyframes pulse-glow { 0%,100%{box-shadow:0 0 4px var(--accent-glow)} 50%{box-shadow:0 0 12px rgba(249,115,22,0.3)} }
     .pulse-glow { animation: pulse-glow 2s infinite; }
+    .editor-tab { transition: all 0.12s ease; cursor: pointer; user-select: none; }
+    .editor-tab.active { color: #e5e7eb; border-bottom: 2px solid #f97316; background: rgba(249,115,22,0.05); }
+    .editor-tab:not(.active) { border-bottom: 2px solid transparent; color: #6b7280; }
+    .editor-tab:not(.active):hover { background: rgba(255,255,255,0.02); color: #d1d5db; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .dirty-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+    .editor-textarea { caret-color: #f97316; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
+    .editor-textarea::-webkit-scrollbar { width: 6px; }
+    .editor-textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    .editor-textarea::selection { background: rgba(249,115,22,0.25); }
     .chat-md h1,.chat-md h2,.chat-md h3 { font-weight:600; margin:0.5em 0 0.25em; }
     .chat-md h1 { font-size:1.1em; color:var(--accent); } .chat-md h2 { font-size:1em; color:#fff; }
     .chat-md code { background:rgba(255,255,255,0.05); padding:1px 4px; border-radius:3px; font-size:0.9em; color:#fbbf24; }
@@ -212,6 +222,9 @@
     document.addEventListener('keydown', function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault(); openProjectSearch();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 's' && typeof _activeEditorTab !== 'undefined' && _activeEditorTab !== '__chat__') {
+        e.preventDefault(); saveEditorTab(_activeEditorTab);
       }
       if (e.key === 'Escape') { closeProjectSearch(); closeDrawer(); }
     });
