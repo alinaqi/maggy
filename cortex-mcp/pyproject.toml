@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortex-mcp"
+version = "0.1.0"
+description = "Unified code intelligence MCP server — structure, intent, and memory"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "mcp>=1.26.0,<2.0",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+tree-sitter = [
+    "tree-sitter>=0.23",
+    "tree-sitter-python",
+    "tree-sitter-javascript",
+    "tree-sitter-typescript",
+    "tree-sitter-go",
+    "tree-sitter-rust",
+]
+watch = ["watchdog>=4.0"]
+vectors = ["chromadb>=0.4.0"]
+all = ["cortex-mcp[tree-sitter,watch,vectors]"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+cortex-mcp = "cortex.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortex"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
