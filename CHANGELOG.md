@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.31.0] - 2026-05-21
+
+### Added
+- **ADR gate for code reviews** — pre-review enforcement that checks for linked ADRs and specs before any review engine runs
+- **ADR reverse-engineering** — auto-drafts ADRs from git history when none exist for changed files
+- **ADR compliance review dimension** — new review category alongside Security, Performance, Architecture, etc.
+- **PR template** (`templates/PULL_REQUEST_TEMPLATE.md`) — every PR requires ADR + spec links
+- **CodeRabbit config** (`templates/.coderabbit.yaml`) — tells CodeRabbit to review against documented ADRs, not flag intentional patterns
+- **ADR enforcement rule** (`rules/adr-enforcement.md`) — global rule installed via bootstrap, enforces "read ADRs first" across all projects
+- **ADR template** (`templates/adr.md`) — lightweight ADR format with Status, Context, Decision, Consequences
+- **Post-review decision extraction** — auto-logs architectural findings to decisions.md after review
+
+### Changed
+- **Code-review skill** — added mandatory ADR gate as pre-review step, ADR compliance severity levels
+- **initialize-project command** — creates `docs/adr/`, seeds initial ADR, installs PR template and .coderabbit.yaml
+- **install.sh** — copies ADR templates idempotently, bumped to v4.1.0
+
+---
+
 ## [6.30.0] - 2026-05-20
 
 ### Added

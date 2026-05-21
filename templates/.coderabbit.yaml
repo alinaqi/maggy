@@ -1,0 +1,58 @@
+language: en-US
+tone_instructions: >
+  Review against linked ADRs and specs. Do not flag patterns that are
+  documented in docs/adr/ as intentional decisions. Focus on ADR compliance,
+  security, and correctness.
+early_access: true
+enable_free_tier: true
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  auto_title_placeholder: "@coderabbitai"
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  poem: false
+
+  path_instructions:
+    - path: "docs/adr/**"
+      instructions: >
+        This is an Architecture Decision Record. Validate format: Status,
+        Date, Context, Decision, Consequences sections required. Check that
+        Status is one of: proposed, accepted, deprecated, superseded.
+        Do not suggest style changes — ADRs are append-only records.
+
+    - path: "src/**"
+      instructions: >
+        Before reviewing, check docs/adr/ for any ADR that governs this
+        module. If the code follows a documented ADR pattern, do not flag
+        it as an issue. If the code contradicts an ADR, flag as Critical.
+        If architectural decisions are made without an ADR, flag as High.
+
+    - path: "_project_specs/**"
+      instructions: >
+        These are project specifications. Validate completeness: each spec
+        should have Context, Goal, Approach, Success Criteria. Do not
+        suggest reformatting — specs follow a project-specific convention.
+
+    - path: "**/*.test.*"
+      instructions: >
+        Verify tests cover the acceptance criteria from linked specs.
+        Check that edge cases from ADR consequences are tested.
+
+    - path: "**/*migration*"
+      instructions: >
+        Database migrations MUST have a linked ADR. Flag as Critical if
+        no ADR reference is found in the PR description or commit messages.
+
+  path_filters:
+    - "!**/*.lock"
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+
+chat:
+  auto_reply: true

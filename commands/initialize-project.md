@@ -391,7 +391,7 @@ fi
 ### Step 1: Create/update directory structure
 ```bash
 mkdir -p .claude/skills
-mkdir -p docs
+mkdir -p docs/adr
 mkdir -p _project_specs/features
 mkdir -p _project_specs/todos
 mkdir -p _project_specs/prompts
@@ -1029,6 +1029,89 @@ This project uses MCP-based code graph for optimized code navigation.
 
 ## Project-Specific Patterns
 [Any specific patterns for this project]
+```
+
+### Step 4c: ADR Enforcement Setup
+
+#### Create docs/adr/ and seed ADR
+
+```bash
+mkdir -p docs/adr
+
+# Create initial ADR if none exist
+if [ ! -f "docs/adr/0001-project-init.md" ]; then
+    # Copy ADR template
+    cp ~/.claude/templates/adr.md docs/adr/TEMPLATE.md 2>/dev/null || true
+
+    # Generate initial ADR from project setup decisions
+    cat > docs/adr/0001-project-init.md << 'ADRINIT'
+# 0001 - Project Initialization
+
+**Status:** accepted
+**Date:** $(date +%Y-%m-%d)
+**Spec:** _project_specs/overview.md
+**Deciders:** Project creator
+
+## Context
+Initial project setup with technology and architecture choices.
+
+## Decision
+[Tech stack and framework choices made during /initialize-project]
+
+## Consequences
+All future development follows these technology choices.
+Development workflow enforced by claude-bootstrap skills and ADR gate.
+
+## Links
+- Related: _project_specs/overview.md
+ADRINIT
+    echo "✓ Created docs/adr/0001-project-init.md"
+fi
+```
+
+#### Install PR template
+
+```bash
+mkdir -p .github
+if [ ! -f ".github/PULL_REQUEST_TEMPLATE.md" ]; then
+    cp ~/.claude/templates/PULL_REQUEST_TEMPLATE.md .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null || true
+    echo "✓ Installed PR template with ADR compliance checklist"
+fi
+```
+
+#### Install CodeRabbit config
+
+```bash
+if [ ! -f ".coderabbit.yaml" ]; then
+    cp ~/.claude/templates/.coderabbit.yaml .coderabbit.yaml 2>/dev/null || true
+    echo "✓ Installed .coderabbit.yaml (reviews against documented ADRs)"
+fi
+```
+
+#### Add ADR section to CLAUDE.md
+
+Add to the generated CLAUDE.md:
+```markdown
+## Architecture Decision Records (ADR)
+
+All architectural decisions are documented in `docs/adr/`.
+
+### ADR Workflow
+- Before making architectural choices, check existing ADRs
+- Create new ADR before implementing architectural changes
+- Code reviews verify ADR compliance (enforced by ADR gate)
+- Template: `docs/adr/TEMPLATE.md`
+
+### ADR Format
+Status: proposed → accepted → deprecated/superseded
+Location: docs/adr/NNNN-title.md
+
+### Code Review ADR Gate
+Every /code-review automatically:
+1. Discovers linked ADRs for changed files
+2. Injects ADR context into review prompt
+3. Flags ADR violations as Critical/High severity
+4. Drafts missing ADRs from git history if none found
 ```
 
 ### Step 5: Create project specs structure (if missing)

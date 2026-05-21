@@ -142,6 +142,16 @@ SHIM
     fi
 fi
 
+# Install ADR enforcement artifacts
+echo ""
+echo "Installing ADR enforcement..."
+mkdir -p "$CLAUDE_DIR/templates"
+cp -n "$SCRIPT_DIR/templates/adr.md" "$CLAUDE_DIR/templates/adr.md" 2>/dev/null || true
+cp -n "$SCRIPT_DIR/templates/PULL_REQUEST_TEMPLATE.md" "$CLAUDE_DIR/templates/PULL_REQUEST_TEMPLATE.md" 2>/dev/null || true
+cp -n "$SCRIPT_DIR/templates/.coderabbit.yaml" "$CLAUDE_DIR/templates/.coderabbit.yaml" 2>/dev/null || true
+echo "✓ Installed ADR templates (adr.md, PULL_REQUEST_TEMPLATE.md, .coderabbit.yaml)"
+echo "  Projects get these via /initialize-project"
+
 # Run validation
 echo ""
 echo "Running validation..."
@@ -160,10 +170,12 @@ echo "================================================================"
 echo "  Installation complete! (v4.0.0)"
 echo "================================================================"
 echo ""
-echo "What's new in v4.0.0:"
+echo "What's new in v4.1.0:"
+echo "  - ADR enforcement: every review requires linked ADRs + specs"
+echo "  - PR template with ADR compliance checklist"
+echo "  - CodeRabbit config: reviews against documented decisions"
+echo "  - ADR reverse-engineering from git history when missing"
 echo "  - Polyphony: container-isolated parallel agents (Docker/OrbStack)"
-echo "  - /spawn-team now uses Polyphony by default (fallback to native)"
-echo "  - polyphony CLI: init, spawn, status, cleanup"
 echo "  - Cross-tool support: Claude Code + Kimi CLI + Codex CLI"
 echo ""
 echo "Usage:"

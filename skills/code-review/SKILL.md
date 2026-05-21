@@ -12,6 +12,40 @@ effort: high
 
 **Purpose:** Enforce automated code reviews as a mandatory guardrail before every commit and deployment. Choose between Claude, OpenAI Codex, Google Gemini, or multiple engines for comprehensive analysis.
 
+**Sub-skills:**
+- [adr-gate.md](./adr-gate.md) — Pre-review ADR and spec enforcement
+
+---
+
+## Pre-Review: ADR Gate (Mandatory)
+
+Before any review engine runs, the ADR gate executes automatically:
+
+1. **Classify** — trivial changes (typos, deps, tests-only) skip the gate
+2. **Discover** — scan `docs/adr/`, `_project_specs/`, iCPG ReasonNodes, git history for linked ADRs and specs
+3. **Enforce** — if no ADRs found for non-trivial changes:
+   - **Interactive** (default): draft ADR from git history, ask user to confirm
+   - **Unattended** (CI): write as `Status: proposed`, proceed
+   - **Strict**: block review until ADR exists
+4. **Inject** — feed discovered ADRs + specs into the review prompt as architectural context
+
+### ADR Compliance Review Dimension
+
+Added to the standard 7 review categories:
+
+| Category | What It Checks |
+|----------|----------------|
+| **ADR Compliance** | Change conforms to documented decisions, no undocumented architectural shifts |
+
+| Finding | Severity |
+|---------|----------|
+| Change contradicts accepted ADR | Critical |
+| Architectural decision not in any ADR | High |
+| ADR exists but is outdated/stale | Medium |
+| Minor drift from ADR intent | Low |
+
+See [adr-gate.md](./adr-gate.md) for full protocol, reverse-engineering rules, and configuration.
+
 ---
 
 ## Review Engine Choice
@@ -795,6 +829,24 @@ jobs:
 | Magic numbers | `if (status === 3)` | Use named constants |
 | Duplicate code | Copy-pasted blocks | Extract shared function |
 | Missing types | `any` everywhere | Add proper TypeScript types |
+
+---
+
+## Post-Review: Decision Extraction
+
+After review completes, extract architectural decisions automatically:
+
+1. If review flagged new architectural choices → prompt to create ADR in `docs/adr/`
+2. If review approved a new pattern → log to `_project_specs/session/decisions.md`
+3. If review found ADR drift → flag the ADR for update or supersede
+
+```markdown
+### Auto-Log Entry (decisions.md)
+- [YYYY-MM-DD] **[Review Finding]**: Brief description
+  - Source: Code review of [PR/commit]
+  - ADR: Created/Updated ADR-NNNN
+  - Impact: What changed
+```
 
 ---
 
