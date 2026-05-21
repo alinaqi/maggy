@@ -1,123 +1,111 @@
 # X Thread: Cortex MCP Launch
 
-Images saved at `/tmp/cortex-benchmark-{1,2,3,4}.png`
+**Status: SCHEDULED via Buffer — 2026-05-22 10:30-10:42 UTC**
+**Account: @AliShaheen**
+
+Images: `docs/images/cortex-benchmark-{1,2,3,4}.png`
 
 ---
 
-## Tweet 1/7 (Hook + Image 4: Before/After)
+## Tweet 1/7 — 10:30 UTC (Hook + Image 4: Before/After)
 
 I replaced a 161MB compiled Go binary with 2MB of pure Python.
 
-It's 800x faster at search. 650x smaller storage. And it does things the original never could.
+800x faster search. 650x smaller storage. And it does things the original never could.
 
 Introducing Cortex MCP — unified code intelligence for AI agents.
 
-Thread on what we built and why.
+Thread
 
-[IMAGE: cortex-benchmark-4.png — Before/After comparison]
+[IMAGE: cortex-benchmark-4.png]
 
 ---
 
-## Tweet 2/7 (The Problem)
+## Tweet 2/7 — 10:32 UTC (The Problem)
 
-codebase-memory-mcp is great — 14 tools, 64 languages, solid graph.
+codebase-memory-mcp is solid — 14 tools, 64 langs.
 
-But it only answers ONE question: "what is this code?"
+But it only answers: "what is this code?"
 
-It can't tell you WHY the code exists.
-It can't tell you WHERE you left off yesterday.
-It can't detect when code drifts from its original intent.
+Can't tell you WHY the code exists.
+Can't tell you WHERE you left off.
+Can't detect when code drifts from intent.
 
 We needed all three.
 
 ---
 
-## Tweet 3/7 (Architecture + Image 3: Three Layers)
+## Tweet 3/7 — 10:34 UTC (Architecture + Image 3)
 
-So we built Cortex MCP with 3 layers:
+Cortex MCP — 3 layers:
 
 STRUCTURE — WHAT the code is
-AST parsing, symbol search, call graphs, route detection
+AST parsing, symbol search, call graphs
 
 INTENT — WHY the code exists
-Design intents, drift detection, contracts
+Design intents, drift detection
 
 MEMORY — WHERE you left off
-Session memory, checkpoints, fatigue tracking
+Session memory, checkpoints
 
 15 tools. 1 server. pip install.
 
-[IMAGE: cortex-benchmark-3.png — Three layers diagram]
+[IMAGE: cortex-benchmark-3.png]
 
 ---
 
-## Tweet 4/7 (Benchmark Numbers + Image 1: Comparison Chart)
+## Tweet 4/7 — 10:36 UTC (Benchmarks + Image 1)
 
-Benchmarked on a real codebase (40 files, FastAPI + React):
+Benchmarked on real codebase (FastAPI + React):
 
-Symbol search: 0.15ms vs 50-200ms (800x faster)
-Code search: 0.3ms vs 50-150ms (300x faster)
-Re-index: <10ms vs 200ms (20x faster)
-Binary: 2MB vs 161MB (80x smaller)
-DB size: 4KB vs 2.6MB (650x smaller)
+Symbol search: 0.15ms vs 200ms (800x)
+Code search: 0.3ms vs 150ms (300x)
+Re-index: <10ms vs 200ms (20x)
+Binary: 2MB vs 161MB (80x)
+DB: 4KB vs 2.6MB (650x)
 
 SQLite + FTS5 is absurdly fast for code intelligence.
 
-[IMAGE: cortex-benchmark-1.png — Benchmark comparison]
+[IMAGE: cortex-benchmark-1.png]
 
 ---
 
-## Tweet 5/7 (The Killer Feature + Image 2: cortex_explain)
+## Tweet 5/7 — 10:38 UTC (Killer Feature + Image 2)
 
-The feature no other MCP server has:
-
-cortex_explain("validateToken")
+The feature no other MCP server has: cortex_explain
 
 One call returns:
-- Structure: signature, file location, call graph
-- Intent: which goal it fulfills, who owns it, drift status
-- Memory: when you last touched it, related context, risk level
+- Structure: signature, location, call graph
+- Intent: goal, owner, drift status
+- Memory: last touched, related context, risk
 
-Three layers. One answer. Zero extra tool calls.
+Three layers. One answer.
 
-[IMAGE: cortex-benchmark-2.png — cortex_explain output]
-
----
-
-## Tweet 6/7 (Technical Decisions)
-
-Key technical choices:
-
-- sync sqlite3 + dedicated writer thread (not aiosqlite)
-- stat pre-filter (mtime+size) before SHA-256 hashing
-- FTS5 with unicode61 tokenizer (Porter mangles code identifiers)
-- AST for Python, regex for TS/JS/Go/Rust
-- BM25 ranked search (exact > prefix > contains)
-- Recursive CTEs for graph traversal (no Cypher DSL)
-
-5 languages that AI engineers actually use > 64 that nobody needs.
+[IMAGE: cortex-benchmark-2.png]
 
 ---
 
-## Tweet 7/7 (CTA)
+## Tweet 6/7 — 10:40 UTC (Technical Decisions)
+
+Technical choices:
+
+- sync sqlite3 + writer thread
+- stat pre-filter before SHA-256
+- FTS5 unicode61 (Porter mangles code)
+- AST for Python, regex for TS/Go/Rust
+- BM25 ranked search
+- Recursive CTEs (no Cypher)
+
+5 langs AI engineers use > 64 nobody needs.
+
+---
+
+## Tweet 7/7 — 10:42 UTC (CTA)
 
 172 tests. All green.
 Benchmarked against the tool it replaces.
-Full comparison doc in the repo.
 
-Next: intent bootstrapping from git history, SSE transport for Claude Desktop, and tree-sitter for deeper AST.
+Next: intent bootstrap from git history, SSE for Claude Desktop, tree-sitter.
 
-Built with Claude Code + DeepSeek Pro + Gemini + Kimi.
+Built with Claude Code + DeepSeek + Gemini + Kimi.
 Multi-model dev is the future.
-
----
-
-## Posting Order
-
-1. Tweet 1 + Image 4 (hook — before/after)
-2. Tweet 2 (the problem — text only)
-3. Tweet 3 + Image 3 (architecture — three layers)
-4. Tweet 4 + Image 1 (benchmarks — numbers)
-5. Tweet 5 + Image 2 (killer feature — cortex_explain)
-6. Tweet 6 (technical decisions — text only)
-7. Tweet 7 (CTA + what's next — text only)
