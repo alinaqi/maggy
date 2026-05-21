@@ -8,19 +8,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [6.31.0] - 2026-05-21
 
+### ADR-Enforced Code Reviews
+
+Every code review now requires architectural context. No more reviewing code in a vacuum.
+
+#### How It Works
+
+```
+PR / code change
+      |
+  [1. Classify] — trivial changes (typos, deps, tests-only) skip the gate
+      |
+  [2. Discover] — scan docs/adr/, _project_specs/, iCPG, git history
+      |
+  ADRs found? --YES--> inject into review prompt as context
+      |
+      NO
+      |
+  [3. Reverse-engineer] — draft ADR from git log + code structure
+      |
+  [4. Present/auto-tag] — interactive: ask user to confirm
+                          unattended (CI): write as Status: proposed
+      |
+  [5. Review runs WITH ADR context]
+      |
+  [6. Post-review] — extract decisions, log to decisions.md
+```
+
+#### Enforcement Modes
+- **Interactive** (default): drafts ADR, asks user to confirm/edit/skip
+- **Unattended** (CI/CD): auto-writes as `Status: proposed`, never marks accepted
+- **Strict**: blocks review entirely until ADR exists
+
+#### ADR Compliance Severity
+| Finding | Severity |
+|---------|----------|
+| Code contradicts accepted ADR | Critical — blocks commit |
+| Architectural decision without ADR | High — blocks commit |
+| Stale/outdated ADR | Medium — can commit |
+| Minor drift from ADR intent | Low — advisory |
+
+#### Reverse-Engineering Protocol
+When no ADR exists for non-trivial changes:
+1. `git log --follow -5 <file>` — commit messages for WHY
+2. Read module structure and imports for patterns chosen
+3. Query iCPG ReasonNodes if indexed (optional, not required)
+4. Check PR description and issue tracker for ticket references
+5. Draft ADR with `Status: proposed`
+6. Present to user OR auto-write in CI mode
+
+#### Trivial Change Exemptions
+These skip the ADR gate entirely:
+- Typo/comment/whitespace fixes
+- Dependency patch/minor version bumps
+- Test-only changes that don't alter behavior
+- Config value changes (not structural)
+- Changelog/README updates
+
+#### What Gets Installed (per project via /initialize-project)
+- `docs/adr/` directory + `0001-project-init.md` seed ADR
+- `.github/PULL_REQUEST_TEMPLATE.md` — PR requires ADR + spec links
+- `.coderabbit.yaml` — CodeRabbit reads ADRs, doesn't flag documented patterns
+- ADR compliance dimension added to all `/code-review` runs
+
+#### What Gets Installed (globally via install.sh)
+- `rules/adr-enforcement.md` — conditional rule, fires on code files
+- `templates/adr.md` — lightweight ADR format
+- `templates/PULL_REQUEST_TEMPLATE.md` — PR checklist
+- `templates/.coderabbit.yaml` — CodeRabbit path instructions
+
 ### Added
-- **ADR gate for code reviews** — pre-review enforcement that checks for linked ADRs and specs before any review engine runs
-- **ADR reverse-engineering** — auto-drafts ADRs from git history when none exist for changed files
-- **ADR compliance review dimension** — new review category alongside Security, Performance, Architecture, etc.
-- **PR template** (`templates/PULL_REQUEST_TEMPLATE.md`) — every PR requires ADR + spec links
-- **CodeRabbit config** (`templates/.coderabbit.yaml`) — tells CodeRabbit to review against documented ADRs, not flag intentional patterns
-- **ADR enforcement rule** (`rules/adr-enforcement.md`) — global rule installed via bootstrap, enforces "read ADRs first" across all projects
-- **ADR template** (`templates/adr.md`) — lightweight ADR format with Status, Context, Decision, Consequences
-- **Post-review decision extraction** — auto-logs architectural findings to decisions.md after review
+- **ADR gate** (`skills/code-review/adr-gate.md`) — pre-review enforcement with discovery, reverse-engineering, and injection
+- **ADR compliance review dimension** — 8th review category alongside Security, Performance, Architecture, etc.
+- **PR template** — ADR + spec links required, compliance checklist
+- **CodeRabbit config** — path instructions for `docs/adr/`, `src/`, `_project_specs/`, migrations
+- **ADR enforcement rule** — global conditional rule installed via bootstrap
+- **ADR template** — Status, Context, Decision, Consequences, Alternatives, Links
+- **Post-review decision extraction** — auto-logs architectural findings to `decisions.md`
 
 ### Changed
-- **Code-review skill** — added mandatory ADR gate as pre-review step, ADR compliance severity levels
-- **initialize-project command** — creates `docs/adr/`, seeds initial ADR, installs PR template and .coderabbit.yaml
+- **Code-review skill** — mandatory ADR gate before any review engine runs
+- **initialize-project** — creates `docs/adr/`, seeds ADR, installs PR template + .coderabbit.yaml
 - **install.sh** — copies ADR templates idempotently, bumped to v4.1.0
 
 ---
