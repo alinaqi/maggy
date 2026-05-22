@@ -729,6 +729,105 @@ export class Foo {
         assert all(m.language == "typescript" for m in methods)
 
 
+# ---------------------------------------------------------------------------
+# Elixir extraction
+# ---------------------------------------------------------------------------
+
+ELIXIR_SOURCE = '''
+defmodule MyApp.Router do
+  use Plug.Router
+
+  plug :match
+  plug :dispatch
+
+  def hello(conn, _opts) do
+    send_resp(conn, 200, "Hello")
+  end
+
+  defp validate(params) do
+    Map.has_key?(params, :name)
+  end
+
+  get "/api/status" do
+    send_resp(conn, 200, "ok")
+  end
+
+  post "/api/users" do
+    send_resp(conn, 201, "created")
+  end
+end
+
+defmodule MyApp.GenServerWorker do
+  use GenServer
+
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts)
+  end
+
+  def init(state) do
+    {:ok, state}
+  end
+
+  def handle_call(:get, _from, state) do
+    {:reply, state, state}
+  end
+end
+'''
+
+
+class TestElixirExtraction:
+    def test_finds_modules(self) -> None:
+        syms = parse_file(Path("router.ex"), ELIXIR_SOURCE, "elixir")
+        modules = [s for s in syms if s.symbol_type == "module"]
+        names = {s.name for s in modules}
+        assert "MyApp.Router" in names
+        assert "MyApp.GenServerWorker" in names
+
+    def test_finds_public_functions(self) -> None:
+        syms = parse_file(Path("router.ex"), ELIXIR_SOURCE, "elixir")
+        fns = [s for s in syms if s.symbol_type == "function"]
+        names = {s.name for s in fns}
+        assert "hello" in names
+        assert "start_link" in names
+        assert "init" in names
+        assert "handle_call" in names
+
+    def test_finds_private_functions(self) -> None:
+        syms = parse_file(Path("router.ex"), ELIXIR_SOURCE, "elixir")
+        privates = [s for s in syms if s.symbol_type == "private_function"]
+        names = {s.name for s in privates}
+        assert "validate" in names
+
+    def test_finds_routes(self) -> None:
+        syms = parse_file(Path("router.ex"), ELIXIR_SOURCE, "elixir")
+        routes = [s for s in syms if s.symbol_type == "route"]
+        names = {s.name for s in routes}
+        assert "GET /api/status" in names
+        assert "POST /api/users" in names
+
+    def test_language_is_elixir(self) -> None:
+        syms = parse_file(Path("router.ex"), ELIXIR_SOURCE, "elixir")
+        assert all(s.language == "elixir" for s in syms)
+
+    def test_line_numbers(self) -> None:
+        syms = parse_file(Path("router.ex"), ELIXIR_SOURCE, "elixir")
+        modules = [s for s in syms if s.name == "MyApp.Router"]
+        assert len(modules) == 1
+        assert modules[0].line_start > 0
+
+    def test_exs_extension(self) -> None:
+        syms = parse_file(Path("test_helper.exs"), ELIXIR_SOURCE, "elixir")
+        assert len(syms) > 0
+
+    def test_empty_source(self) -> None:
+        syms = parse_file(Path("empty.ex"), "", "elixir")
+        assert syms == []
+
+    def test_unsupported_returns_empty(self) -> None:
+        syms = parse_file(Path("data.csv"), "col1,col2", "csv")
+        assert syms == []
+
+
 class TestParseFileIntegration:
     def test_deterministic_ids(self) -> None:
         source = "def foo():\n    pass\n"

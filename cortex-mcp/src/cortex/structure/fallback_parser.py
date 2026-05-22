@@ -397,6 +397,95 @@ def _extract_rust(
 
 
 # ---------------------------------------------------------------------------
+# Elixir extraction (regex)
+# ---------------------------------------------------------------------------
+
+_ELIXIR_MODULE_RE = re.compile(r"defmodule\s+([\w.]+)")
+_ELIXIR_FN_RE = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
+_ELIXIR_DEFP_RE = re.compile(r"^\s*defp\s+(\w+)", re.MULTILINE)
+_ELIXIR_ROUTE_RE = re.compile(
+    r"^\s*(get|post|put|delete|patch)\s+\"([^\"]+)\"",
+    re.MULTILINE,
+)
+
+
+def _extract_elixir(
+    file_path: Path,
+    source: str,
+) -> list[Symbol]:
+    symbols: list[Symbol] = []
+    seen: set[str] = set()
+    fp = str(file_path)
+
+    for match in _ELIXIR_MODULE_RE.finditer(source):
+        name = match.group(1)
+        if name not in seen:
+            seen.add(name)
+            sig = source[match.start():source.find("\n", match.start())]
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type="module",
+                language="elixir",
+                signature=sig.strip()[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+
+    for match in _ELIXIR_FN_RE.finditer(source):
+        name = match.group(1)
+        key = f"fn:{name}"
+        if key not in seen:
+            seen.add(key)
+            sig = source[match.start():source.find("\n", match.end())]
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type="function",
+                language="elixir",
+                signature=sig.strip()[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+
+    for match in _ELIXIR_DEFP_RE.finditer(source):
+        name = match.group(1)
+        key = f"defp:{name}"
+        if key not in seen:
+            seen.add(key)
+            sig = source[match.start():source.find("\n", match.end())]
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type="private_function",
+                language="elixir",
+                signature=sig.strip()[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+
+    for match in _ELIXIR_ROUTE_RE.finditer(source):
+        method = match.group(1).upper()
+        path = match.group(2)
+        name = f"{method} {path}"
+        symbols.append(Symbol(
+            name=name,
+            file_path=fp,
+            symbol_type="route",
+            language="elixir",
+            signature=name,
+            checksum=_checksum(name),
+            line_start=_line_number_at(source, match.start()),
+            line_end=_line_number_at(source, match.end()),
+        ))
+
+    return symbols
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -406,6 +495,7 @@ _EXTRACTORS: dict[str, object] = {
     "javascript": _extract_typescript,
     "go": _extract_go,
     "rust": _extract_rust,
+    "elixir": _extract_elixir,
 }
 
 

@@ -17,6 +17,7 @@ SUPPORTED_EXTENSIONS = {
     '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
     '.go',
     '.rs',
+    '.ex', '.exs',
     '.sql',
 }
 
