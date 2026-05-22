@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.32.0] - 2026-05-22
+
+### Cortex MCP — Elixir Support + System Wiring
+
+#### Added
+- **Elixir AST extraction** in Cortex parser: `defmodule`, `def`, `defp`, route macros (`get/post/put/delete/patch`)
+- `.ex`/`.exs` extensions recognized by the indexer
+- 9 tests for Elixir extraction (modules, functions, private functions, routes, line numbers)
+- **Cortex wired into local system**: Claude Code CLI, Claude Desktop, maggy codebases, engram, blueprint
+- **Build-in-public plugin**: native X thread support via Buffer's `metadata.twitter.thread` API
+- `on_thread_requested` event handler for pre-written tweet threads
+
+#### Configuration
+- `~/.claude/.mcp.json` — cortex server added (parallel with codebase-memory-mcp)
+- `~/.claude/claude_desktop_config.json` — cortex server added
+- `~/.maggy/config.yaml` — cortex-mcp registered as codebase
+- `~/.maggy/engram.db` — tool capabilities stored
+- `~/.maggy/blueprints.db` — `code_intelligence` blueprint added
+
+---
+
 ## [6.31.0] - 2026-05-21
 
 ### ADR-Enforced Code Reviews

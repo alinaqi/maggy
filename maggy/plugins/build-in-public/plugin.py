@@ -55,7 +55,8 @@ SERIES_TEMPLATE = [
 
 class ScheduledPost:
     def __init__(self, channel="", text="", scheduled_at="", format="single",
-                 thread_index=0, thread_total=1, media=None):
+                 thread_index=0, thread_total=1, media=None,
+                 thread_replies=None):
         self.channel = channel
         self.text = text
         self.scheduled_at = scheduled_at
@@ -63,6 +64,7 @@ class ScheduledPost:
         self.thread_index = thread_index
         self.thread_total = thread_total
         self.media = media or []
+        self.thread_replies = thread_replies or []
 
 logger = logging.getLogger(__name__)
 
@@ -130,15 +132,20 @@ class ContentStrategy:
         if len(tweets) <= 1:
             return [ScheduledPost(channel=channel, text=text[:max_chars],
                     scheduled_at=self._best_time(channel, content_type), format="single")]
-        base = self._next_slot(channel, content_type)
-        posts = []
-        for i, t in enumerate(tweets):
-            label = f"{t} ({i+1}/{len(tweets)})" if len(tweets) > 1 else t
-            posts.append(ScheduledPost(channel=channel, text=label,
-                scheduled_at=base.isoformat(), format="thread_tweet",
-                thread_index=i+1, thread_total=len(tweets)))
-            base += timedelta(minutes=2)
-        return posts
+        scheduled_at = self._next_slot(channel, content_type).isoformat()
+        replies = [{"text": t, "assets": []} for t in tweets[1:]]
+        media = context.get("media", [])
+        if media and isinstance(media, list):
+            for i, m in enumerate(media):
+                if i == 0:
+                    pass
+                elif i - 1 < len(replies) and m:
+                    replies[i - 1]["assets"] = [{"image": {"url": m}}]
+        return [ScheduledPost(
+            channel=channel, text=tweets[0], scheduled_at=scheduled_at,
+            format="thread", thread_total=len(tweets),
+            thread_replies=replies,
+        )]
 
     def _split_tweets(self, text, max_chars):
         tweets, current = [], ""
@@ -438,6 +445,64 @@ class BuildInPublic:
             payload["plan_summary"] = "architected a solution"
         await self._handle_event("on_review_passed", payload)
 
+    async def handle_thread_requested(self, payload: dict):
+        """Schedule a pre-written X thread via Buffer.
+
+        Blueprint-compatible: content creation by deepseek_pro/gemini,
+        scheduling by qwen3.
+
+        Payload:
+            tweets: list[dict] — [{text, image?}, ...]
+            scheduled_at: str — ISO timestamp (optional)
+            channel: str — "x" (default)
+        """
+        tweets = payload.get("tweets", [])
+        if not tweets:
+            logger.warning("build-in-public: on_thread_requested with no tweets")
+            return
+
+        channel = payload.get("channel", "x")
+        head = tweets[0]
+        head_text = head if isinstance(head, str) else head.get("text", "")
+        head_image = "" if isinstance(head, str) else head.get("image", "")
+
+        replies = []
+        for t in tweets[1:]:
+            if isinstance(t, str):
+                replies.append({"text": t, "assets": []})
+            else:
+                assets = []
+                if t.get("image"):
+                    assets = [{"image": {"url": t["image"]}}]
+                replies.append({"text": t.get("text", ""), "assets": assets})
+
+        scheduled_at = payload.get("scheduled_at", "")
+        if not scheduled_at:
+            scheduled_at = self._strategy._best_time(channel, "thread")
+
+        post = {
+            "channel": channel,
+            "text": head_text,
+            "scheduled_at": scheduled_at,
+            "thread_replies": replies,
+            "format": "thread",
+        }
+
+        media = head_image if head_image else ""
+        await self._schedule_posts([post], media)
+
+        scheduled = [ScheduledPost(
+            channel=channel, text=head_text,
+            scheduled_at=scheduled_at, format="thread",
+            thread_total=len(tweets), thread_replies=replies,
+        )]
+        self._strategy.commit(scheduled)
+        self._log_plan(scheduled)
+        logger.info(
+            "build-in-public: thread scheduled (%d tweets) at %s",
+            len(tweets), scheduled_at,
+        )
+
     def _build_narrative(self, event_type: str, context: dict) -> dict:
         """Synthesize narrative arcs per channel. Returns {channel: text}."""
         what = context.get("what", "")
@@ -571,11 +636,25 @@ class BuildInPublic:
                             "schedulingType": "automatic",
                             "dueAt": post.get("scheduled_at", ""),
                             "mode": "customScheduled",
+                            "assets": [],
                         }
                     }
-                    # Attach image to LinkedIn posts
-                    if media_path and post["channel"] == "linkedin" and media_path.startswith("http"):
+                    # Attach image to head tweet or LinkedIn
+                    if media_path and media_path.startswith("http"):
                         variables["input"]["assets"] = [{"image": {"url": media_path}}]
+
+                    # X threads: use metadata.twitter.thread for linked replies
+                    thread_replies = post.get("thread_replies", [])
+                    if service == "twitter" and thread_replies:
+                        variables["input"]["metadata"] = {
+                            "twitter": {
+                                "thread": thread_replies,
+                            }
+                        }
+                        fmt = f"thread (1 + {len(thread_replies)} replies)"
+                    else:
+                        fmt = "single"
+
                     resp = await client.post(
                         BUFFER_API,
                         headers={
@@ -585,9 +664,15 @@ class BuildInPublic:
                         json={"query": mutation, "variables": variables},
                     )
                     if resp.status_code == 200 and "errors" not in resp.json():
-                        self._posts_today += 1
-                        logger.info("build-in-public: scheduled on %s via GraphQL",
-                                    post["channel"])
+                        result = resp.json().get("data", {}).get("createPost", {})
+                        if result.get("__typename") == "PostActionSuccess":
+                            self._posts_today += 1
+                            logger.info("build-in-public: scheduled %s on %s",
+                                        fmt, post["channel"])
+                        else:
+                            logger.warning("build-in-public: Buffer returned %s",
+                                           result.get("__typename"))
+                            self._log_post(post)
                     else:
                         error = resp.json().get("errors", [{}])[0].get("message", resp.text[:200])
                         logger.warning("build-in-public: GraphQL error: %s", error)
@@ -669,7 +754,7 @@ class BuildInPublic:
         return path  # Fallback: local path
 
     async def _capture_screenshot(self, url: str) -> str:
-        """Capture hero screenshot via Peekaboo (preferred) or Playwright (fallback)."""
+        """Capture hero screenshot via Playwright."""
         if not url:
             return ""
         screenshot_dir = Path.home() / ".maggy" / "build-in-public" / "screenshots"
@@ -677,21 +762,6 @@ class BuildInPublic:
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         out_path = screenshot_dir / f"hero-{ts}.png"
 
-        # Try Peekaboo first (native macOS, pixel-perfect)
-        import shutil
-        if shutil.which("peekaboo"):
-            try:
-                result = subprocess.run(
-                    ["peekaboo", "image", "--mode", "screen", "--path", str(out_path)],
-                    capture_output=True, text=True, timeout=15,
-                )
-                if result.returncode == 0 and out_path.exists():
-                    logger.info("build-in-public: Peekaboo screenshot captured")
-                    return str(out_path)
-            except Exception:
-                pass
-
-        # Fallback to Playwright
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
