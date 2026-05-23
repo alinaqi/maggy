@@ -19,6 +19,7 @@ from maggy.mnemos.constants import (
 )
 
 from .models import ModelTier
+from maggy.provider_config import ProviderConfig, load_provider_config
 
 # Model-level budget caps (daily, in USD) — block/demote when exceeded
 MODEL_DAILY_BUDGETS: dict[str, float] = {
@@ -30,6 +31,63 @@ MODEL_DAILY_BUDGETS: dict[str, float] = {
 # Warning threshold: start biasing away at this fraction of budget
 BUDGET_WARN_THRESHOLD = 0.5   # 50% of daily budget → start demoting
 BUDGET_BLOCK_THRESHOLD = 0.8  # 80% → block entirely for non-critical tasks
+
+
+def _flash_tier(cfg: ProviderConfig) -> ModelTier:
+    """Build the flash tier from provider config."""
+    provider = cfg.flash_provider()
+    model = cfg.flash_model()
+    return ModelTier(
+        name=f"{provider}-flash",
+        provider=provider,
+        model=model,
+        cost_rank=3,
+        complexity_min=0,
+        complexity_max=5,
+        strengths=["boilerplate", "simple_features", "tests", "crud"],
+    )
+
+
+def _pro_tier(cfg: ProviderConfig) -> ModelTier:
+    """Build the pro tier from provider config."""
+    provider = cfg.pro_provider()
+    model = cfg.pro_model()
+    return ModelTier(
+        name=f"{provider}-pro",
+        provider=provider,
+        model=model,
+        cost_rank=4,
+        complexity_min=2,
+        complexity_max=8,
+        strengths=["code_generation", "debugging", "refactor", "feature"],
+    )
+
+
+def build_tiers(cfg: ProviderConfig | None = None) -> list[ModelTier]:
+    """Build the full tier list, substituting flash/pro from provider config."""
+    resolved = cfg or load_provider_config()
+    return [
+        ModelTier(
+            name="local",
+            provider="ollama",
+            model="qwen3-coder:30b-a3b-q8_0",
+            cost_rank=1,
+            complexity_min=0,
+            complexity_max=3,
+            strengths=["formatting", "simple_edits", "crud"],
+        ),
+        ModelTier(
+            name="gemini-flash-lite",
+            provider="google",
+            model="gemini-2.5-flash-lite",
+            cost_rank=2,
+            complexity_min=0,
+            complexity_max=4,
+            strengths=["bulk_extraction", "classification", "cheap_summarization"],
+        ),
+        _flash_tier(resolved),
+        _pro_tier(resolved),
+    ]
 
 
 DEFAULT_TIERS: list[ModelTier] = [
@@ -52,18 +110,18 @@ DEFAULT_TIERS: list[ModelTier] = [
         strengths=["bulk_extraction", "classification", "cheap_summarization"],
     ),
     ModelTier(
-        name="deepseek-flash",
-        provider="deepseek",
-        model="deepseek-v4-flash",
+        name="groq-flash",
+        provider="groq",
+        model="llama-3.3-70b-versatile",
         cost_rank=3,
         complexity_min=0,
         complexity_max=5,
         strengths=["boilerplate", "simple_features", "tests", "crud"],
     ),
     ModelTier(
-        name="deepseek-pro",
-        provider="deepseek",
-        model="deepseek-v4-pro",
+        name="together-pro",
+        provider="together",
+        model="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         cost_rank=4,
         complexity_min=2,
         complexity_max=8,
@@ -155,7 +213,7 @@ def route_task(
         security_sensitive: True for auth/billing/PII tasks
         tiers: Custom tiers (defaults to DEFAULT_TIERS)
     """
-    available = tiers or DEFAULT_TIERS
+    available = tiers or build_tiers()
     primaries = [
         t for t in available if t.role == "primary"
     ]

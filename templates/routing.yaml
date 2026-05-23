@@ -1,0 +1,61 @@
+# Maggy Provider Config — copy to ~/.maggy/routing.yaml and customize
+#
+# sovereignty:
+#   us    — US-based providers only (groq, together, anthropic, openai, google)
+#           Blocks: deepseek, kimi, moonshot
+#   local — local models only (ollama). No external API calls, no data leaves machine.
+#   any   — no restrictions (use any provider including deepseek, kimi, etc.)
+#
+sovereignty: us
+
+# tiers — which provider handles each complexity tier
+# flash: simple code, boilerplate, CRUD, single-file changes
+# pro:   multi-file features, refactors, debugging, test suites
+#
+# Options:
+#   groq      — Groq API, Llama 3.3 70B, fast + cheap (~$0.05/M). US-based.
+#   together  — Together AI, Llama 3.1 405B, near-Claude quality (~$3.50/M). US-based.
+#   ollama    — Local Ollama, qwen2.5-coder:72b, free + private. Needs GPU for best results.
+#   deepseek  — DeepSeek API, strong coding model (~$0.44/M). China-based.
+#
+tiers:
+  flash: groq       # groq | together | ollama | deepseek
+  pro: together     # together | groq | ollama | deepseek
+
+# providers — model and auth config per provider
+# Override only what you need; defaults are filled in automatically.
+#
+providers:
+  groq:
+    model: llama-3.3-70b-versatile
+    api_key_env: GROQ_API_KEY
+
+  together:
+    model: meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
+    api_key_env: TOGETHER_API_KEY
+
+  ollama:
+    model: qwen2.5-coder:72b
+    base_url: http://localhost:11434   # override if Ollama runs elsewhere
+
+  deepseek:
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+
+# ── Quick presets ────────────────────────────────────────────────────────────
+#
+# Full US (recommended for data sovereignty):
+#   sovereignty: us
+#   tiers: { flash: groq, pro: together }
+#
+# Fully local (air-gapped / maximum privacy):
+#   sovereignty: local
+#   tiers: { flash: ollama, pro: ollama }
+#
+# Best quality, US-only (close to Claude for pro tier):
+#   sovereignty: us
+#   tiers: { flash: groq, pro: together }
+#
+# No restrictions (include DeepSeek for cheaper pro tier):
+#   sovereignty: any
+#   tiers: { flash: groq, pro: deepseek }
