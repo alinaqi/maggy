@@ -287,3 +287,98 @@ Based on published pricing (approximate):
 The biggest saving is already baked into the routing design (not using Claude for everything). Swapping DeepSeek for Groq/Ollama is a smaller delta — but removes the China data concern entirely.
 
 > **Note:** Groq pricing changes frequently. Verify at groq.com/pricing before implementing.
+
+---
+
+## Is US-based cheaper AND better than DeepSeek?
+
+For the **flash tier** (simple code, boilerplate) — yes, Groq is cheaper AND faster than DeepSeek Flash. No quality trade-off.
+
+For the **pro tier** (features, refactors, debugging):
+
+| | DeepSeek Pro | Groq Llama 3.3 70B | Ollama local |
+|---|---|---|---|
+| Cost | $0.44/$0.87/M | ~$0.59/$0.79/M | $0 |
+| Code quality | Very strong | Good, not quite as sharp | Depends on hardware |
+| Speed | Fast | Fastest inference available | Depends on GPU/CPU |
+| Privacy | China servers | US servers | Your machine |
+
+- Flash tier → Groq (cheaper + faster, no quality loss)
+- Pro tier → Ollama locally if you have a good GPU (free + private), or Together AI 405B for quality
+- The real win is **data sovereignty** — code never leaves US infrastructure or your machine
+
+---
+
+## Flex config — let users choose their provider per tier
+
+Design: a config file (`~/.maggy/routing.yaml`) where each tier maps to the user's preferred provider:
+
+```yaml
+# ~/.maggy/routing.yaml
+tiers:
+  flash: groq           # groq | deepseek | ollama
+  pro: ollama-coder     # ollama-coder | deepseek | together | groq
+  multimodal: gemini    # stays as-is
+```
+
+**What needs to be built:**
+1. `bin/groq` — Groq API script (Llama 3.3 70B)
+2. `bin/ollama-coder` — Ollama script (qwen2.5-coder:72b)
+3. `bin/together` — Together AI script (Llama 3.1 405B)
+4. `~/.maggy/routing.yaml` — user config with defaults
+5. `model_router.py` — reads config, swaps provider at startup
+6. `route-task-hook` — reads config, picks the right `bin/` script per tier
+7. REST endpoint `GET/POST /api/routing/config` — dashboard can read/update without editing YAML
+
+**Result:** US-only users set `flash: groq, pro: together`. Fully local users set both to `ollama`. DeepSeek stays available as an option, just not the default.
+
+**Effort: ~4-5 hours.**
+
+**Recommended defaults:** Groq for flash, Together AI for pro.
+
+---
+
+## Is Ollama quality the same as Claude?
+
+No. Honest quality ladder for coding:
+
+```
+Claude Opus
+    ↓ (small gap)
+Claude Sonnet
+    ↓ (small-medium gap)
+Together AI 405B / DeepSeek Pro
+    ↓ (medium gap)
+Groq Llama 3.3 70B
+    ↓ (medium gap)
+Ollama qwen2.5-coder:72b (good hardware)
+    ↓ (big gap)
+Ollama on CPU / smaller models
+```
+
+**Ollama local (qwen2.5-coder:72b):**
+- Strong at straightforward tasks — CRUD, tests, boilerplate, single-file changes
+- Struggles with complex multi-file refactors, subtle bugs, ambiguous requirements
+- Quality depends heavily on your GPU RAM
+- 72B on CPU is slow and noticeably weaker than API models
+
+**Together AI (Llama 3.1 405B):**
+- Much closer to Claude Sonnet for coding — 405B parameters makes a real difference
+- Good at multi-file work, debugging, documentation
+- Still behind Claude on architecture reasoning and security analysis
+
+**Conclusion:** Ollama is great for flash-tier tasks. For pro-tier work, Together AI 405B is the better US-based choice. Free does not mean equivalent.
+
+---
+
+## Claude vs Together AI pricing
+
+| Model | Input/M | Output/M |
+|-------|---------|---------|
+| Together AI Llama 3.1 405B | ~$3.50 | ~$3.50 |
+| Claude Sonnet | ~$3.00 | ~$15.00 |
+| Claude Opus | ~$15.00 | ~$75.00 |
+
+Output tokens are where Claude gets expensive — code generation produces a lot of output, that's where the bill hits. Together AI 405B is cheaper than Claude Sonnet on output (~$3.50 vs ~$15.00) and comparable quality for most coding tasks.
+
+Claude stays at Tier 11 for architecture, security, and quality-critical work where the premium is justified.
