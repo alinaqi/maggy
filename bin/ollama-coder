@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Ollama Coder CLI — calls local Ollama instance with a coding model.
+
+Usage:
+  ollama-coder "prompt"                          # default model
+  ollama-coder --model codellama:34b "prompt"
+  echo "prompt" | ollama-coder                   # stdin mode
+  cat file.txt | ollama-coder                    # pipe mode
+
+Env vars:
+  OLLAMA_BASE           Ollama base URL (default: http://localhost:11434)
+  OLLAMA_CODER_MODEL    Model to use (default: qwen2.5-coder:72b)
+"""
+
+import os
+import sys
+
+import httpx
+
+BASE_URL = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
+DEFAULT_MODEL = os.environ.get("OLLAMA_CODER_MODEL", "qwen2.5-coder:72b")
+
+
+def main():
+    model = DEFAULT_MODEL
+    prompt = None
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--model" and i + 1 < len(args):
+            i += 1
+            model = args[i]
+        elif not args[i].startswith("-"):
+            prompt = args[i]
+        i += 1
+
+    if not prompt and not sys.stdin.isatty():
+        prompt = sys.stdin.read().strip()
+
+    if not prompt:
+        print("Usage: ollama-coder [--model <model>] <prompt>", file=sys.stderr)
+        sys.exit(1)
+
+    result = call_ollama(prompt, model)
+    if result is None:
+        print("[ollama-coder] ERROR: Ollama not reachable at " + BASE_URL, file=sys.stderr)
+        sys.exit(1)
+    print(result)
+
+
+def call_ollama(prompt: str, model: str) -> str | None:
+    try:
+        with httpx.Client(timeout=300) as client:
+            resp = client.post(
+                f"{BASE_URL}/api/chat",
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "options": {"temperature": 0.1},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("message", {}).get("content", "[no content]")
+    except httpx.ConnectError:
+        return None
+    except httpx.HTTPError as e:
+        return f"[Ollama API error: {e}]"
+    except Exception as e:
+        return f"[Ollama error: {e}]"
+
+
+if __name__ == "__main__":
+    main()

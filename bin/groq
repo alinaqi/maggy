@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Groq CLI — calls Groq API (OpenAI-compatible) with Llama models.
+
+Usage:
+  groq "prompt"                    # default model (llama-3.3-70b-versatile)
+  groq --model llama-3.1-70b-versatile "prompt"
+  echo "prompt" | groq             # stdin mode
+  cat file.txt | groq              # pipe mode
+"""
+
+import os
+import sys
+
+import httpx
+
+API_KEY = os.environ.get("GROQ_API_KEY", "")
+BASE_URL = "https://api.groq.com/openai/v1"
+DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+
+def main():
+    model = DEFAULT_MODEL
+    prompt = None
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--model" and i + 1 < len(args):
+            i += 1
+            model = args[i]
+        elif not args[i].startswith("-"):
+            prompt = args[i]
+        i += 1
+
+    if not API_KEY:
+        print("[groq] ERROR: GROQ_API_KEY not set", file=sys.stderr)
+        sys.exit(1)
+
+    if not prompt and not sys.stdin.isatty():
+        prompt = sys.stdin.read().strip()
+
+    if not prompt:
+        print("Usage: groq [--model <model>] <prompt>", file=sys.stderr)
+        sys.exit(1)
+
+    print(call_groq(prompt, model))
+
+
+def call_groq(prompt: str, model: str) -> str:
+    try:
+        with httpx.Client(timeout=300) as client:
+            resp = client.post(
+                f"{BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 16000,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+    except httpx.HTTPError as e:
+        return f"[Groq API error: {e}]"
+    except Exception as e:
+        return f"[Groq error: {e}]"
+
+
+if __name__ == "__main__":
+    main()
