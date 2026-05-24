@@ -6,6 +6,110 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.35.0] - 2026-05-24
+
+### Telos -- Intent-Grounded Testing Framework
+
+Replaced fragile AI subprocess calls in e2e-testkit with **[Telos](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md)**, an intent-grounded testing framework backed by **[Cortex MCP](cortex-mcp/)**. Three scoring planes, multiplicative IFS formula -- a zero in any plane collapses the total score. Telos reads Cortex's `reasons`, `drift_events`, `symbols`, and `edges` tables directly via read-only SQLite.
+
+#### IFS (Intent Fidelity Scale)
+
+| Plane | Metric | Source |
+|-------|--------|--------|
+| F1 -- Conformance | `passed / total` tests | pytest/vitest subprocess |
+| F2 -- Validation | drift severity | Cortex `drift_events` table |
+| F3 -- Integrity | IF-3 to IF-8 checks | Cortex `reasons` + `symbols` + `edges` |
+| **IFS** | **F1 x F2 x F3** | Multiplicative -- all planes matter |
+
+#### Integrity Checks (Plane 3)
+
+- **IF-3** Orphan symbols (no reason edges)
+- **IF-4** Empty contracts (no pre/post/invariants)
+- **IF-6** Stale reasons (proposed > 7 days, never fulfilled)
+- **IF-7** Scope sprawl (reason scopes > 10 files)
+
+#### Added
+- `plugins/telos/` -- full plugin: models, cortex_reader, 3 planes, IFS scorer, routes, manifest
+- `CortexReader` -- read-only SQLite from `.cortex/cortex.db` (no MCP overhead)
+- `/api/telos/status?project_dir=.` -- IFS breakdown endpoint
+- `project.connected` hook -- auto-computes IFS on project open
+- Graceful degradation -- no Cortex DB means F2=F3=1.0, IFS = F1 only
+- 55 new tests across 7 test files (models, reader, planes, scorer, integration)
+
+#### Fixed
+- `test_cli_chat.py` stale import -- `cwd_project` moved to `cli_context`, test still pointed at `cli_chat`
+- `chat_stream.py` whitespace bug -- `--resume` accepted whitespace-only session IDs
+- Plugin hook wiring gap -- manifest `hooks` were declared but never subscribed by `PluginManager`
+- `project.connected` emission -- added to `create_session`, `auto_connect`, `preload_sessions`
+
+#### Architecture
+- Telos reads Cortex directly (sync SQLite, `PRAGMA query_only=ON`) -- same monorepo, zero MCP overhead
+- Per-reason drift severity capped at 1.0 (council feedback: prevents one noisy reason from dominating F2)
+- `e2e-testkit` kept during transition per council recommendation
+
+---
+
+## [6.34.0] - 2026-05-23
+
+### LLM-First Input Architecture + Cortex Integration
+
+Redesigned Maggy's input routing to be strictly LLM-first. Added Cortex MCP as unified code intelligence layer.
+
+#### Changed
+- `!` prefix for shell commands -- explicit opt-in, no heuristic word lists
+- `/` prefix for slash commands
+- Everything else goes to LLM -- no word lists, no regex gatekeeping
+- Pi-direct routing for non-Claude models (deepseek, kimi, qwen, gemini, codex, grok)
+
+#### Fixed
+- Thinking block loop (`Invalid signature in thinking block`) -- stale `claude_session_id` tracked with `session_cleared` flag
+- Project switch -- chat window now resets session and loads correct project
+- Natural language treated as commands -- removed all hardcoded word lists
+
+---
+
+## [6.33.0] - 2026-05-23
+
+### Cortex MCP — Full Edge Parity + Cyclomatic Complexity
+
+Cortex now **exceeds** codebase-memory-mcp on both coverage (+40% symbols) and depth (+24% edges).
+
+#### Added
+- **10 edge types** fully operational: CALLS, IMPORTS, DEFINES_METHOD, USAGE, TESTS, WRITES, ASYNC_CALLS, HANDLES, RAISES, HTTP_CALLS
+- **Python edge extraction** (`python_edges.py`): full AST-based extraction for all edge types
+- **TypeScript edge extraction** (`ts_edges.py`): regex-based CALLS, IMPORTS, ASYNC_CALLS, DECORATES, HTTP_CALLS, RAISES
+- **Cyclomatic complexity** (`complexity.py`): per-function scoring for Python (AST) and TS/JS (regex)
+- **Phantom symbol resolution**: unresolved edge targets (builtins like `ValueError`, `HTTPException`) stored as `symbol_type='external'` so edges are preserved
+- **Git co-change analysis** (`git_edges.py`): FILE_CHANGES_WITH edges from `git log` (implemented, not yet wired into indexer)
+- **Bidirectional graph traversal**: `cortex_trace` supports `direction='out'|'in'|'both'`
+- **FTS5 camelCase splitting**: `validateToken` now searchable as `validate` + `token`
+- **Deduplication**: recursive CTEs use `SELECT DISTINCT` for clean traversal results
+
+#### Benchmark (claude-skills-package, 526 files)
+
+| Metric | Cortex | CBM | Delta |
+|--------|-------:|----:|-------|
+| Symbols | 5,501 | 3,916 | +40% |
+| Total edges | 14,850 | 12,010 | +24% |
+| CALLS | 5,280 | 2,918 | +81% |
+| HANDLES | 352 | 5 | +6940% |
+| Incremental reindex | 0.03s | ~2s | 66x faster |
+| Symbol search | 0.40ms | ~5ms | 12x faster |
+| FTS search | 0.10ms | ~3ms | 30x faster |
+| 3-hop traverse | 0.18ms | ~10ms | 55x faster |
+
+#### Files Added/Modified
+- `src/cortex/structure/python_edges.py` — full Python edge extraction via AST
+- `src/cortex/structure/ts_edges.py` — full TS/JS edge extraction via regex
+- `src/cortex/structure/complexity.py` — cyclomatic complexity scoring
+- `src/cortex/structure/git_edges.py` — git co-change analysis
+- `src/cortex/structure/edge_extractor.py` — refactored to thin coordinator
+- `src/cortex/structure/indexer.py` — phantom symbols, complexity, FTS augmentation
+- `src/cortex/storage/graph.py` — bidirectional traversal
+- `docs/cortex-vs-codebase-memory.md` — updated benchmark report
+
+---
+
 ## [6.32.0] - 2026-05-22
 
 ### Cortex MCP — Elixir Support + System Wiring
