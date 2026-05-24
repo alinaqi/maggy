@@ -3,6 +3,9 @@ version: 1
 entrypoint: plugin.py
 permissions: [test.run, benchmark.run, drift.analyze, ai.generate]
 router: "plugin:router"
+hooks:
+  - event: project.connected
+    fn: on_project_connected
 heartbeat:
   - name: regression_scan
     interval_seconds: 3600

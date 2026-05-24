@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from maggy.cli import app
-from maggy.cli_chat import cwd_project
+from maggy.cli_context import cwd_project
 
 runner = CliRunner()
 
