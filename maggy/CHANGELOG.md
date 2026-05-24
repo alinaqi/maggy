@@ -8,7 +8,7 @@ All notable changes to Maggy will be documented in this file.
 
 ### Telos — Intent-Grounded Testing Framework
 
-Replaced fragile AI subprocess calls in e2e-testkit with **Telos**, an intent-grounded testing framework backed by Cortex. Three scoring planes, multiplicative IFS formula — a zero in any plane collapses the total score.
+Replaced fragile AI subprocess calls in e2e-testkit with **[Telos](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md)**, an intent-grounded testing framework backed by Cortex. Three scoring planes, multiplicative IFS formula — a zero in any plane collapses the total score.
 
 #### IFS (Intent Fidelity Scale)
 
