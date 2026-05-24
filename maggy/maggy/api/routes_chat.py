@@ -79,11 +79,24 @@ async def send_routed(
         raise HTTPException(status_code=400, detail="Message required")
 
     async def event_stream():
+        pkey = getattr(s, "project_key", "")
+        wd = getattr(s, "repo_dir", "") or s.working_dir
+
+        proto = _match_protocol(body.message)
+        if proto:
+            async for ev in _run_protocol(proto, wd, body.message, request, s):
+                yield f"data: {json.dumps(ev)}\n\n"
+            _persist_pipeline_messages(
+                request, session_id, s, body.message,
+                f"[Protocol: {proto.name} completed]",
+            )
+            yield 'data: {"type": "done"}\n\n'
+            return
+
         model, blast, task_type, reason = "claude", 0, "general", "default"
         routing = getattr(request.app.state, "routing", None)
         budget = getattr(request.app.state, "budget", None)
         blueprints = getattr(request.app.state, "blueprints", None)
-        pkey = getattr(s, "project_key", "")
         effective_msg = body.message
         if routing:
             from maggy.services.chat_router import RoutedChat
@@ -112,15 +125,12 @@ async def send_routed(
             session_id=session_id,
             message=effective_msg,
             project_key=pkey,
-            working_dir=getattr(s, "repo_dir", "") or s.working_dir,
+            working_dir=wd,
         )
         response_parts: list[str] = []
-        used_backend = ""
         async for chunk in pipeline.run(ctx, s, model=model, blast=blast, task_type=task_type, reason=reason):
             if chunk.get("type") == "text":
                 response_parts.append(chunk.get("content", ""))
-            if chunk.get("type") == "result":
-                used_backend = chunk.get("backend", "") or used_backend
             yield f"data: {json.dumps(chunk)}\n\n"
         if not _is_claude_model(model):
             _persist_pipeline_messages(
@@ -154,6 +164,72 @@ def _persist_pipeline_messages(
             store.append_message(
                 session_id, "assistant", assistant_msg,
             )
+
+
+def _match_protocol(message: str):
+    from maggy.skills.intent_matcher import match_protocol
+    from maggy.skills.protocol_loader import load_protocols
+    proto_dir = Path(__file__).parent.parent / "skills" / "protocols"
+    protos = load_protocols(proto_dir)
+    return match_protocol(message, protos)
+
+
+async def _run_protocol(proto, working_dir, message, request, session):
+    from maggy.skills.protocol_executor import ProtocolExecutor
+    variables = await _build_protocol_vars(working_dir, message, request)
+    executor = ProtocolExecutor()
+    yield {"type": "text", "content": f"Running **{proto.name}** protocol...\n\n"}
+    async for ev in executor.execute(proto, working_dir, variables):
+        yield ev
+
+
+async def _build_protocol_vars(wd, message, request):
+    import subprocess
+    branch = "main"
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, cwd=wd, timeout=5,
+        )
+        if r.returncode == 0:
+            branch = r.stdout.strip()
+    except Exception:
+        pass
+    commit_msg = await _generate_commit_msg(wd, message, request)
+    return {"branch": branch, "message": commit_msg, "title": commit_msg}
+
+
+async def _generate_commit_msg(wd, user_msg, request):
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--stat", "--cached"],
+            capture_output=True, text=True, cwd=wd, timeout=10,
+        )
+        diff_stat = r.stdout.strip() if r.returncode == 0 else ""
+        if not diff_stat:
+            r = subprocess.run(
+                ["git", "diff", "--stat"],
+                capture_output=True, text=True, cwd=wd, timeout=10,
+            )
+            diff_stat = r.stdout.strip()
+    except Exception:
+        diff_stat = ""
+    prompt = (
+        f"Generate a concise git commit message (one line, "
+        f"max 72 chars) for these changes:\n{diff_stat}\n"
+        f"User context: {user_msg[:200]}"
+    )
+    pi = getattr(request.app.state, "pi", None)
+    if pi:
+        try:
+            result = await pi.send_prompt("deepseek-flash", prompt, wd)
+            if result.success and result.output:
+                msg = result.output.strip().strip('"').strip("'")
+                return msg[:72]
+        except Exception:
+            pass
+    return "chore: update project files"
 
 
 def _is_claude_model(model: str) -> bool:

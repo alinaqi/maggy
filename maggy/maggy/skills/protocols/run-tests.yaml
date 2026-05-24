@@ -1,0 +1,23 @@
+name: run-tests
+description: Run the project test suite with lint checks
+triggers:
+  - run tests
+  - run the tests
+  - test it
+  - run pytest
+  - run test suite
+steps:
+  - name: lint
+    label: Lint check
+    cmd: ruff check . --quiet 2>&1 | tail -10
+    optional: true
+    condition: "*.py"
+  - name: typecheck
+    label: Type check
+    cmd: python3 -m mypy --ignore-missing-imports . 2>&1 | tail -10
+    optional: true
+    condition: "*.py"
+  - name: test
+    label: Run pytest
+    cmd: python3 -m pytest tests/ -x -q 2>&1 | tail -20
+    condition: tests/

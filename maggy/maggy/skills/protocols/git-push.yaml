@@ -1,0 +1,38 @@
+name: git-push
+description: Stage, commit, and push changes to remote repository
+triggers:
+  - push changes
+  - push to git
+  - push to github
+  - push to gh
+  - push to remote
+  - push it
+  - commit and push
+  - git push
+steps:
+  - name: status
+    label: Check git status
+    cmd: git status --short
+  - name: diff-summary
+    label: Review changes
+    cmd: git diff --stat
+  - name: lint-python
+    label: Python lint check
+    cmd: ruff check . --quiet 2>&1 | tail -10
+    optional: true
+    condition: "*.py"
+  - name: test
+    label: Run test suite
+    cmd: python3 -m pytest tests/ -x -q 2>&1 | tail -15
+    optional: true
+    condition: tests/
+  - name: stage
+    label: Stage all changes
+    cmd: git add -A
+  - name: commit
+    label: Commit changes
+    cmd: git commit -m "{message}"
+    requires: message
+  - name: push
+    label: Push to remote
+    cmd: git push origin {branch}

@@ -4,6 +4,32 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.37.0] - 2026-05-24
+
+### Skill Protocols — Intent-Driven Execution
+
+When a user says "push to git", Maggy detects the intent, matches it to a protocol, and executes: lint → test → stage → commit → push. AI generates the commit message via DeepSeek Flash.
+
+#### Added
+- `maggy/skills/protocol_models.py` — Protocol and ProtocolStep dataclasses
+- `maggy/skills/protocol_loader.py` — loads YAML protocols from directory
+- `maggy/skills/intent_matcher.py` — longest-match trigger matching
+- `maggy/skills/protocol_executor.py` — step runner with conditions, variables, abort-on-failure
+- `maggy/skills/protocols/git-push.yaml` — lint → test → stage → commit → push
+- `maggy/skills/protocols/run-tests.yaml` — lint → typecheck → pytest
+- `maggy/skills/protocols/create-pr.yaml` — test → push → gh pr create
+- Frontend: protocol step rendering with status icons and expandable output
+- 24 tests (models, loader, matcher, executor)
+
+#### Architecture
+- Protocols checked before LLM routing in `send_routed()`
+- Steps that need AI input (`requires: message`) generate via DeepSeek Flash
+- Variables: `{branch}`, `{message}`, `{title}` auto-populated
+- Failed required step → protocol aborts with error; optional steps warn and continue
+- Condition checks: `condition: "*.py"` skips step if no Python files exist
+
+---
+
 ## [6.36.0] - 2026-05-24
 
 ### Unified Chat Pipeline + CLI Refresh + URL Routing

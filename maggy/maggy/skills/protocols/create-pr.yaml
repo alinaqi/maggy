@@ -1,0 +1,32 @@
+name: create-pr
+description: Create a pull request with checks
+triggers:
+  - create a pr
+  - create pull request
+  - open a pr
+  - make a pr
+  - submit pr
+steps:
+  - name: branch-check
+    label: Check branch
+    cmd: "git rev-parse --abbrev-ref HEAD"
+  - name: lint
+    label: Lint check
+    cmd: ruff check . --quiet 2>&1 | tail -10
+    optional: true
+    condition: "*.py"
+  - name: test
+    label: Run tests
+    cmd: python3 -m pytest tests/ -x -q 2>&1 | tail -15
+    optional: true
+    condition: tests/
+  - name: diff
+    label: Changes vs main
+    cmd: git log --oneline main..HEAD 2>/dev/null || git log --oneline -5
+  - name: push
+    label: Push branch
+    cmd: git push -u origin {branch}
+  - name: create
+    label: Create PR
+    cmd: gh pr create --title "{title}" --body "{body}" --fill 2>&1
+    requires: title

@@ -2043,6 +2043,38 @@ async function streamChatResponse(message, el) {
           el.scrollTop = el.scrollHeight;
           continue;
         }
+        if (data.type === 'protocol_step' && toolsEl) {
+          var stepId = 'proto-step-' + (data.step || '');
+          var existing = toolsEl.querySelector('#' + stepId);
+          var icon = '⏳', color = 'text-gray-400';
+          if (data.status === 'done') { icon = '✅'; color = 'text-green-400'; }
+          else if (data.status === 'failed') { icon = '❌'; color = 'text-red-400'; }
+          else if (data.status === 'skipped') { icon = '⏭️'; color = 'text-gray-500'; }
+          else if (data.status === 'warning') { icon = '⚠️'; color = 'text-yellow-400'; }
+          var stepHtml = '<div id="' + stepId + '" class="p-1.5 my-1 cursor-pointer" onclick="var d=this.querySelector(\'.step-output\');if(d)d.classList.toggle(\'hidden\')">'
+            + '<div class="flex items-center gap-1.5 text-[11px] ' + color + '">'
+            + '<span>' + icon + '</span>'
+            + '<span class="font-medium">' + esc(data.label || data.step) + '</span>'
+            + '<span class="text-[9px] text-gray-600 ml-auto">' + esc(data.status) + '</span>'
+            + '</div>';
+          if (data.output) {
+            stepHtml += '<pre class="step-output hidden mt-1 p-1.5 text-[9px] font-mono text-gray-500 rounded overflow-x-auto" style="background:rgba(0,0,0,0.3);max-height:150px;overflow-y:auto">' + esc(data.output) + '</pre>';
+          }
+          stepHtml += '</div>';
+          if (existing) { existing.outerHTML = stepHtml; } else { toolsEl.innerHTML += stepHtml; }
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
+        if (data.type === 'protocol_complete' && toolsEl) {
+          toolsEl.innerHTML += '<div class="text-[11px] text-green-400 mt-2 p-1.5 border-t border-gray-700/50"><i class="fas fa-check-circle mr-1"></i>Protocol <strong>' + esc(data.protocol) + '</strong> completed</div>';
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
+        if (data.type === 'protocol_abort' && toolsEl) {
+          toolsEl.innerHTML += '<div class="text-[11px] text-red-400 mt-2 p-1.5 border-t border-gray-700/50"><i class="fas fa-times-circle mr-1"></i>' + esc(data.reason) + '</div>';
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
         if (data.content) {
           responseText += data.content;
           // Debounced markdown render during streaming

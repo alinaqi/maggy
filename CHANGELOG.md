@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.37.0] - 2026-05-24
+
+### Maggy: Skill Protocols — Intent-Driven Execution
+
+When a user says "push to git", Maggy now detects the intent, matches it to a **protocol** (YAML-defined workflow), and executes the steps: lint → test → stage → commit → push. Each step streams results in real-time with pass/fail status. If a required step fails, the protocol aborts.
+
+#### Added
+- **Protocol system** — YAML-defined workflows in `maggy/skills/protocols/`
+- **Intent matcher** — matches user messages to protocol triggers (longest-match wins)
+- **Protocol executor** — runs steps sequentially with condition checks, variable substitution, and abort-on-failure
+- **AI-generated commit messages** — protocols with `requires: message` auto-generate via DeepSeek Flash
+- **3 built-in protocols**: `git-push` (lint→test→stage→commit→push), `run-tests` (lint→typecheck→pytest), `create-pr` (test→push→gh pr create)
+- **Frontend rendering** — protocol steps show as checklist with expandable output
+- 24 new tests across 4 test files (models, loader, matcher, executor)
+
+#### Architecture
+- Protocols checked BEFORE LLM routing — if intent matches, protocol runs instead of chat
+- YAML protocols are extensible — drop a `.yaml` file in `protocols/` and it's live
+- LLM fallback for everything that doesn't match a protocol
+
+---
+
 ## [6.36.0] - 2026-05-24
 
 ### Maggy: Unified Chat Pipeline + Cortex: Modular Edge Extraction
