@@ -98,3 +98,70 @@ async def collect_signals(app) -> None:
     except Exception as exc:
         logger.warning("collect_signals failed: %s", exc)
         raise
+
+
+async def learn_from_prs(app) -> None:
+    """Fetch PR comments and extract learning signals."""
+    engram = getattr(app.state, "engram", None)
+    cfg = getattr(app.state, "cfg", None)
+    if not engram or not cfg:
+        return
+    try:
+        from maggy.learn.pr_learner import fetch_pr_comments, extract_pr_signals
+        from maggy.learn._writer import write_signal
+        for cb in cfg.codebases:
+            repo_path = getattr(cb, "repo_dir", "") or getattr(cb, "path", "")
+            if not repo_path:
+                continue
+            comments = await fetch_pr_comments(repo_path, limit=5)
+            signals = extract_pr_signals(comments)
+            pkey = getattr(cb, "key", "")
+            for sig in signals:
+                await write_signal(engram, "pr-feedback", sig, pkey)
+    except Exception as exc:
+        logger.warning("learn_from_prs failed: %s", exc)
+
+
+async def rescan_repos(app) -> None:
+    """Discover new git repos and auto-register them."""
+    registry = getattr(app.state, "registry", None)
+    if not registry:
+        return
+    try:
+        from maggy.discovery import discover_repos
+        from maggy.config import ProjectConfig
+        existing = {p.name for p in registry.list()}
+        repos = discover_repos()
+        added = 0
+        for repo in repos:
+            name = repo["key"]
+            if name in existing:
+                continue
+            project = ProjectConfig(
+                name=name, repo=f"local/{name}",
+                path=repo["path"], default_branch="main",
+            )
+            try:
+                registry.add(project)
+                added += 1
+            except ValueError:
+                pass
+        if added:
+            logger.info("rescan_repos: registered %d new repos", added)
+    except Exception as exc:
+        logger.warning("rescan_repos failed: %s", exc)
+
+
+async def consolidate_learnings(app) -> None:
+    """Run memory hygiene on learning namespaces."""
+    engram = getattr(app.state, "engram", None)
+    if not engram:
+        return
+    try:
+        from maggy.learn.consolidator import consolidate_all
+        results = consolidate_all(engram)
+        total = sum(s.get("expired", 0) + s.get("evicted", 0) for s in results.values())
+        if total:
+            logger.info("Learning consolidation: cleaned %d records", total)
+    except Exception as exc:
+        logger.warning("consolidate_learnings failed: %s", exc)

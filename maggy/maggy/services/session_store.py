@@ -60,7 +60,12 @@ class SessionStore:
         cols = {
             r[1] for r in conn.execute("PRAGMA table_info(sessions)")
         }
-        for col, default in [("repo_dir", "''"), ("isolation", "'none'"), ("label", "''")]:
+        for col, default in [
+            ("repo_dir", "''"),
+            ("isolation", "'none'"),
+            ("label", "''"),
+            ("session_cleared", "0"),
+        ]:
             if col not in cols:
                 conn.execute(
                     f"ALTER TABLE sessions ADD COLUMN {col} "
@@ -98,6 +103,16 @@ class SessionStore:
                 "UPDATE sessions SET claude_session_id = ? "
                 "WHERE id = ?",
                 (claude_id, sid),
+            )
+            conn.commit()
+
+    def mark_session_cleared(self, sid: str) -> None:
+        """Mark session as cleared — prevents stale ID re-resolution."""
+        with _connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE sessions SET session_cleared = '1', "
+                "claude_session_id = '' WHERE id = ?",
+                (sid,),
             )
             conn.commit()
 

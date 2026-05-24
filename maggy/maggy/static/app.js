@@ -4,6 +4,33 @@
 const API = '/api';
 let CURRENT_TAB = 'chat';
 
+// ── Theme ──────────────────────────────────────────────────────────────
+function getTheme() {
+  return localStorage.getItem('maggy-theme') || 'dark';
+}
+function applyTheme(theme) {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  document.documentElement.classList.toggle('light', theme === 'light');
+  const icon = document.querySelector('#btn-theme i');
+  if (icon) icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+}
+function toggleTheme() {
+  const next = getTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('maggy-theme', next);
+  applyTheme(next);
+}
+applyTheme(getTheme());
+
+// ── URL-driven tab state ───────────────────────────────────────────────
+function tabFromHash() {
+  const h = location.hash.replace('#', '');
+  return h || null;
+}
+window.addEventListener('hashchange', function() {
+  const tab = tabFromHash();
+  if (tab && tab !== CURRENT_TAB) switchTab(tab, true);
+});
+
 // ── Fetch helper ────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
   const apiKey = localStorage.getItem('maggy-api-key') || '';
@@ -73,8 +100,9 @@ function relDate(iso) {
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────
-function switchTab(tab) {
+function switchTab(tab, fromHash) {
   CURRENT_TAB = tab;
+  if (!fromHash) location.hash = tab;
   // Highlight active sidebar link
   for (const b of document.querySelectorAll('.sidebar-link')) {
     b.classList.toggle('active', b.dataset.tab === tab);
@@ -86,30 +114,78 @@ function switchTab(tab) {
   }
   if (tab === 'chat') loadChat();
   else if (tab === 'inbox') loadInbox();
+  else if (tab === 'issues') loadIssues();
   else if (tab === 'followed') loadFollowed();
   else if (tab === 'progress') loadProgress();
   else if (tab === 'competitors') loadCompetitors();
+  else if (tab === 'build-in-public') loadBuildInPublic();
   else if (tab === 'process') loadProcess();
   else if (tab === 'icpg') loadICPG();
   else if (tab === 'memory') loadMemory();
   else if (tab === 'routing') loadRouting();
   else if (tab === 'budget') loadBudget();
   else if (tab === 'forge') loadForge();
+  else if (tab === 'logs') loadLogs();
+  else if (tab === 'skills') loadSkills();
   else if (tab === 'settings') loadSettings();
+  else if (tab === 'project-settings') loadProjectSettings();
 }
 
 // Project switching
 function switchProject(name) {
   if (!name) return;
   updateCurrentProject(name);
+  history.replaceState(null, '', '/' + encodeURIComponent(name));
+  // Reset chat to pick up new project's session
+  CHAT_SESSION_ID = null;
   // Preload chat sessions for this project
   fetch('/api/chat/preload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ project_key: name })
-  }).then(function() { loadChat(); }).catch(function() {});
+  }).then(function() { loadChat(name); _showRefreshBubble(); }).catch(function() {});
+  // Load project bootstrap status (CLIs, git, cortex)
+  loadProjectStatus(name);
   // Refresh heartbeat for project context
   fetch('/api/heartbeat/trigger/collect_signals', { method: 'POST' }).catch(function(){});
+}
+
+function _showRefreshBubble() {
+  _loadQuickActions();
+}
+
+function dismissRefreshBubble() {
+  var el = document.getElementById('refresh-suggest');
+  if (el) el.classList.add('hidden');
+}
+
+function runQuickAction(cmd) {
+  var input = document.getElementById('chat-input');
+  if (input) { input.value = cmd; sendChatMessage(); }
+}
+
+async function _loadQuickActions() {
+  var s = (CHAT_SESSIONS_CACHE || []).find(function(x) { return x.id === CHAT_SESSION_ID; });
+  var projPath = (s && (s.repo_dir || s.working_dir)) || '';
+  var url = '/quick-actions';
+  if (projPath) url += '?project_path=' + encodeURIComponent(projPath);
+  var data = await api(url).catch(function() { return { actions: [] }; });
+  var actions = data.actions || [];
+  var el = document.getElementById('refresh-suggest');
+  if (!el || !actions.length) return;
+  var btns = '';
+  for (var i = 0; i < actions.length; i++) {
+    var a = actions[i];
+    btns += '<button onclick="runQuickAction(\'' + a.cmd.replace(/'/g, "\\'") + '\')" class="px-2 py-0.5 rounded text-[10px] shrink-0" style="background:var(--surface);color:var(--text);border:1px solid var(--border)" title="' + esc(a.hint || '') + '"><i class="fas ' + esc(a.icon) + ' mr-1"></i>' + esc(a.label) + '</button>';
+  }
+  var inner = el.querySelector('.quick-actions-inner');
+  if (inner) {
+    inner.innerHTML = '<i class="fas fa-bolt text-orange-400 text-[10px]"></i>'
+      + '<span style="color:var(--text-muted)" class="mr-1 shrink-0">Quick actions</span>'
+      + btns
+      + '<button onclick="dismissRefreshBubble()" class="ml-auto text-gray-600 hover:text-gray-400 text-[10px] shrink-0" title="Dismiss"><i class="fas fa-xmark"></i></button>';
+  }
+  el.classList.remove('hidden');
 }
 
 function updateProjectList(projects) {
@@ -203,6 +279,93 @@ async function loadInbox(refresh = false) {
   pane.innerHTML = html;
 }
 
+// ── Issues (raw tracker view) ───────────────────────────────────────────
+async function loadIssues() {
+  const pane = document.getElementById('pane-issues');
+  const project = document.getElementById('current-project-label')?.textContent;
+  if (!project || project === 'Select project...') {
+    pane.innerHTML = `<div class="flex items-center justify-center h-full text-gray-600 text-xs">Select a project to view issues.</div>`;
+    return;
+  }
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading issues…</div>`;
+  try {
+    const data = await api('/projects/' + encodeURIComponent(project) + '/tasks');
+    const tasks = data.tasks || [];
+    const tracker = data.tracker || 'native';
+    let html = `<div class="flex items-center gap-2 mb-3">
+      <h2 class="text-sm font-bold text-white"><i class="fas fa-ticket text-orange-400 mr-2"></i>Issues</h2>
+      <span class="badge model-badge">${esc(tracker)}</span>
+      <span class="text-[10px] text-gray-500 ml-auto">${tasks.length} open</span>
+    </div>`;
+    if (!tasks.length) {
+      html += `<div class="card p-4 text-sm text-gray-400">No open issues in ${esc(project)}.</div>`;
+    } else {
+      html += `<div class="space-y-2">`;
+      for (const t of tasks) {
+        const labels = (t.labels || []).slice(0, 4).map(l => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">${esc(l)}</span>`).join(' ');
+        html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(t.id)}')">
+          <div class="flex items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm text-white">${esc(t.title)}</div>
+              <div class="text-[11px] text-gray-500 mt-0.5">
+                <span class="text-blue-400">${esc(t.board || '')}</span>
+                ${t.assignee ? `· ${esc(t.assignee)}` : ''}
+                · ${esc(relDate(t.updated_at))}
+                ${labels ? '· ' + labels : ''}
+              </div>
+            </div>
+            <div class="flex gap-1 shrink-0" onclick="event.stopPropagation()">
+              <button onclick="executeTask('${jsStr(t.id)}', 'plan')" class="text-[10px] px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Plan</button>
+              <button onclick="executeTask('${jsStr(t.id)}', 'tdd')" class="text-[10px] px-2 py-1 rounded bg-orange-600 hover:bg-orange-700 text-white">Execute</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+    pane.innerHTML = html;
+  } catch (e) {
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Build in Public (plugin) ────────────────────────────────────────────
+async function loadBuildInPublic() {
+  const pane = document.getElementById('pane-build-in-public');
+  const project = document.getElementById('current-project-label')?.textContent;
+  if (!project || project === 'Select project...') {
+    pane.innerHTML = `<div class="flex items-center justify-center h-full text-gray-600 text-xs">Select a project to use Build in Public.</div>`;
+    return;
+  }
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading…</div>`;
+  try {
+    const data = await api('/plugins').catch(() => ({ plugins: [] }));
+    const plugins = data.plugins || [];
+    const bip = plugins.find(p => p.id === 'build-in-public');
+    if (!bip) {
+      pane.innerHTML = `<div class="card p-6 text-center">
+        <i class="fas fa-bullhorn text-3xl text-gray-700 mb-3"></i>
+        <div class="text-sm text-white mb-1">Build in Public</div>
+        <div class="text-xs text-gray-500 mb-4">Plugin not loaded. Install it to schedule social posts.</div>
+        <button onclick="api('/plugins/reload', {method:'POST'})" class="btn btn-primary text-xs"><i class="fas fa-rotate mr-1"></i>Reload Plugins</button>
+      </div>`;
+      return;
+    }
+    pane.innerHTML = `<div class="p-4">
+      <div class="flex items-center gap-2 mb-4">
+        <h2 class="text-sm font-bold text-white"><i class="fas fa-bullhorn text-orange-400 mr-2"></i>Build in Public</h2>
+        <span class="badge model-badge">${esc(bip.version)}</span>
+      </div>
+      <div class="card p-4 text-xs text-gray-400">
+        <p class="mb-2">Build in Public plugin is active for <b>${esc(project)}</b>.</p>
+        <p>Use the CLI plugin to schedule posts and track engagement.</p>
+      </div>
+    </div>`;
+  } catch (e) {
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+}
+
 // ── Followed ────────────────────────────────────────────────────────────
 async function loadFollowed() {
   const pane = document.getElementById('pane-followed');
@@ -270,7 +433,7 @@ async function openTaskDetail(taskId) {
     }
     html += `<div class="card p-3">
       <div class="text-[10px] text-gray-500 uppercase mb-1">Reply</div>
-      <textarea id="reply-box" rows="3" class="w-full bg-gray-900 text-xs text-white rounded px-2 py-1.5 border border-gray-700"></textarea>
+      <textarea id="reply-box" rows="3" class="w-full text-xs rounded px-2 py-1.5" style="background:var(--surface);color:var(--text);border:1px solid var(--border)"></textarea>
       <button onclick="postReply('${jsStr(t.id)}')" class="mt-2 text-xs px-3 py-1 rounded bg-blue-600 text-white">Post</button>
     </div>`;
     html += `</div>`;
@@ -457,14 +620,19 @@ function toggleCollapse(key) {
   if (pane) renderChatUI(pane);
 }
 
-async function loadChat() {
+async function loadChat(forProject) {
   const pane = document.getElementById('pane-chat');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading projects…</div>`;
   try {
     const result = await api('/chat/preload', { method: 'POST' });
     CHAT_SESSIONS_CACHE = result.sessions || [];
     if (!CHAT_SESSION_ID && CHAT_SESSIONS_CACHE.length) {
-      CHAT_SESSION_ID = CHAT_SESSIONS_CACHE[0].id;
+      if (forProject) {
+        const match = CHAT_SESSIONS_CACHE.find(s => s.project_key === forProject);
+        CHAT_SESSION_ID = match ? match.id : CHAT_SESSIONS_CACHE[0].id;
+      } else {
+        CHAT_SESSION_ID = CHAT_SESSIONS_CACHE[0].id;
+      }
     }
     renderChatUI(pane);
   } catch (e) {
@@ -475,9 +643,7 @@ async function loadChat() {
 function renderChatUI(pane) {
   // Don't rebuild DOM while streaming — tab switch just shows/hides pane
   if (_streamingActive && pane.querySelector('#chat-messages')) return;
-  const sessions = CHAT_SESSIONS_CACHE;
   let html = `<div class="flex h-full">`;
-  html += renderChatSidebar(sessions);
   html += renderChatMain();
   html += `</div>`;
   pane.innerHTML = html;
@@ -560,7 +726,7 @@ function renderChatMain() {
     html += `<div id="editor-tab-bar" class="hidden shrink-0 flex items-center gap-0 border-b overflow-x-auto scroll-thin" style="border-color:var(--border);background:rgba(10,13,20,0.6);min-height:28px;"></div>`;
     // Messages scroll area (wrapped for show/hide)
     html += `<div id="chat-content-area" class="flex-1 overflow-hidden min-h-0 flex flex-col">`;
-    html += `<div id="chat-messages" class="flex-1 overflow-y-auto min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3"></div></div>`;
+    html += `<div id="chat-messages" class="flex-1 overflow-y-auto min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3 pb-4"></div></div>`;
     html += `</div>`;
     // Editor panes container (hidden by default)
     html += `<div id="editor-panes-container" class="hidden flex-1 overflow-hidden min-h-0"></div>`;
@@ -571,18 +737,23 @@ function renderChatMain() {
       <span class="text-[10px] text-gray-700">·</span>
       <span id="joke-text" class="text-[10px] text-gray-600 truncate flex-1"></span>
     </div>`;
+    // Quick-action suggestion bubble (contextual, always loaded)
+    html += `<div id="refresh-suggest" class="hidden shrink-0 px-5 py-1.5">
+      <div class="quick-actions-inner flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] overflow-x-auto" style="background:var(--input-bg);border:1px solid var(--border)">
+      </div>
+    </div>`;
     // Divider + input bar + divider
     html += `<div class="border-t border-gray-700/50"></div>`;
-    html += `<div class="shrink-0 px-5 pt-3 pb-2 bg-[#0b0e14]">
+    html += `<div class="shrink-0 px-5 pt-3 pb-2" style="background:var(--bg)">
       <div id="chat-attachments" class="hidden mb-1.5 flex flex-wrap gap-1"></div>
       <div class="flex gap-2">
         <input id="chat-file" type="file" class="hidden" onchange="handleFileSelect(event)" multiple />
-        <button onclick="document.getElementById('chat-file').click()" class="px-3 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm" title="Attach file"><i class="fas fa-paperclip"></i></button>
+        <button onclick="document.getElementById('chat-file').click()" class="px-3 py-2.5 rounded-lg text-sm" style="background:var(--input-bg);color:var(--text-muted);border:1px solid var(--border)" title="Attach file"><i class="fas fa-paperclip"></i></button>
         <div class="flex-1 relative">
           <div id="chat-ghost" class="absolute inset-x-0 top-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
-          <textarea id="chat-input" rows="1" placeholder="Type a message..."
-            class="w-full text-sm text-white rounded-lg px-3 py-2 border border-gray-700 focus:border-orange-500 outline-none resize-none overflow-hidden"
-            style="background: #151922; max-height: 120px;"
+          <textarea id="chat-input" rows="1" placeholder="Ask anything... (! for shell, / for commands)"
+            class="w-full text-sm rounded-lg px-3 py-2 focus:border-orange-500 outline-none resize-none overflow-hidden"
+            style="background: var(--surface); color: var(--text); border: 1px solid var(--border); max-height: 120px;"
             onkeydown="handleChatKeydown(event)" oninput="autoResizeInput(); updateGhostText()"></textarea>
         </div>
         <button onclick="sendChatMessage()" class="self-end px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm"><i class="fas fa-paper-plane"></i></button>
@@ -604,31 +775,22 @@ function renderChatMain() {
 }
 
 async function newChatSession() {
-  let projects;
-  try {
-    const [cfg, activity] = await Promise.all([
-      api('/config').catch(() => ({ codebases: [] })),
-      api('/activity').catch(() => ({ sessions: [] })),
-    ]);
-    const configProjects = (cfg.codebases || []).map(c => ({ key: c.key, path: c.path }));
-    const activeProjects = (activity.sessions || []).map(s => ({ key: s.project, path: s.project_path }));
-    const seen = new Set();
-    projects = [];
-    for (const p of [...activeProjects, ...configProjects]) {
-      if (p.key && !seen.has(p.key)) { seen.add(p.key); projects.push(p); }
-    }
-  } catch { projects = []; }
-  if (!projects.length) { alert('No codebases found.'); return; }
-  let chosen = projects[0];
-  if (projects.length > 1) {
-    const name = prompt('Select project:\n' + projects.map((p, i) => `${i+1}. ${p.key}`).join('\n') + '\n\nEnter name:', projects[0].key);
-    if (!name) return;
-    chosen = projects.find(p => p.key === name) || { key: name, path: '' };
+  const currentProject = document.getElementById('current-project-label')?.textContent;
+  if (!currentProject || currentProject === 'Select project...') {
+    alert('Select a project first.');
+    return;
   }
+  let path = '';
   try {
-    const data = await api('/chat/sessions', { method: 'POST', body: JSON.stringify({ project_key: chosen.key, project_path: chosen.path }) });
+    const cfg = await api('/config').catch(() => ({ codebases: [] }));
+    const found = (cfg.codebases || []).find(c => c.key === currentProject);
+    if (found) path = found.path || '';
+  } catch {}
+  try {
+    const data = await api('/chat/sessions', { method: 'POST', body: JSON.stringify({ project_key: currentProject, project_path: path }) });
     CHAT_SESSION_ID = data.id;
     loadChat();
+    switchTab('chat');
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
@@ -659,7 +821,8 @@ function renameSession(sessionId) {
   const input = document.createElement('input');
   input.type = 'text';
   input.value = current;
-  input.className = 'text-[10px] text-white bg-gray-900 border border-orange-500 rounded px-1 w-full outline-none';
+  input.className = 'text-[10px] rounded px-1 w-full outline-none';
+  input.style.cssText = 'background:var(--surface);color:var(--text);border:1px solid var(--accent)';
   input.onblur = () => commitRename(sessionId, input, el, current);
   input.onkeydown = (e) => {
     if (e.key === 'Enter') input.blur();
@@ -711,6 +874,7 @@ async function loadChatMessages(id) {
       html += renderHistoryContext(data.history_context);
     }
     for (const m of data.messages || []) {
+      if (!m.content || !m.content.trim()) continue;
       html += m.role === 'user' ? renderUserMsg(m) : renderAssistantMsg(m);
     }
     el.innerHTML = html;
@@ -733,8 +897,8 @@ function renderHistoryContext(ctx) {
 
 function renderUserMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
-  return `<div class="flex justify-end"><div class="max-w-[75%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
-    <div class="text-xs text-white whitespace-pre-wrap">${esc(m.content)}</div>${ts}
+  return `<div class="flex justify-end px-2"><div class="max-w-[65%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
+    <div class="text-xs text-white whitespace-pre-wrap break-words">${esc(m.content)}</div>${ts}
   </div></div>`;
 }
 
@@ -1016,15 +1180,15 @@ function _setShellCwd(path) {
 var _CLIENT_COMMANDS = {
   'clear': function() { var el = document.getElementById('chat-messages-inner'); if (el) el.innerHTML = ''; return null; },
   'help': function() {
-    return 'Shell commands:\n'
-      + '  ls, ll, la        list files\n'
-      + '  cd <dir>          change directory\n'
-      + '  pwd               working directory\n'
-      + '  cat/head/tail     read files\n'
-      + '  grep/find/tree    search\n'
-      + '  git <cmd>         git operations\n'
+    return 'Input routing:\n'
+      + '  anything          AI chat (LLM-routed via blast-score)\n'
+      + '  ! <command>       shell exec (e.g. !ls, !git status)\n'
+      + '  / <command>       slash command (see below)\n'
       + '  clear             clear chat\n\n'
-      + 'Editor commands:\n'
+      + 'Shell (prefix with !):\n'
+      + '  !ls, !git status, !grep -r foo .\n'
+      + '  !python script.py, !npm test\n\n'
+      + 'Editor:\n'
       + '  vim/edit <file>   open file in editor tab\n'
       + '  Ctrl+S            save current file\n'
       + '  Ctrl+W            close editor tab\n\n'
@@ -1039,8 +1203,7 @@ var _CLIENT_COMMANDS = {
       + '  /forge            tool registry status\n'
       + '  /plan <topic>     draft a build-in-public plan\n'
       + '  /status           system health overview\n\n'
-      + 'Unknown commands auto-suggest similar matches.\n'
-      + 'Anything else is sent to AI chat.';
+      + 'Everything without ! or / goes to AI.';
   },
 };
 
@@ -1208,6 +1371,45 @@ var _SLASH_COMMANDS = {
       + '  "Create a build-in-public content plan for: ' + topic + '"\n\n'
       + 'Or use the plugin directly:\n'
       + '  ~/.maggy/plugins/build-in-public/\n';
+  },
+
+  '/refresh': async function() {
+    var s = (CHAT_SESSIONS_CACHE || []).find(function(x) { return x.id === CHAT_SESSION_ID; });
+    var projPath = (s && (s.repo_dir || s.working_dir)) || '';
+    var url = '/refresh?limit=5';
+    if (projPath) url += '&project=' + encodeURIComponent(projPath);
+    var data = await api(url).catch(function() { return { sessions: [] }; });
+    var sessions = data.sessions || [];
+    if (!sessions.length) return 'No recent CLI sessions found for this project.';
+    var latest = sessions[0];
+    var imported = await api('/refresh/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: latest.session_id,
+        target_session_id: CHAT_SESSION_ID
+      })
+    }).catch(function() { return { imported: 0 }; });
+    if (imported.imported > 0) {
+      await loadChatMessages(CHAT_SESSION_ID);
+      return 'Imported ' + imported.imported + ' turns from ' + (latest.cli || 'CLI').toUpperCase() + ' session (' + latest.session_id.substring(0, 8) + ') into project history.';
+    }
+    var out = 'CLI Sessions (' + sessions.length + ')\n';
+    out += '─'.repeat(30) + '\n\n';
+    for (var i = 0; i < sessions.length; i++) {
+      var sess = sessions[i];
+      out += (sess.cli || 'claude').toUpperCase() + ' — ' + (sess.project || '?') + '\n';
+      out += 'Session: ' + (sess.session_id || '').substring(0, 8) + '\n';
+      var turns = sess.turns || [];
+      var shown = turns.slice(-6);
+      for (var j = 0; j < shown.length; j++) {
+        var t = shown[j];
+        var role = t.role === 'user' ? 'You' : 'AI';
+        var text = (t.text || '').substring(0, 100).replace(/\n/g, ' ');
+        out += '  ' + role + ': ' + text + '\n';
+      }
+      out += '\n';
+    }
+    return out;
   },
 };
 
@@ -1510,12 +1712,10 @@ var _KNOWN_PROGRAMS = [
 
 function _isShellCommand(msg) {
   if (!msg) return false;
-  if (msg.charAt(0) === '/') return true; // slash command
+  if (msg.charAt(0) === '/') return true;
+  if (msg.charAt(0) === '!') return true;
   var first = msg.split(/\s/)[0];
   if (_CLIENT_COMMANDS[first]) return true;
-  if (_SHELL_PREFIXES.indexOf(first) >= 0) return true;
-  if (_KNOWN_PROGRAMS.indexOf(first) >= 0) return true;
-  if (_EDITOR_PROGRAMS.indexOf(first) >= 0) return true;
   return false;
 }
 
@@ -1538,13 +1738,6 @@ function _levenshtein(a, b) {
 }
 
 function _looksLikeCommand(msg) {
-  if (msg.length > 100) return false;
-  var first = msg.split(/\s/)[0];
-  if (first.length > 20) return false;
-  if (/^[a-z][a-z0-9._-]*$/i.test(first)) {
-    if (/\s-/.test(msg) || /\s[.\/~]/.test(msg) || /\s\w+\.\w+/.test(msg)) return true;
-    if (msg === first && /^[a-z][a-z0-9-]*$/.test(first) && first.length <= 12) return true;
-  }
   return false;
 }
 
@@ -1625,6 +1818,12 @@ function _renderSlashOutput(text, isError) {
 }
 
 async function _execShellCommand(cmd) {
+  var directShell = cmd.charAt(0) === '!' && cmd.charAt(1) !== '!';
+  if (directShell) {
+    cmd = cmd.slice(1).trim();
+    if (!cmd) return;
+  }
+
   // Expand aliases
   var expanded = cmd;
   if (expanded === 'll') expanded = 'ls -la';
@@ -1642,7 +1841,6 @@ async function _execShellCommand(cmd) {
     var handler = _SLASH_COMMANDS[slashCmd];
     if (!handler) {
       el.innerHTML += _renderSlashPrompt(cmd);
-      // Fuzzy-match slash commands
       var slashKeys = Object.keys(_SLASH_COMMANDS);
       var slashSuggestions = slashKeys.filter(function(k) {
         return k.indexOf(slashCmd) >= 0 || slashCmd.indexOf(k) >= 0
@@ -1673,15 +1871,15 @@ async function _execShellCommand(cmd) {
   var first = cmd.split(/\s/)[0];
   if (_CLIENT_COMMANDS[first]) {
     var result = _CLIENT_COMMANDS[first]();
-    if (result === null) return; // e.g. 'clear'
+    if (result === null) return;
     el.innerHTML += _renderTerminalPrompt(cmd, cwd);
     el.innerHTML += _renderTerminalOutput(cmd, result, 0, cwd);
     if (outer) outer.scrollTop = outer.scrollHeight;
     return;
   }
 
-  // Editor programs — open in-browser editor tab
-  if (_EDITOR_PROGRAMS.indexOf(first) >= 0) {
+  // Editor programs — open in-browser editor tab (skip for !-prefixed)
+  if (!directShell && _EDITOR_PROGRAMS.indexOf(first) >= 0) {
     var filePath = cmd.split(/\s+/).slice(1).join(' ').trim();
     if (!filePath) {
       el.innerHTML += _renderTerminalPrompt(cmd, cwd);
@@ -1694,17 +1892,6 @@ async function _execShellCommand(cmd) {
     el.innerHTML += _renderTerminalOutput(cmd, 'Opening ' + filePath + ' in editor...', 0, cwd);
     if (outer) outer.scrollTop = outer.scrollHeight;
     await openFileInEditor(filePath);
-    return;
-  }
-
-  // Known but blocked programs — show helpful message
-  if (_KNOWN_PROGRAMS.indexOf(first) >= 0 && _SHELL_PREFIXES.indexOf(first) < 0) {
-    el.innerHTML += _renderTerminalPrompt(cmd, cwd);
-    el.innerHTML += _renderTerminalOutput(cmd,
-      first + ' is not available in web terminal.\n'
-      + 'Interactive and write commands are blocked for safety.\n'
-      + 'Use your local terminal instead.', 126, cwd);
-    if (outer) outer.scrollTop = outer.scrollHeight;
     return;
   }
 
@@ -1782,6 +1969,13 @@ async function sendChatMessage() {
   input.disabled = true;
   const ghost = document.getElementById('chat-ghost');
   if (ghost) ghost.textContent = '';
+  // Finalize any previous streaming response before starting new one
+  const prevStream = document.getElementById('stream-response');
+  if (prevStream) prevStream.removeAttribute('id');
+  const prevText = document.getElementById('stream-text');
+  if (prevText) prevText.removeAttribute('id');
+  const prevTools = document.getElementById('stream-tools');
+  if (prevTools) prevTools.removeAttribute('id');
   const outer = document.getElementById('chat-messages');
   const el = document.getElementById('chat-messages-inner') || outer;
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
@@ -1873,25 +2067,105 @@ async function streamChatResponse(message, el) {
 // ── Settings ────────────────────────────────────────────────────────────
 async function loadSettings() {
   const pane = document.getElementById('pane-settings');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading settings…</div>`;
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Detecting system…</div>`;
   try {
-    const cfg = await api('/config');
-    pane.innerHTML = `
-      <h2 class="text-sm font-bold text-white mb-3">Settings</h2>
-      <div class="card p-4 space-y-3 text-sm text-gray-300">
-        <div><span class="text-gray-500 text-[10px] uppercase">Org</span> — <b>${esc(cfg.org.name)}</b> ${cfg.org.domain ? `(domain: <span class="text-orange-400">${esc(cfg.org.domain)}</span>)` : ''}</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">Issue Tracker</span> — ${esc(cfg.issue_tracker.provider)}</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">Codebases</span>
-          <ul class="ml-4 text-xs">${cfg.codebases.map(c => `<li>${esc(c.key)} → <code class="text-gray-400">${esc(c.path)}</code></li>`).join('')}</ul>
-        </div>
-        <div><span class="text-gray-500 text-[10px] uppercase">Competitors</span> — categories: ${cfg.competitors.categories.map(esc).join(', ') || '—'}</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">OKRs</span> — source: ${esc(cfg.okrs.source)} (${cfg.okrs.count} items)</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">AI</span> — ${esc(cfg.ai.provider)} / ${esc(cfg.ai.model)} · API key ${cfg.ai.has_key ? '<span class="text-green-400">set</span>' : '<span class="text-red-400">MISSING</span>'}</div>
-      </div>
-      <p class="text-[11px] text-gray-500 mt-4">Edit <code>~/.maggy/config.yaml</code> and restart Maggy to apply changes.</p>
-    `;
+    const [sys, cfg] = await Promise.all([
+      api('/system/status'),
+      api('/config').catch(() => null),
+    ]);
+    let html = `<h2 class="text-sm font-bold text-white mb-3">System Setup</h2>`;
+
+    // AI Models section
+    const clis = sys.clis || [];
+    const installed = clis.filter(c => c.installed);
+    const missing = clis.filter(c => !c.installed);
+    html += `<div class="card p-4 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2">AI Models (${installed.length}/${clis.length})</div>`;
+    html += `<div class="flex flex-wrap gap-1.5">`;
+    for (const c of clis) {
+      const color = c.installed ? 'text-green-400 border-green-900' : 'text-gray-600 border-gray-800';
+      const icon = c.installed ? 'fa-check-circle' : 'fa-times-circle';
+      html += `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${color}" title="${esc(c.path || 'not found')}"><i class="fas ${icon}" style="font-size:8px"></i>${esc(c.name)}</span>`;
+    }
+    html += `</div></div>`;
+
+    // Dev Tools section
+    const tools = sys.tools || [];
+    const cats = {};
+    for (const t of tools) {
+      const cat = t.category || 'other';
+      if (!cats[cat]) cats[cat] = [];
+      cats[cat].push(t);
+    }
+    const catLabels = {vcs: 'Version Control', pkg: 'Package Managers', lint: 'Linting', type: 'Type Checking', test: 'Testing', infra: 'Infrastructure', deploy: 'Deployment'};
+    html += `<div class="card p-4 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2">Development Tools</div>`;
+    for (const [cat, items] of Object.entries(cats)) {
+      html += `<div class="mb-2"><div class="text-[9px] text-gray-600 uppercase mb-1">${esc(catLabels[cat] || cat)}</div><div class="flex flex-wrap gap-1.5">`;
+      for (const t of items) {
+        const color = t.installed ? 'text-green-400 border-green-900' : 'text-gray-600 border-gray-800';
+        const icon = t.installed ? 'fa-check-circle' : 'fa-times-circle';
+        html += `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${color}" title="${esc(t.path || 'not found')}"><i class="fas ${icon}" style="font-size:8px"></i>${esc(t.name)}</span>`;
+      }
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+
+    // Config (collapsed)
+    if (cfg) {
+      html += `<details class="card p-4"><summary class="text-[10px] text-gray-500 uppercase cursor-pointer">Config (config.yaml)</summary>`;
+      html += `<div class="mt-2 space-y-1 text-xs text-gray-400">`;
+      html += `<div>Org: ${esc(cfg.org?.name || '—')}</div>`;
+      html += `<div>AI: ${esc(cfg.ai?.provider || '—')} / ${esc(cfg.ai?.model || '—')} · key ${cfg.ai?.has_key ? '<span class="text-green-400">set</span>' : '<span class="text-red-400">missing</span>'}</div>`;
+      html += `<div>Tracker: ${esc(cfg.issue_tracker?.provider || '—')}</div>`;
+      html += `</div></details>`;
+    }
+
+    pane.innerHTML = html;
   } catch (e) {
-    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Detection failed: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadProjectSettings() {
+  const pane = document.getElementById('pane-project-settings');
+  if (!pane) return;
+  const proj = document.getElementById('current-project-label')?.textContent;
+  if (!proj || proj === 'Select project...') {
+    pane.querySelector('#ps-status')?.remove();
+    return;
+  }
+  let target = document.getElementById('ps-status');
+  if (!target) {
+    target = document.createElement('div');
+    target.id = 'ps-status';
+    pane.querySelector('.space-y-4')?.prepend(target);
+  }
+  target.innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Detecting…</div>';
+  try {
+    const ps = await api('/projects/' + encodeURIComponent(proj) + '/status');
+    const g = ps.git || {};
+    const s = ps.stack || {};
+    const cx = ps.cortex || {};
+    let html = `<div class="card p-4"><div class="text-[10px] text-gray-500 uppercase mb-2">Project: ${esc(proj)}</div>`;
+    html += '<div class="space-y-1 text-xs text-gray-300">';
+    if (g.is_repo) {
+      html += `<div><i class="fas fa-code-branch text-gray-500 mr-1" style="font-size:10px"></i>Branch: <b class="text-white">${esc(g.branch)}</b>${g.has_uncommitted ? ' <span class="text-yellow-400">(uncommitted)</span>' : ''}</div>`;
+      if (g.recent_branches && g.recent_branches.length > 1) {
+        html += `<div class="text-gray-500">Recent: ${g.recent_branches.map(esc).join(', ')}</div>`;
+      }
+    } else {
+      html += '<div class="text-gray-500">No git repo detected</div>';
+    }
+    if (s.type && s.type !== 'unknown') {
+      html += `<div><i class="fas fa-layer-group text-gray-500 mr-1" style="font-size:10px"></i>Stack: <b class="text-white">${esc(s.type)}</b>`;
+      if (s.test_runner) html += ` · test: ${esc(s.test_runner)}`;
+      if (s.linter) html += ` · lint: ${esc(s.linter)}`;
+      html += '</div>';
+    }
+    html += `<div><i class="fas fa-brain text-gray-500 mr-1" style="font-size:10px"></i>Cortex: ${cx.exists ? '<span class="text-green-400">indexed</span>' : '<span class="text-gray-500">not indexed</span>'}</div>`;
+    html += '</div></div>';
+    target.innerHTML = html;
+  } catch (e) {
+    target.innerHTML = '';
   }
 }
 
@@ -2089,6 +2363,152 @@ function showToast(msg) {
   el.innerHTML = `<i class="fas fa-check mr-1"></i>${esc(msg)}`;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3000);
+}
+
+// ── Skills ──────────────────────────────────────────────────────────────
+async function loadSkills() {
+  const pane = document.getElementById('pane-skills');
+  const list = document.getElementById('skills-list');
+  list.innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading skills...</div>';
+  try {
+    const pk = document.getElementById('current-project-label')?.textContent || '';
+    const isDefault = !pk || pk === 'Select project...';
+    const data = await api('/skills' + (!isDefault ? '?project_key=' + encodeURIComponent(pk) : ''));
+    document.getElementById('skills-count').textContent = data.total;
+    if (!data.skills.length) {
+      list.innerHTML = '<div class="text-xs text-gray-500">No skills loaded.</div>';
+      return;
+    }
+    let html = '<table class="w-full text-xs"><thead><tr class="text-gray-500 text-left"><th class="pb-1 pr-3">Name</th><th class="pb-1 pr-3">Description</th><th class="pb-1 pr-3">Source</th><th class="pb-1">Effort</th></tr></thead><tbody>';
+    for (const s of data.skills) {
+      const m = s.metadata;
+      const src = s.is_override ? '<span class="text-yellow-400">override</span>' : (s.source === 'project' ? '<span class="text-blue-400">project</span>' : '<span class="text-gray-400">global</span>');
+      html += '<tr class="border-t border-gray-800 hover:bg-gray-800/30"><td class="py-1.5 pr-3 text-white font-mono">' + esc(m.name) + '</td><td class="py-1.5 pr-3 text-gray-400">' + esc(m.description || '-') + '</td><td class="py-1.5 pr-3">' + src + '</td><td class="py-1.5 text-gray-500">' + esc(m.effort || '-') + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = '<div class="text-xs text-red-400">Failed to load skills: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function validateAllSkills() {
+  const banner = document.getElementById('skills-validation-banner');
+  banner.classList.remove('hidden');
+  banner.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Validating...';
+  try {
+    const data = await api('/skills/validate-all', { method: 'POST' });
+    const color = data.invalid === 0 ? 'text-green-400' : 'text-yellow-400';
+    banner.innerHTML = '<span class="' + color + '">' + data.valid + '/' + data.total + ' valid</span>' + (data.invalid ? ' &middot; <span class="text-red-400">' + data.invalid + ' with errors</span>' : '');
+  } catch (e) {
+    banner.innerHTML = '<span class="text-red-400">Validation failed: ' + esc(e.message) + '</span>';
+  }
+}
+
+async function reloadSkills() {
+  try {
+    await api('/skills/reload', { method: 'POST' });
+    loadSkills();
+  } catch (e) {
+    showToast('Failed to reload skills');
+  }
+}
+
+// ── System & Project Status ─────────────────────────────────────────────
+async function refreshSystemStatus() {
+  const container = document.getElementById('header-clis');
+  if (!container) return;
+  container.innerHTML = '<span class="cli-pill"><i class="fas fa-spinner fa-spin" style="font-size:8px"></i></span>';
+  try {
+    const data = await api('/system/status');
+    let html = _renderToolPills(data.clis || [], 'ai');
+    html += _renderToolPills(data.tools || [], 'dev');
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '';
+  }
+}
+
+function _renderToolPills(tools, group) {
+  let html = '';
+  for (const cli of tools) {
+    if (!cli.installed && group === 'dev') continue;
+    const cls = cli.installed ? 'ok' : 'missing';
+    const tip = cli.installed ? cli.name + ' ready' : cli.name + ' not found';
+    html += '<span class="cli-pill" title="' + esc(tip) + '"><span class="cli-dot ' + cls + '"></span>' + esc(cli.name) + '</span>';
+  }
+  return html;
+}
+
+async function loadProjectStatus(projectName) {
+  const container = document.getElementById('header-clis');
+  if (!container || !projectName) return;
+  try {
+    const data = await api('/projects/' + encodeURIComponent(projectName) + '/status');
+    let html = _renderToolPills(data.clis || [], 'ai');
+    html += _renderToolPills(data.tools || [], 'dev');
+    const git = data.git || {};
+    if (git.is_repo) {
+      html += '<span class="cli-pill" title="branch: ' + esc(git.branch) + '"><i class="fas fa-code-branch" style="font-size:8px"></i>' + esc(git.branch || '?') + (git.has_uncommitted ? ' *' : '') + '</span>';
+    }
+    const cx = data.cortex || {};
+    if (cx.exists) {
+      html += '<span class="cli-pill" title="Cortex indexed"><i class="fas fa-brain" style="font-size:8px;color:var(--green)"></i>cortex</span>';
+    }
+    const stack = data.stack || {};
+    if (stack.type && stack.type !== 'unknown') {
+      html += '<span class="cli-pill" title="' + esc(stack.type) + ' project"><i class="fas fa-layer-group" style="font-size:8px"></i>' + esc(stack.type) + '</span>';
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '';
+  }
+}
+
+// ── Pipeline Logs ───────────────────────────────────────────────────────
+async function loadLogs() {
+  const period = document.getElementById('logs-period')?.value || 'today';
+  try {
+    const [logsRes, statsRes] = await Promise.all([
+      fetch('/api/pipeline/logs?limit=100'),
+      fetch('/api/pipeline/stats?period=' + period),
+    ]);
+    const logs = await logsRes.json();
+    const stats = await statsRes.json();
+    document.getElementById('logs-total').textContent = stats.total_calls;
+    document.getElementById('logs-stat-calls').textContent = stats.total_calls;
+    document.getElementById('logs-stat-success').textContent = Math.round(stats.success_rate * 100) + '%';
+    document.getElementById('logs-stat-latency').textContent = Math.round(stats.avg_latency_ms) + 'ms';
+    document.getElementById('logs-stat-cost').textContent = '$' + (stats.total_cost || 0).toFixed(4);
+    const tbody = document.getElementById('logs-table-body');
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-gray-500">No pipeline logs yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(l => {
+      const ts = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '-';
+      const lat = Math.round(l.latency_ms || 0);
+      const cost = (l.cost_usd || 0).toFixed(4);
+      const ok = l.success;
+      const fb = l.fallback_used;
+      let statusBadge;
+      if (ok && !fb) statusBadge = '<span class="text-green-400">OK</span>';
+      else if (ok && fb) statusBadge = '<span class="text-yellow-400">FB:' + fb + '</span>';
+      else statusBadge = '<span class="text-red-400">ERR</span>';
+      return '<tr class="border-b" style="border-color:var(--border)">'
+        + '<td class="py-1.5 pr-3">' + ts + '</td>'
+        + '<td class="py-1.5 pr-3 font-mono">' + (l.model || '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + (l.backend || '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + (l.blast ?? '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + (l.task_type || '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + lat + 'ms</td>'
+        + '<td class="py-1.5 pr-3">$' + cost + '</td>'
+        + '<td class="py-1.5">' + statusBadge + '</td></tr>';
+    }).join('');
+  } catch (e) {
+    document.getElementById('logs-table-body').innerHTML =
+      '<tr><td colspan="8" class="py-4 text-center text-red-400">Failed to load logs</td></tr>';
+  }
 }
 
 // ── Forge ───────────────────────────────────────────────────────────────
@@ -2476,7 +2896,7 @@ async function loadMemory() {
     var state = fatigue < 0.4 ? 'FLOW' : fatigue < 0.6 ? 'COMPRESS' : fatigue < 0.75 ? 'PRE_SLEEP' : fatigue < 0.9 ? 'REM' : 'EMERGENCY';
     var stateColor = fatigue < 0.4 ? '#22c55e' : fatigue < 0.6 ? '#eab308' : fatigue < 0.75 ? '#f97316' : '#ef4444';
     html += '<div class="col-span-3"><div class="flex justify-between mb-1"><span>Fatigue</span><span style="color:' + stateColor + '">' + (fatigue * 100).toFixed(0) + '% · ' + state + '</span></div>';
-    html += '<div class="w-full h-2 rounded-full" style="background:#1e2636"><div class="h-2 rounded-full" style="width:' + (fatigue * 100) + '%;background:' + stateColor + '"></div></div></div>';
+    html += '<div class="w-full h-2 rounded-full" style="background:var(--input-bg);border:1px solid var(--border)"><div class="h-2 rounded-full" style="width:' + (fatigue * 100) + '%;background:' + stateColor + '"></div></div></div>';
     html += '<div><div class="text-gray-500">Engrams</div><div class="text-white text-lg font-bold">' + (engramDiag.total_engrams || 0) + '</div></div>';
     html += '<div><div class="text-gray-500">Checkpoints</div><div class="text-white text-lg font-bold">' + (engramDiag.checkpoints || 0) + '</div></div>';
     html += '<div><div class="text-gray-500">Expired</div><div class="text-white text-lg font-bold">' + (engramDiag.expired || 0) + '</div></div>';
@@ -2487,7 +2907,7 @@ async function loadMemory() {
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
         html += '<div class="flex items-center gap-2 py-1.5 border-b text-xs" style="border-color:#1e2636">';
-        html += '<span class="badge" style="font-size:9px;background:#1e2636">' + esc(r.memory_type || 'fact') + '</span>';
+        html += '<span class="badge" style="font-size:9px;background:var(--input-bg);border:1px solid var(--border)">' + esc(r.memory_type || 'fact') + '</span>';
         html += '<span class="flex-1 truncate text-gray-300">' + esc((r.content || '').substring(0, 80)) + '</span>';
         html += '<span class="text-gray-600">' + relDate(r.created_at) + '</span></div>';
       }
@@ -2593,13 +3013,19 @@ async function loadAll() {
     var orgEl = document.getElementById('org-badge');
     if (orgEl) orgEl.textContent = h.org + ' · ' + (h.provider || '') + ' · ' + (h.codebases || 0) + ' codebases';
   } catch (e) {}
+  refreshSystemStatus();
   try {
     var projData = await api('/projects');
     var projects = (projData.projects || []).map(function(p) { return p.name; });
     updateProjectList(projects);
   } catch (e) {}
   var ready = typeof checkSetup === 'function' ? await checkSetup() : true;
-  if (ready) switchTab(CURRENT_TAB);
+  if (ready) {
+    var hashTab = tabFromHash();
+    if (hashTab) CURRENT_TAB = hashTab;
+    switchTab(CURRENT_TAB);
+  }
 }
 
+applyTheme(getTheme());
 loadAll();

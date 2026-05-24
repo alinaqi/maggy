@@ -48,8 +48,12 @@ from maggy.api.routes_escalation import router as escalation_router
 from maggy.api.routes_observability import router as observability_router
 from maggy.api.routes_projects import router as projects_router
 from maggy.api.routes_setup import router as setup_router
+from maggy.api.routes_skills import router as skills_router
+from maggy.api.routes_system import router as system_router
 from maggy.api.routes_users import router as users_router
 from maggy.api.routes_orchestrator import router as orchestrator_router
+from maggy.api.routes_pipeline import router as pipeline_router
+from maggy.api.routes_refresh import router as refresh_router
 from maggy.api.routes_shell import router as shell_router
 from maggy.mesh.ws_server import router as ws_mesh_router
 from maggy.budget import BudgetManager
@@ -65,7 +69,7 @@ from maggy.services.inbox import InboxService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("maggy")
 
-_TIER1_ATTRS = ("budget", "routing", "events", "cikg", "planning", "deploy", "forge", "engram", "lexon", "mesh", "activity", "registry", "escalator", "observability")
+_TIER1_ATTRS = ("budget", "routing", "events", "cikg", "planning", "deploy", "forge", "engram", "lexon", "mesh", "activity", "registry", "escalator", "observability", "skills")
 _TIER2_ATTRS = ("provider", "inbox", "competitors", "executor", "process")
 
 
@@ -91,6 +95,8 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     seed_if_empty(app.state.engram)
     from maggy.lexon.router import LexonRouter
     app.state.lexon = LexonRouter()
+    from maggy.adapters.pi import PiAdapter
+    app.state.pi = PiAdapter()
     _init_mesh(app, cfg)
     from maggy.services.activity import ActivityService
     app.state.activity = ActivityService()
@@ -100,6 +106,7 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     from maggy.services.chat import ChatManager
     from maggy.services.session_store import SessionStore
     session_store = SessionStore(db_dir / "sessions.db")
+    app.state.session_store = session_store
     app.state.chat = ChatManager(cfg, store=session_store)
     from maggy.registry import ProjectRegistry
     app.state.registry = ProjectRegistry(cfg)
@@ -112,6 +119,27 @@ def _init_tier1(app: FastAPI, cfg) -> None:
         app.state.orchestrator = OrchestratorService(cfg)
     else:
         app.state.orchestrator = None
+    from maggy.skills.registry import SkillRegistry
+    app.state.skills = SkillRegistry()
+    app.state.skills.load_global()
+    from maggy.pipeline.log_store import PipelineLogStore
+    from maggy.pipeline.orchestrator import ChatPipeline
+    from maggy.pipeline.backend_claude import ClaudeBackend
+    from maggy.pipeline.backend_pi import PiBackend
+    app.state.pipeline_log_store = PipelineLogStore(db_dir / "pipeline.db")
+    app.state.pipeline = ChatPipeline(
+        routing=app.state.routing,
+        budget=app.state.budget,
+        backends=[
+            ClaudeBackend(app.state.chat),
+            PiBackend(app.state.pi),
+        ],
+        log_store=app.state.pipeline_log_store,
+        blueprints=app.state.blueprints,
+        engram=app.state.engram,
+    )
+    from maggy.services.refresh import RefreshService
+    app.state.refresh = RefreshService()
 
 
 def _init_mesh(app: FastAPI, cfg) -> None:
@@ -141,6 +169,10 @@ def _set_mode(app: FastAPI, cfg) -> None:
         app.state.executor = ExecutorService(cfg, app.state.provider)
         app.state.process = ProcessService(cfg)
         app.state.mode = "full"
+        pipeline = getattr(app.state, "pipeline", None)
+        if pipeline and app.state.executor:
+            from maggy.pipeline.backend_executor import ExecutorBackend
+            pipeline.add_backend(ExecutorBackend(app.state.executor))
     else:
         for attr in _TIER2_ATTRS:
             setattr(app.state, attr, None)
@@ -169,13 +201,16 @@ async def _start_heartbeat(app: FastAPI) -> None:
         app.state.heartbeat = None
         return
     from maggy.heartbeat.scheduler import HeartbeatScheduler
-    from maggy.heartbeat.jobs import refresh_history, expire_engrams, self_improve, mesh_heartbeat, collect_signals
+    from maggy.heartbeat.jobs import refresh_history, expire_engrams, self_improve, mesh_heartbeat, collect_signals, learn_from_prs, consolidate_learnings, rescan_repos
     from functools import partial
     sched = HeartbeatScheduler()
     sched.register("refresh_history", partial(refresh_history, app), cfg.heartbeat.history_interval)
     sched.register("expire_engrams", partial(expire_engrams, app), cfg.heartbeat.engram_interval)
     sched.register("self_improve", partial(self_improve, app), cfg.heartbeat.improve_interval)
     sched.register("collect_signals", partial(collect_signals, app), cfg.heartbeat.improve_interval)
+    sched.register("learn_from_prs", partial(learn_from_prs, app), 1800)
+    sched.register("consolidate_learnings", partial(consolidate_learnings, app), 21600)
+    sched.register("rescan_repos", partial(rescan_repos, app), 3600)
     if cfg.mesh.enabled:
         sched.register("mesh_heartbeat", partial(mesh_heartbeat, app), cfg.heartbeat.mesh_interval)
     await sched.start()
@@ -308,9 +343,9 @@ _ROUTERS = (
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,
     mesh_router, mesh_admin_router, observability_router,
-    orchestrator_router, planning_router, plugins_router,
-    process_router, projects_router, routing_router,
-    setup_router, shell_router, testing_router, users_router,
+    orchestrator_router, pipeline_router, planning_router, plugins_router,
+    process_router, projects_router, refresh_router, routing_router,
+    setup_router, shell_router, skills_router, system_router, testing_router, users_router,
     ws_mesh_router,
 )
 
@@ -341,6 +376,7 @@ def create_app() -> FastAPI:
         from maggy.services.session_store import SessionStore
         db_dir = Path(cfg.storage.path).expanduser().parent
         session_store = SessionStore(db_dir / "sessions.db")
+        app.state.session_store = session_store
         app.state.chat = ChatManager(cfg, store=session_store)
     _set_mode(app, cfg)
     logger.info("Maggy ready (%s) — codebases=%d", app.state.mode, len(cfg.codebases))
@@ -351,6 +387,15 @@ def create_app() -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
         @app.get("/")
         async def index():
+            return FileResponse(
+                str(static_dir / "index.html"),
+                headers={"Cache-Control": "no-store"},
+            )
+
+        @app.get("/{project_name}")
+        async def project_index(project_name: str):
+            if "." in project_name or project_name.startswith("api"):
+                return Response(status_code=404)
             return FileResponse(
                 str(static_dir / "index.html"),
                 headers={"Cache-Control": "no-store"},

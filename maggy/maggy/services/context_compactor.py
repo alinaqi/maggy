@@ -66,6 +66,13 @@ async def compact(
     )
 
 
+def compact_messages(messages: list, keep_recent: int = 8) -> list:
+    """Drop oldest messages to reduce context. Works on ChatMessage objects or dicts."""
+    if len(messages) <= keep_recent:
+        return messages
+    return messages[-keep_recent:]
+
+
 def _format_for_summary(messages: list[dict]) -> str:
     """Format messages into text for summarization."""
     parts: list[str] = []

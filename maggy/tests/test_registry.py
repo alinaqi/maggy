@@ -68,3 +68,45 @@ class TestProjectRegistry:
         registry = ProjectRegistry(MaggyConfig(projects=[alpha]))
         with pytest.raises(ValueError, match="already exists"):
             registry.add(alpha)
+
+
+class TestOpenFolder:
+    def _make_client(self, registry):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from maggy.api.routes_projects import router
+        app = FastAPI()
+        app.include_router(router)
+        app.state.registry = registry
+        app.state.cfg = MaggyConfig()
+        return TestClient(app)
+
+    def test_open_existing_dir(self, tmp_path):
+        registry = ProjectRegistry(MaggyConfig())
+        client = self._make_client(registry)
+        r = client.post("/api/projects/open-folder", json={"path": str(tmp_path)})
+        assert r.status_code == 201
+        data = r.json()
+        assert data["name"] == tmp_path.name
+        assert data["status"] == "registered"
+        assert registry.get(tmp_path.name) is not None
+
+    def test_open_nonexistent_dir(self):
+        registry = ProjectRegistry(MaggyConfig())
+        client = self._make_client(registry)
+        r = client.post("/api/projects/open-folder", json={"path": "/nonexistent/path/xyz"})
+        assert r.status_code == 400
+
+    def test_open_already_registered(self, tmp_path):
+        p = ProjectConfig(name=tmp_path.name, repo="local/x", path=str(tmp_path), default_branch="main")
+        registry = ProjectRegistry(MaggyConfig(projects=[p]))
+        client = self._make_client(registry)
+        r = client.post("/api/projects/open-folder", json={"path": str(tmp_path)})
+        assert r.status_code == 201
+        assert r.json()["status"] == "already_registered"
+
+    def test_open_with_tilde(self, tmp_path):
+        registry = ProjectRegistry(MaggyConfig())
+        client = self._make_client(registry)
+        r = client.post("/api/projects/open-folder", json={"path": str(tmp_path)})
+        assert r.status_code == 201

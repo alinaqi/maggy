@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.36.0] - 2026-05-24
+
+### Maggy: Unified Chat Pipeline + Cortex: Modular Edge Extraction
+
+**Maggy** — Unified chat pipeline with real-time streaming, CLI session refresh, URL-based project routing, message persistence for all backends, and pipeline logging dashboard.
+
+**Cortex** — Modular edge extraction (Python AST, TypeScript regex, Git co-change), cyclomatic complexity scoring, and expanded structure tool tests.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detailed Maggy changes.
+
+---
+
 ## [6.35.0] - 2026-05-24
 
 ### Telos -- Intent-Grounded Testing Framework

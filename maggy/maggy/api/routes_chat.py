@@ -53,7 +53,11 @@ async def send_message(
     async def event_stream():
         async for chunk in chat.send(session_id, body.message):
             if budget and chunk.get("type") == "result":
-                _record_spend(budget, chunk)
+                cost = chunk.get("cost_usd", 0)
+                in_t = chunk.get("input_tokens", 0)
+                out_t = chunk.get("output_tokens", 0)
+                if cost or in_t or out_t:
+                    budget.record_spend("anthropic", "claude", cost, in_t, out_t)
             yield f"data: {json.dumps(chunk)}\n\n"
         yield 'data: {"type": "done"}\n\n'
 
@@ -73,57 +77,56 @@ async def send_routed(
         raise HTTPException(status_code=404, detail="Session not found")
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message required")
-    routing = getattr(request.app.state, "routing", None)
-    budget = getattr(request.app.state, "budget", None)
 
     async def event_stream():
-        from maggy.services.chat_router import RoutedChat
-        decision = None
+        model, blast, task_type, reason = "claude", 0, "general", "default"
+        routing = getattr(request.app.state, "routing", None)
+        budget = getattr(request.app.state, "budget", None)
         blueprints = getattr(request.app.state, "blueprints", None)
         pkey = getattr(s, "project_key", "")
-        if routing:
-            rc = RoutedChat(routing, budget, blueprints, pkey)
-            decision = await rc.decide(body.message, body.blast_score, body.task_type)
-            allowed = body.allowed_models
-            if allowed and decision.model not in allowed:
-                decision.model = allowed[0]
-                decision.reason = f"restricted to {','.join(allowed)}"
-            yield f"data: {json.dumps(_routing_meta(decision))}\n\n"
-        # Try executor for actionable messages; fall back to chat on error
-        executor = getattr(request.app.state, "executor", None)
-        executor_failed = False
-        if decision and executor:
-            from maggy.services.chat_executor_bridge import executor_stream, should_route_to_executor
-            if should_route_to_executor(decision):
-                exec_wd = getattr(s, "repo_dir", "") or s.working_dir
-                async for chunk in executor_stream(executor, decision, body.message, exec_wd):
-                    yield f"data: {json.dumps(chunk)}\n\n"
-                    if chunk.get("type") == "error":
-                        executor_failed = True
-                if not executor_failed:
-                    yield 'data: {"type": "done"}\n\n'
-                    return
-                fb = {"type": "agent_status", "status": "Falling back to claude..."}
-                yield f"data: {json.dumps(fb)}\n\n"
-        # Chat path (primary or fallback)
-        had_error, review_content, tool_events = False, "", []
         effective_msg = body.message
-        if decision and decision.blueprint_context:
-            effective_msg = f"[Blueprint]\n{decision.blueprint_context}\n[/Blueprint]\n\n{body.message}"
-        async for chunk in chat.send(session_id, effective_msg):
-            if budget and chunk.get("type") == "result":
-                _record_spend(budget, chunk)
-            ct = chunk.get("type", "")
-            if ct == "error":
-                had_error = True
-            if ct == "tool_use":
-                tool_events.append(chunk.get("tool", "unknown"))
-            if ct in ("text", "result"):
-                review_content += chunk.get("content", "")
+        if routing:
+            from maggy.services.chat_router import RoutedChat
+            rc = RoutedChat(routing, budget, blueprints, pkey)
+            d = await rc.decide(body.message, body.blast_score, body.task_type)
+            allowed = body.allowed_models
+            if allowed and d.model not in allowed:
+                d.model = allowed[0]
+                d.reason = f"restricted to {','.join(allowed)}"
+            if d.model in _NON_CHAT_MODELS:
+                orig = d.model
+                d.model = _CHAT_MIN_MODEL
+                d.reason = f"chat floor: {orig} -> {_CHAT_MIN_MODEL}"
+            model, blast, task_type, reason = d.model, d.blast, d.task_type, d.reason
+            yield f"data: {json.dumps(_routing_meta(d))}\n\n"
+            if getattr(d, "blueprint_context", None):
+                effective_msg = f"[Blueprint]\n{d.blueprint_context}\n[/Blueprint]\n\n{body.message}"
+        pipeline = getattr(request.app.state, "pipeline", None)
+        if not pipeline:
+            async for chunk in chat.send(session_id, effective_msg):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            yield 'data: {"type": "done"}\n\n'
+            return
+        from maggy.pipeline.models import PipelineContext
+        ctx = PipelineContext(
+            session_id=session_id,
+            message=effective_msg,
+            project_key=pkey,
+            working_dir=getattr(s, "repo_dir", "") or s.working_dir,
+        )
+        response_parts: list[str] = []
+        used_backend = ""
+        async for chunk in pipeline.run(ctx, s, model=model, blast=blast, task_type=task_type, reason=reason):
+            if chunk.get("type") == "text":
+                response_parts.append(chunk.get("content", ""))
+            if chunk.get("type") == "result":
+                used_backend = chunk.get("backend", "") or used_backend
             yield f"data: {json.dumps(chunk)}\n\n"
-        _record_outcome(routing, decision, had_error)
-        _record_review(request, decision, review_content)
-        _capture_bp(request, body.message, decision, tool_events, had_error, pkey)
+        if not _is_claude_model(model):
+            _persist_pipeline_messages(
+                request, session_id, s, body.message,
+                "".join(response_parts),
+            )
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -133,36 +136,33 @@ def _routing_meta(d) -> dict:
     return {"type": "routing", "model": d.model, "blast": d.blast, "task_type": d.task_type, "reason": d.reason}
 
 
-def _record_spend(budget, chunk: dict) -> None:
-    cost, in_t, out_t = chunk.get("cost_usd", 0), chunk.get("input_tokens", 0), chunk.get("output_tokens", 0)
-    if cost or in_t or out_t:
-        budget.record_spend("anthropic", "claude", cost, in_t, out_t)
+def _persist_pipeline_messages(
+    request, session_id: str, session, user_msg: str,
+    assistant_msg: str,
+) -> None:
+    """Save user + assistant messages after pipeline execution."""
+    from maggy.services.chat_models import ChatMessage
+    store = getattr(request.app.state, "session_store", None)
+    session.messages.append(ChatMessage(role="user", content=user_msg))
+    if assistant_msg.strip():
+        session.messages.append(
+            ChatMessage(role="assistant", content=assistant_msg),
+        )
+    if store:
+        store.append_message(session_id, "user", user_msg)
+        if assistant_msg.strip():
+            store.append_message(
+                session_id, "assistant", assistant_msg,
+            )
 
 
-def _record_outcome(routing, decision, had_error: bool) -> None:
-    if not routing or not decision:
-        return
-    routing.record_outcome(decision.model, decision.task_type, decision.blast, 0.0 if had_error else 1.0)
+def _is_claude_model(model: str) -> bool:
+    from maggy.pipeline.backend_pi import _PI_MODELS
+    return model.lower() not in _PI_MODELS
 
 
-def _record_review(request: Request, decision, content: str) -> None:
-    if not decision or not content or getattr(decision, "task_type", "") != "review":
-        return
-    scores = getattr(request.app.state, "reviewer_scores", None)
-    if not scores:
-        return
-    from maggy.services.reviewer_eval import evaluate_review
-    evaluate_review(getattr(decision, "model", "unknown"), content, "review", scores)
-
-
-def _capture_bp(request, message, decision, tool_events, had_error, pkey) -> None:
-    if had_error or not decision or not tool_events:
-        return
-    bp_store = getattr(request.app.state, "blueprints", None)
-    if not bp_store:
-        return
-    from maggy.blueprint_extract import capture_blueprint
-    capture_blueprint(message, decision.task_type, tool_events, decision.model, bp_store, pkey)
+_NON_CHAT_MODELS = frozenset({"local", "qwen", "gemini-flash-lite"})
+_CHAT_MIN_MODEL = "deepseek-flash"
 
 
 _UPLOAD_DIR = Path(tempfile.gettempdir()) / "maggy-uploads"

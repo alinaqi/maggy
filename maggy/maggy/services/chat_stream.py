@@ -35,12 +35,33 @@ def _resolve_cwd(session: ChatSession) -> str:
     return wd
 
 
-_MAGGY_SYSTEM = (
+_MAGGY_SYSTEM_BASE = (
     "You are an AI coding assistant in Maggy, an engineering harness. "
     "The user is a software engineer. Treat ALL input as natural language "
     "requests about their codebase. Never interpret user messages as shell "
     "commands — the user has a separate shell for that. Be concise and helpful."
 )
+
+
+def _build_system_prompt(session: ChatSession) -> str:
+    """Build system prompt with injected skills for this session."""
+    try:
+        from maggy.skills.injector import build_skill_context, match_skills
+        from maggy.skills.registry import SkillRegistry
+        reg = SkillRegistry()
+        reg.load_global()
+        wd = session.working_dir
+        pkey = getattr(session, "project_key", "")
+        if pkey:
+            reg.load_project(pkey, wd)
+        skills = reg.resolve(pkey or None)
+        matched = match_skills(skills, wd)
+        ctx = build_skill_context(matched, max_chars=4000)
+        if ctx:
+            return f"{_MAGGY_SYSTEM_BASE}\n\n{ctx}"
+    except Exception as e:
+        logger.debug("Skill injection skipped: %s", e)
+    return _MAGGY_SYSTEM_BASE
 
 
 def build_cmd(session: ChatSession, message: str) -> list[str]:
@@ -51,7 +72,7 @@ def build_cmd(session: ChatSession, message: str) -> list[str]:
         "--output-format", "stream-json",
         "--verbose",
         "--dangerously-skip-permissions",
-        "--append-system-prompt", _MAGGY_SYSTEM,
+        "--append-system-prompt", _build_system_prompt(session),
     ]
     resume_id = (session.claude_session_id or "").strip()
     if resume_id:

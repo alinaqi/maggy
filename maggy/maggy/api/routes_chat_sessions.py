@@ -58,13 +58,19 @@ async def auto_connect(
         asyncio.create_task(
             _emit_project_connected(pm, s.project_key, s.working_dir, s.id),
         )
-    return {"sessions": [_enrich_and_format(s, history, recent) for s in sessions]}
+    refresh_svc = getattr(request.app.state, "refresh", None)
+    return {"sessions": [_enrich_and_format(s, history, recent, refresh_svc) for s in sessions]}
 
 
-def _enrich_and_format(s, history, recent: list[dict]) -> dict:
+def _enrich_and_format(
+    s, history, recent: list[dict], refresh_svc=None,
+) -> dict:
     """Build context and format response. Never auto-resolve stale session IDs."""
     from maggy.services.chat_context import build_project_context
     ctx = build_project_context(history, s.working_dir, s.project_key, recent)
+    cli_ctx = _build_cli_context(refresh_svc, s.working_dir)
+    if cli_ctx:
+        ctx = f"{ctx}\n\n{cli_ctx}" if ctx else cli_ctx
     s.history_context = ctx
     return {
         "id": s.id, "project_key": s.project_key, "working_dir": s.working_dir,
@@ -73,6 +79,24 @@ def _enrich_and_format(s, history, recent: list[dict]) -> dict:
         "status": s.status, "messages": len(s.messages),
         "history_context": ctx, "has_resume_id": bool(s.claude_session_id),
     }
+
+
+def _build_cli_context(refresh_svc, working_dir: str) -> str:
+    if not refresh_svc or not working_dir:
+        return ""
+    try:
+        digests = refresh_svc.refresh(limit=1, project_path=working_dir)
+        if not digests:
+            return ""
+        d = digests[0]
+        lines = [f"[Recent CLI session ({d.cli}) — {d.project}]"]
+        for turn in d.turns[-10:]:
+            label = "User" if turn["role"] == "user" else "Assistant"
+            lines.append(f"{label}: {turn['text']}")
+        lines.append("[/Recent CLI session]")
+        return "\n".join(lines)
+    except Exception:
+        return ""
 
 
 @router.post("/preload")
