@@ -168,7 +168,7 @@ def _extract_python(
 # TypeScript / JavaScript extraction (regex)
 # ---------------------------------------------------------------------------
 
-_TS_PATTERNS: list[tuple[str, str]] = [
+_TS_EXPORT_PATTERNS: list[tuple[str, str]] = [
     (r"export\s+(?:async\s+)?function\s+(\w+)\s*\([^)]*\)", "function"),
     (r"export\s+(?:abstract\s+)?class\s+(\w+)", "class"),
     (r"export\s+const\s+(\w+)\s*[=:]", "constant"),
@@ -180,6 +180,19 @@ _TS_PATTERNS: list[tuple[str, str]] = [
     ),
     (r"export\s+(?:async\s+)?function\s+(use\w+)", "hook"),
 ]
+
+_TS_LOCAL_PATTERNS: list[tuple[str, str]] = [
+    (r"(?:async\s+)?function\s+(\w+)\s*\([^)]*\)", "function"),
+    (r"(?:abstract\s+)?class\s+(\w+)", "class"),
+    (r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>", "function"),
+    (r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function", "function"),
+    (r"interface\s+(\w+)", "interface"),
+    (r"type\s+(\w+)\s*=", "type"),
+    (r"enum\s+(\w+)", "enum"),
+    (r"(?:const|let|var)\s+(use\w+)\s*=", "hook"),
+]
+
+_TS_PATTERNS = _TS_EXPORT_PATTERNS
 
 _TS_ROUTE_RE = re.compile(
     r"(?:app|router)\.(get|post|put|delete|patch)"
@@ -221,6 +234,9 @@ def _extract_typescript(
     symbols = _ts_exports(source, fp, lang)
     for s in symbols:
         seen.add(s.name)
+    symbols += _ts_locals(source, fp, lang, seen)
+    for s in symbols:
+        seen.add(s.name)
     symbols += _ts_routes(source, fp, lang)
     symbols += _ts_methods(source, fp, lang)
     symbols = _dedup_symbols(symbols, seen)
@@ -244,6 +260,31 @@ def _ts_exports(source: str, fp: str, lang: str) -> list[Symbol]:
     symbols: list[Symbol] = []
     seen: set[str] = set()
     for pattern, stype in _TS_PATTERNS:
+        for match in re.finditer(pattern, source):
+            name = match.group(1)
+            if name in seen:
+                continue
+            seen.add(name)
+            sig = _ts_sig_at(source, match)
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type=stype,
+                language=lang,
+                signature=sig[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+    return symbols
+
+
+def _ts_locals(
+    source: str, fp: str, lang: str, skip: set[str],
+) -> list[Symbol]:
+    symbols: list[Symbol] = []
+    seen: set[str] = set(skip)
+    for pattern, stype in _TS_LOCAL_PATTERNS:
         for match in re.finditer(pattern, source):
             name = match.group(1)
             if name in seen:

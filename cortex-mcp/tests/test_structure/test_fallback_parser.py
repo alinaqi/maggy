@@ -828,6 +828,92 @@ class TestElixirExtraction:
         assert syms == []
 
 
+# ---------------------------------------------------------------------------
+# TS/JS non-exported (local) symbol extraction
+# ---------------------------------------------------------------------------
+
+TS_LOCAL_SOURCE = """\
+function helperFunc(x: number): string {
+  return String(x)
+}
+
+class InternalService {
+  process(): void {}
+}
+
+const doTransform = (data: any) => {
+  return data
+}
+
+interface InternalConfig {
+  verbose: boolean
+}
+
+type StatusCode = 200 | 404 | 500
+
+enum Priority {
+  Low,
+  High,
+}
+
+const useLocalState = () => {
+  return {}
+}
+
+export function publicFunc(): void {}
+"""
+
+
+class TestTsLocalExtraction:
+    def _parse(self, source: str = TS_LOCAL_SOURCE) -> list[Symbol]:
+        return parse_file(Path("internal.ts"), source, "typescript")
+
+    def test_captures_local_function(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "helperFunc" in names
+
+    def test_captures_local_class(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "InternalService" in names
+
+    def test_captures_arrow_function(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "doTransform" in names
+
+    def test_captures_local_interface(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "InternalConfig" in names
+
+    def test_captures_local_type(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "StatusCode" in names
+
+    def test_captures_local_enum(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "Priority" in names
+
+    def test_captures_local_hook(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "useLocalState" in names
+
+    def test_exported_still_captured(self) -> None:
+        symbols = self._parse()
+        names = [s.name for s in symbols]
+        assert "publicFunc" in names
+
+    def test_no_duplicate_for_exported(self) -> None:
+        symbols = self._parse()
+        public_matches = [s for s in symbols if s.name == "publicFunc"]
+        assert len(public_matches) == 1
+
+
 class TestParseFileIntegration:
     def test_deterministic_ids(self) -> None:
         source = "def foo():\n    pass\n"

@@ -15,9 +15,24 @@ async def trace_path(
     mode: str = 'calls',
     max_depth: int = 10,
     to_symbol: str | None = None,
+    direction: str = 'out',
 ) -> list[TraceResult]:
     edge_types = _mode_to_edge_types(mode)
     placeholders = ','.join('?' for _ in edge_types)
+
+    if direction == 'in':
+        edge_join = 'JOIN edges e ON t.id = e.to_id'
+        sym_join = 'JOIN symbols s2 ON e.from_id = s2.id'
+    elif direction == 'both':
+        edge_join = 'JOIN edges e ON (t.id = e.from_id OR t.id = e.to_id)'
+        sym_join = (
+            'JOIN symbols s2 ON s2.id = '
+            'CASE WHEN t.id = e.from_id THEN e.to_id '
+            'ELSE e.from_id END'
+        )
+    else:
+        edge_join = 'JOIN edges e ON t.id = e.from_id'
+        sym_join = 'JOIN symbols s2 ON e.to_id = s2.id'
 
     sql = f"""
     WITH RECURSIVE traverse(id, name, file_path, edge_type, depth, path) AS (
@@ -27,13 +42,14 @@ async def trace_path(
         SELECT s2.id, s2.name, s2.file_path, e.edge_type,
                t.depth + 1, t.path || ' -> ' || s2.name
         FROM traverse t
-        JOIN edges e ON t.id = e.from_id
-        JOIN symbols s2 ON e.to_id = s2.id
+        {edge_join}
+        {sym_join}
         WHERE t.depth < ?
           AND e.edge_type IN ({placeholders})
           AND instr(t.path, s2.name) = 0
     )
-    SELECT id, name, file_path, edge_type, depth, path FROM traverse
+    SELECT DISTINCT id, name, file_path, edge_type, depth, path
+    FROM traverse
     ORDER BY depth
     """
     params: tuple[Any, ...] = (from_symbol, max_depth, *edge_types)

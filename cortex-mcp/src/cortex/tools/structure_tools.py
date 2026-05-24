@@ -259,7 +259,8 @@ def register(cortex: Any) -> None:
         name='cortex_trace',
         description=(
             'Multi-hop graph traversal. '
-            'mode: calls, data_flow, cross_service'
+            'mode: calls, data_flow, cross_service. '
+            'direction: out, in, both'
         ),
     )
     async def cortex_trace(
@@ -267,6 +268,7 @@ def register(cortex: Any) -> None:
         mode: str = 'calls',
         to_symbol: str | None = None,
         max_depth: int = 10,
+        direction: str = 'out',
         ctx: Context = None,
     ) -> str:
         from ..storage.graph import trace_path
@@ -274,6 +276,7 @@ def register(cortex: Any) -> None:
         max_depth = min(max_depth, 20)
         results = await trace_path(
             db, from_symbol, mode, max_depth, to_symbol,
+            direction=direction,
         )
         return json.dumps(results)
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from cortex.structure.edge_extractor import (
     RawEdge,
     extract_python_edges,
+    extract_ts_calls,
     extract_ts_imports,
 )
 
@@ -133,3 +134,89 @@ class TestTsImports:
         source = "import { X } from './mod'\n"
         edges = extract_ts_imports(Path("index.ts"), source)
         assert all(e.from_file == "index.ts" for e in edges)
+
+
+class TestTsCalls:
+    def test_extracts_call_in_function(self) -> None:
+        source = (
+            "function main() {\n"
+            "  fetchData()\n"
+            "  processResult()\n"
+            "}\n"
+        )
+        edges = extract_ts_calls(Path("app.ts"), source)
+        pairs = [(e.from_name, e.to_name) for e in edges]
+        assert ("main", "fetchData") in pairs
+        assert ("main", "processResult") in pairs
+
+    def test_extracts_call_in_arrow_function(self) -> None:
+        source = (
+            "const handler = () => {\n"
+            "  validate(input)\n"
+            "}\n"
+        )
+        edges = extract_ts_calls(Path("app.ts"), source)
+        pairs = [(e.from_name, e.to_name) for e in edges]
+        assert ("handler", "validate") in pairs
+
+    def test_excludes_keywords(self) -> None:
+        source = (
+            "function check() {\n"
+            "  if (true) {\n"
+            "    for (let i = 0; i < 10; i++) {\n"
+            "      while (false) {}\n"
+            "    }\n"
+            "  }\n"
+            "}\n"
+        )
+        edges = extract_ts_calls(Path("app.ts"), source)
+        called = [e.to_name for e in edges]
+        for kw in ("if", "for", "while"):
+            assert kw not in called
+
+    def test_deduplicates_calls(self) -> None:
+        source = (
+            "function render() {\n"
+            "  update()\n"
+            "  update()\n"
+            "  update()\n"
+            "}\n"
+        )
+        edges = extract_ts_calls(Path("app.ts"), source)
+        update_edges = [
+            e for e in edges
+            if e.from_name == "render" and e.to_name == "update"
+        ]
+        assert len(update_edges) == 1
+
+    def test_all_edges_are_calls(self) -> None:
+        source = "function f() {\n  g()\n}\n"
+        edges = extract_ts_calls(Path("app.ts"), source)
+        assert all(e.edge_type == "CALLS" for e in edges)
+
+    def test_no_self_call_edge(self) -> None:
+        source = "function recurse() {\n  recurse()\n}\n"
+        edges = extract_ts_calls(Path("app.ts"), source)
+        self_calls = [
+            e for e in edges
+            if e.from_name == "recurse" and e.to_name == "recurse"
+        ]
+        assert len(self_calls) == 0
+
+    def test_exported_function_calls(self) -> None:
+        source = (
+            "export function initApp() {\n"
+            "  loadConfig()\n"
+            "  setupRoutes()\n"
+            "}\n"
+        )
+        edges = extract_ts_calls(Path("app.ts"), source)
+        pairs = [(e.from_name, e.to_name) for e in edges]
+        assert ("initApp", "loadConfig") in pairs
+        assert ("initApp", "setupRoutes") in pairs
+
+    def test_module_level_calls(self) -> None:
+        source = "configure()\nsetup()\n"
+        edges = extract_ts_calls(Path("app.ts"), source)
+        callers = [e.from_name for e in edges]
+        assert all(c == "__module__" for c in callers)
