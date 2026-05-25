@@ -37,9 +37,9 @@ def _resolve_cwd(session: ChatSession) -> str:
 
 _MAGGY_SYSTEM_BASE = (
     "You are an AI coding assistant in Maggy, an engineering harness. "
-    "The user is a software engineer. Treat ALL input as natural language "
-    "requests about their codebase. Never interpret user messages as shell "
-    "commands — the user has a separate shell for that. Be concise and helpful."
+    "The user is a software engineer. You have full shell access — "
+    "run git, test, lint, and any CLI commands as needed. "
+    "Be concise and helpful."
 )
 
 
@@ -263,6 +263,7 @@ async def _apply_recovery(
         before = len(session.messages)
         session.messages = compact_messages(session.messages)
         trimmed = before - len(session.messages)
+        session._persisted_idx = 0
         session.claude_session_id = ""
         _persist_session_id_now(session)
         return {"type": "agent_status", "status": f"Context too long — compacted {trimmed} messages, retrying..."}

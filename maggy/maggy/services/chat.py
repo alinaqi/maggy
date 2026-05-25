@@ -210,11 +210,13 @@ class ChatManager:
         store.update_claude_id(
             session.id, session.claude_session_id,
         )
-        saved = len(store.load_messages(session.id))
-        for msg in session.messages[saved:]:
+        marker = getattr(session, "_persisted_idx", 0)
+        new_msgs = session.messages[marker:]
+        for msg in new_msgs:
             store.append_message(
                 session.id, msg.role, msg.content,
             )
+        session._persisted_idx = len(session.messages)
 
     def _restore_sessions(self, store) -> None:
         """Load persisted sessions from store."""
@@ -233,4 +235,5 @@ class ChatManager:
                     role=m["role"], content=m["content"],
                     timestamp=m.get("timestamp", ""),
                 ))
+            session._persisted_idx = len(session.messages)
             self._sessions[sid] = session
