@@ -139,25 +139,18 @@
       <a href="#" onclick="switchTab('chat')" data-tab="chat" class="sidebar-link project-scoped disabled active"><i class="fas fa-terminal"></i><span>Chat</span></a>
       <a href="#" onclick="switchTab('inbox')" data-tab="inbox" class="sidebar-link project-scoped disabled"><i class="fas fa-list-check"></i><span>Inbox</span></a>
       <a href="#" onclick="switchTab('issues')" data-tab="issues" class="sidebar-link project-scoped disabled"><i class="fas fa-ticket"></i><span id="sidebar-issues-label">Issues</span></a>
-      <a href="#" onclick="switchTab('followed')" data-tab="followed" class="sidebar-link project-scoped disabled"><i class="fas fa-eye"></i><span>Watching</span></a>
-      <a href="#" onclick="switchTab('progress')" data-tab="progress" class="sidebar-link project-scoped disabled"><i class="fas fa-bars-progress"></i><span>Progress</span></a>
-      <a href="#" onclick="switchTab('icpg')" data-tab="icpg" class="sidebar-link project-scoped disabled"><i class="fas fa-project-diagram"></i><span>iCPG</span></a>
+      <a href="#" onclick="switchTab('team')" data-tab="team" class="sidebar-link project-scoped disabled"><i class="fas fa-users"></i><span>Team</span></a>
+      <a href="#" onclick="switchTab('cortex')" data-tab="cortex" class="sidebar-link project-scoped disabled"><i class="fas fa-project-diagram"></i><span>Cortex</span></a>
       <div class="my-1 border-t" style="border-color:var(--border); opacity:0.4;"></div>
       <a href="#" onclick="switchTab('project-settings')" data-tab="project-settings" class="sidebar-link project-scoped disabled"><i class="fas fa-sliders"></i><span>Project Settings</span></a>
-    </nav>
-
-    <!-- Plugins — conditional, per-project toggles -->
-    <div class="sidebar-section" id="plugins-section-label" style="display:none;">Plugins</div>
-    <nav class="flex flex-col gap-0.5" id="plugins-nav">
-      <a href="#" onclick="switchTab('competitors')" data-tab="competitors" data-feature="competitors" class="sidebar-link project-scoped disabled plugin-item" style="display:none;"><i class="fas fa-chess"></i><span>Competitors</span></a>
-      <a href="#" onclick="switchTab('build-in-public')" data-tab="build-in-public" data-feature="build-in-public" class="sidebar-link project-scoped disabled plugin-item" style="display:none;"><i class="fas fa-bullhorn"></i><span>Build in Public</span></a>
     </nav>
 
     <!-- Command Center — global intelligence -->
     <div class="sidebar-section">Command Center</div>
     <nav class="flex flex-col gap-0.5">
       <a href="#" onclick="switchTab('skills')" data-tab="skills" class="sidebar-link"><i class="fas fa-book-open"></i><span>Skills</span></a>
-      <a href="#" onclick="switchTab('process')" data-tab="process" class="sidebar-link"><i class="fas fa-chart-line"></i><span>Insights</span></a>
+      <a href="#" onclick="switchTab('plugins')" data-tab="plugins" class="sidebar-link"><i class="fas fa-puzzle-piece"></i><span>Plugins</span></a>
+      <a href="#" onclick="switchTab('insights')" data-tab="insights" class="sidebar-link"><i class="fas fa-chart-line"></i><span>Insights</span></a>
       <a href="#" onclick="switchTab('memory')" data-tab="memory" class="sidebar-link"><i class="fas fa-brain"></i><span>Memory</span></a>
       <a href="#" onclick="switchTab('routing')" data-tab="routing" class="sidebar-link"><i class="fas fa-route"></i><span>Models</span></a>
       <a href="#" onclick="switchTab('budget')" data-tab="budget" class="sidebar-link"><i class="fas fa-wallet"></i><span>Budget</span></a>
@@ -206,9 +199,9 @@
     <main class="flex-1 overflow-hidden">
       <div id="pane-chat" class="h-full"><div class="flex items-center justify-center h-full text-gray-600 text-xs">Loading chat...</div></div>
       <div id="pane-inbox" class="h-full p-4 hidden"></div>
-      <div id="pane-followed" class="h-full p-4 hidden"></div>
-      <div id="pane-progress" class="h-full p-4 hidden"></div>
-      <div id="pane-competitors" class="h-full p-4 hidden"></div>
+      <div id="pane-team" class="h-full p-4 hidden"></div>
+      <div id="pane-cortex" class="h-full p-4 hidden"></div>
+      <div id="pane-plugins" class="h-full p-4 hidden"></div>
       <div id="pane-skills" class="h-full hidden">
         <div class="pane-content">
           <div class="flex items-center gap-2 mb-4">
@@ -223,8 +216,7 @@
           <div id="skills-list" class="space-y-1"></div>
         </div>
       </div>
-      <div id="pane-process" class="h-full p-4 hidden"></div>
-      <div id="pane-icpg" class="h-full p-4 hidden"></div>
+      <div id="pane-insights" class="h-full p-4 hidden"></div>
       <div id="pane-memory" class="h-full p-4 hidden"></div>
       <div id="pane-routing" class="h-full p-4 hidden"></div>
       <div id="pane-budget" class="h-full p-4 hidden"></div>
@@ -264,7 +256,6 @@
       </div>
       <div id="pane-settings" class="h-full p-4 hidden"></div>
       <div id="pane-issues" class="h-full p-4 hidden"></div>
-      <div id="pane-build-in-public" class="h-full p-4 hidden"></div>
       <div id="pane-project-settings" class="h-full hidden">
         <div class="pane-content">
           <div class="flex items-center gap-2 mb-4">

@@ -4,6 +4,36 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.38.0] - 2026-05-25
+
+### Council of Experts — Multi-Model Deliberation + Auto-Execution Gating
+
+Multi-round deliberation engine where 3+ AI models independently evaluate, cross-examine, and reach consensus before changes auto-execute. Blast radius analysis via file/function/subsystem scoring gates execution through a decision matrix: low-blast + objective = auto-execute, critical/subjective = always human.
+
+#### Added
+- `maggy/council/models.py` — ContextPackage, ReviewerVote, DeliberationResult, BlastAnalysis, ValidationClassification, ExecutionDecision
+- `maggy/council/deliberation.py` — 3-round engine: independent eval, cross-examination, final position (async, parallel reviewers)
+- `maggy/council/blast_analyzer.py` — file/subsystem impact scoring, objective/subjective validation classification
+- `maggy/council/executor_gate.py` — decision matrix: AUTO_EXECUTE, AUTO_WITH_ROLLBACK, AUTO_WITH_NOTIFY, HUMAN_REVIEW
+- `maggy/council/audit_log.py` — SQLite WAL persistence for all deliberation decisions
+- `maggy/services/council_config.py` — YAML config for reviewer panels, model registry, thresholds
+- 62 tests across 6 test files (models, deliberation, blast, gate, audit, config)
+
+#### Decision Matrix
+| Severity | Validation | Action |
+|----------|-----------|--------|
+| Critical (auth/PII/API) | Any | ALWAYS HUMAN |
+| High (10+ files) | Any | HUMAN REVIEW |
+| Medium (4-10 files) | Objective + tests | AUTO + rollback |
+| Medium | Subjective | HUMAN REVIEW |
+| Low (1-3 files) | Objective | AUTO-EXECUTE |
+| Low | Subjective | HUMAN REVIEW |
+
+#### Fixed
+- Build-in-public plugin: PluginManifest dataclass/dict compatibility (`getattr` instead of `.get()`)
+
+---
+
 ## [6.37.0] - 2026-05-24
 
 ### Skill Protocols — Intent-Driven Execution

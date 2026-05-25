@@ -99,8 +99,18 @@ function relDate(iso) {
   return d.toLocaleDateString();
 }
 
+// ── Project helper ─────────────────────────────────────────────────────
+function getProjectKey() {
+  const el = document.getElementById('current-project-label');
+  const v = el ? el.textContent.trim() : '';
+  return (v && v !== 'Select project...') ? v : '';
+}
+
 // ── Tabs ────────────────────────────────────────────────────────────────
 function switchTab(tab, fromHash) {
+  // Backward-compat hash redirects
+  var redirects = { 'followed': 'team', 'icpg': 'cortex', 'progress': 'insights', 'process': 'insights', 'competitors': 'cortex', 'build-in-public': 'plugins' };
+  if (redirects[tab]) tab = redirects[tab];
   CURRENT_TAB = tab;
   if (!fromHash) location.hash = tab;
   // Highlight active sidebar link
@@ -115,12 +125,10 @@ function switchTab(tab, fromHash) {
   if (tab === 'chat') loadChat();
   else if (tab === 'inbox') loadInbox();
   else if (tab === 'issues') loadIssues();
-  else if (tab === 'followed') loadFollowed();
-  else if (tab === 'progress') loadProgress();
-  else if (tab === 'competitors') loadCompetitors();
-  else if (tab === 'build-in-public') loadBuildInPublic();
-  else if (tab === 'process') loadProcess();
-  else if (tab === 'icpg') loadICPG();
+  else if (tab === 'team') loadTeam();
+  else if (tab === 'cortex') loadCortex();
+  else if (tab === 'plugins') loadPlugins();
+  else if (tab === 'insights') loadInsights();
   else if (tab === 'memory') loadMemory();
   else if (tab === 'routing') loadRouting();
   else if (tab === 'budget') loadBudget();
@@ -136,8 +144,9 @@ function switchProject(name) {
   if (!name) return;
   updateCurrentProject(name);
   history.replaceState(null, '', '/' + encodeURIComponent(name));
-  // Reset chat to pick up new project's session
+  // Reset chat and cortex to pick up new project's session
   CHAT_SESSION_ID = null;
+  ICPG_PROJECT = null;
   // Preload chat sessions for this project
   fetch('/api/chat/preload', {
     method: 'POST',
@@ -207,8 +216,10 @@ function closeDrawer() {
 async function loadInbox(refresh = false) {
   const pane = document.getElementById('pane-inbox');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading…</div>`;
+  const proj = getProjectKey();
+  const activityUrl = proj ? '/activity?project=' + encodeURIComponent(proj) : '/activity';
   const [activity, inbox] = await Promise.all([
-    api('/activity').catch(() => ({ sessions: [], recent: [] })),
+    api(activityUrl).catch(() => ({ sessions: [], recent: [] })),
     api(`/inbox${refresh ? '?refresh=true' : ''}`).catch(() => ({ items: [] })),
   ]);
   const sessions = activity.sessions || [];
@@ -330,63 +341,85 @@ async function loadIssues() {
 }
 
 // ── Build in Public (plugin) ────────────────────────────────────────────
-async function loadBuildInPublic() {
-  const pane = document.getElementById('pane-build-in-public');
-  const project = document.getElementById('current-project-label')?.textContent;
-  if (!project || project === 'Select project...') {
-    pane.innerHTML = `<div class="flex items-center justify-center h-full text-gray-600 text-xs">Select a project to use Build in Public.</div>`;
-    return;
-  }
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading…</div>`;
+async function loadPlugins() {
+  const pane = document.getElementById('pane-plugins');
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading plugins…</div>`;
   try {
     const data = await api('/plugins').catch(() => ({ plugins: [] }));
     const plugins = data.plugins || [];
-    const bip = plugins.find(p => p.id === 'build-in-public');
-    if (!bip) {
-      pane.innerHTML = `<div class="card p-6 text-center">
-        <i class="fas fa-bullhorn text-3xl text-gray-700 mb-3"></i>
-        <div class="text-sm text-white mb-1">Build in Public</div>
-        <div class="text-xs text-gray-500 mb-4">Plugin not loaded. Install it to schedule social posts.</div>
-        <button onclick="api('/plugins/reload', {method:'POST'})" class="btn btn-primary text-xs"><i class="fas fa-rotate mr-1"></i>Reload Plugins</button>
-      </div>`;
-      return;
-    }
-    pane.innerHTML = `<div class="p-4">
-      <div class="flex items-center gap-2 mb-4">
-        <h2 class="text-sm font-bold text-white"><i class="fas fa-bullhorn text-orange-400 mr-2"></i>Build in Public</h2>
-        <span class="badge model-badge">${esc(bip.version)}</span>
-      </div>
-      <div class="card p-4 text-xs text-gray-400">
-        <p class="mb-2">Build in Public plugin is active for <b>${esc(project)}</b>.</p>
-        <p>Use the CLI plugin to schedule posts and track engagement.</p>
-      </div>
+    let html = `<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">`;
+    html += `<div class="flex items-center gap-2 mb-2">
+      <i class="fas fa-puzzle-piece text-orange-500"></i>
+      <h2 class="text-sm font-bold" style="color:var(--text)">Plugins</h2>
+      <span class="badge model-badge ml-1">${plugins.length}</span>
+      <span class="flex-1"></span>
+      <button onclick="api('/plugins/reload',{method:'POST'}).then(()=>loadPlugins())" class="btn btn-ghost text-[10px]"><i class="fas fa-sync-alt mr-1"></i>Reload</button>
     </div>`;
+    if (!plugins.length) {
+      html += `<div class="card p-6 text-center">
+        <i class="fas fa-puzzle-piece text-3xl text-gray-700 mb-3"></i>
+        <div class="text-sm" style="color:var(--text)">No Plugins Loaded</div>
+        <div class="text-xs text-gray-500 mt-1">Drop a folder with <code class="text-orange-400">plugin.yaml</code> + <code class="text-orange-400">plugin.py</code> into <code>plugins/</code>.</div>
+      </div>`;
+    } else {
+      html += `<div class="space-y-2">`;
+      for (const p of plugins) {
+        const active = p.status === 'active' || p.enabled !== false;
+        html += `<div class="card p-3 flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${active ? 'var(--green)' : 'var(--text-muted)'}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-medium" style="color:var(--text)">${esc(p.name || p.id)}</div>
+            <div class="text-[10px] text-gray-500">${esc(p.description || '')} ${p.version ? '· v' + esc(p.version) : ''}</div>
+          </div>
+          <span class="text-[9px] px-2 py-0.5 rounded-full" style="background:var(--pill-bg);color:var(--text-muted)">${esc(p.id)}</span>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    pane.innerHTML = html;
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
   }
 }
 
 // ── Followed ────────────────────────────────────────────────────────────
-async function loadFollowed() {
-  const pane = document.getElementById('pane-followed');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading followed tasks…</div>`;
+async function loadTeam() {
+  const pane = document.getElementById('pane-team');
+  const proj = getProjectKey();
+  if (!proj) {
+    pane.innerHTML = `<div class="flex items-center justify-center h-full text-gray-600 text-xs">Select a project to view team activity.</div>`;
+    return;
+  }
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading team…</div>`;
   try {
-    const data = await api('/followed');
-    const items = data.items || [];
+    const data = await api('/projects/' + encodeURIComponent(proj) + '/tasks').catch(() => ({ tasks: [] }));
+    const items = data.tasks || [];
+    let html = `<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">`;
+    html += `<div class="flex items-center gap-2 mb-2">
+      <i class="fas fa-users text-orange-500"></i>
+      <h2 class="text-sm font-bold" style="color:var(--text)">Team</h2>
+      <span class="badge model-badge ml-1">${items.length}</span>
+    </div>`;
     if (!items.length) {
-      pane.innerHTML = `<div class="card p-4 text-sm text-gray-400">Nothing you're following right now.</div>`;
-      return;
-    }
-    let html = `<h2 class="text-sm font-bold text-white mb-3">Following (${items.length})</h2><div class="space-y-2">`;
-    for (const i of items) {
-      html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(i.id)}')">
-        <div class="text-sm text-white">${esc(i.title)}</div>
-        <div class="text-[11px] text-gray-500 mt-0.5">
-          <span class="text-blue-400">${esc(i.board || '')}</span>
-          ${i.assignee ? `· ${esc(i.assignee)}` : ''}
-          · ${esc(relDate(i.updated_at))}
-        </div>
+      html += `<div class="card p-6 text-center">
+        <i class="fas fa-users text-3xl text-gray-700 mb-3"></i>
+        <div class="text-sm" style="color:var(--text)">No Team Activity</div>
+        <div class="text-xs text-gray-500 mt-1">Configure a project tracker in Project Settings to see team items.</div>
       </div>`;
+    } else {
+      html += `<div class="space-y-2">`;
+      for (const i of items) {
+        html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(i.id)}')">
+          <div class="text-sm" style="color:var(--text)">${esc(i.title)}</div>
+          <div class="text-[11px] text-gray-500 mt-0.5">
+            <span class="text-blue-400">${esc(i.board || '')}</span>
+            ${i.assignee ? `· ${esc(i.assignee)}` : ''}
+            · ${esc(relDate(i.updated_at))}
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
     }
     html += `</div>`;
     pane.innerHTML = html;
@@ -468,7 +501,7 @@ async function executeTask(taskId, mode) {
 let COMP_VIEW = 'news';  // 'news' | 'list'
 
 async function loadCompetitors() {
-  const pane = document.getElementById('pane-competitors');
+  const pane = document.getElementById('pane-cortex');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading competitors…</div>`;
   try {
     const [comps, news] = await Promise.all([
@@ -2141,6 +2174,24 @@ async function loadSettings() {
     }
     html += `</div>`;
 
+    // Model Health section
+    html += `<div class="card p-4 mb-3">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-[10px] text-gray-500 uppercase">Model Health</div>
+        <span class="flex-1"></span>
+        <button onclick="runModelHealthCheck()" class="btn btn-ghost text-[10px]" id="btn-health-check"><i class="fas fa-heartbeat mr-1"></i>Test All</button>
+      </div>
+      <div id="model-health-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div class="text-[10px] text-gray-600">Click "Test All" to check model availability</div>
+      </div>
+    </div>`;
+
+    // Council Config section
+    html += `<div class="card p-4 mb-3" id="council-config-card">
+      <div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-users-gear mr-1"></i>Council of Experts</div>
+      <div id="council-config-body" class="text-[10px] text-gray-600">Loading…</div>
+    </div>`;
+
     // Config (collapsed)
     if (cfg) {
       html += `<details class="card p-4"><summary class="text-[10px] text-gray-500 uppercase cursor-pointer">Config (config.yaml)</summary>`;
@@ -2152,8 +2203,78 @@ async function loadSettings() {
     }
 
     pane.innerHTML = html;
+    loadCouncilConfig();
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Detection failed: ${esc(e.message)}</div>`;
+  }
+}
+
+async function runModelHealthCheck() {
+  const grid = document.getElementById('model-health-grid');
+  const btn = document.getElementById('btn-health-check');
+  if (!grid) return;
+  grid.innerHTML = '<div class="col-span-full text-[10px] text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Testing all models…</div>';
+  if (btn) btn.disabled = true;
+  try {
+    const data = await api('/models/health', { method: 'POST' });
+    const results = data.results || [];
+    let html = '';
+    for (const r of results) {
+      const ok = r.success;
+      const border = ok ? 'border-green-900' : 'border-red-900/50';
+      const icon = ok ? 'fa-check-circle text-green-400' : 'fa-times-circle text-red-400';
+      const latency = ok ? `<span class="text-gray-600">${r.latency_ms}ms</span>` : `<span class="text-red-400 truncate">${esc(r.error).slice(0, 30)}</span>`;
+      html += `<div class="flex items-center gap-1.5 px-2 py-1.5 rounded border ${border} text-[11px]">
+        <i class="fas ${icon}" style="font-size:8px"></i>
+        <span style="color:var(--text)" class="flex-1 truncate">${esc(r.model_id)}</span>
+        ${latency}
+      </div>`;
+    }
+    grid.innerHTML = html || '<div class="text-[10px] text-gray-600">No models configured</div>';
+  } catch (e) {
+    grid.innerHTML = `<div class="text-[10px] text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+  if (btn) btn.disabled = false;
+}
+
+async function loadCouncilConfig() {
+  const body = document.getElementById('council-config-body');
+  if (!body) return;
+  try {
+    const cfg = await api('/council/config');
+    let html = `<div class="space-y-2">`;
+    html += `<div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">Enabled</span>
+      <span class="text-xs ${cfg.enabled ? 'text-green-400' : 'text-red-400'}">${cfg.enabled ? 'Yes' : 'No'}</span>
+    </div>`;
+    html += `<div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">Approval threshold</span>
+      <span class="text-xs" style="color:var(--text)">${cfg.threshold} of N reviewers</span>
+    </div>`;
+    const flags = [
+      ['Auto-validate plans', cfg.auto_validate_plans],
+      ['Auto-review architecture', cfg.auto_review_architecture],
+      ['Auto-review PRs', cfg.auto_review_prs],
+    ];
+    for (const [label, val] of flags) {
+      html += `<div class="flex items-center justify-between">
+        <span class="text-xs text-gray-400">${label}</span>
+        <span class="text-xs ${val ? 'text-green-400' : 'text-gray-600'}">${val ? 'on' : 'off'}</span>
+      </div>`;
+    }
+    const contexts = Object.entries(cfg.reviewers || {});
+    if (contexts.length) {
+      html += `<div class="mt-2 border-t pt-2" style="border-color:var(--border)">`;
+      for (const [ctx, reviewers] of contexts) {
+        const enabled = reviewers.filter(r => r.enabled);
+        html += `<div class="text-[10px] text-gray-500 mt-1"><b>${esc(ctx)}</b>: ${enabled.map(r => esc(r.id)).join(', ') || 'none'}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<div class="text-[10px] text-gray-600">Council config not available</div>`;
   }
 }
 
@@ -2267,8 +2388,8 @@ async function loadRouting() {
 }
 
 // ── Process Intelligence ────────────────────────────────────────────────
-async function loadProcess() {
-  const pane = document.getElementById('pane-process');
+async function loadInsights() {
+  const pane = document.getElementById('pane-insights');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading process intelligence…</div>`;
   try {
     const [events, history, improve, landscape, activity] = await Promise.all([
@@ -2710,22 +2831,28 @@ async function autoConfigureSetup() {
 // ── iCPG ─────────────────────────────────────────────────────────────────
 let ICPG_PROJECT = null;
 
-async function loadICPG() {
-  const pane = document.getElementById('pane-icpg');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading iCPG…</div>`;
+async function loadCortex() {
+  const pane = document.getElementById('pane-cortex');
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading Cortex…</div>`;
   try {
+    const proj = ICPG_PROJECT || getProjectKey();
+    if (proj) {
+      ICPG_PROJECT = proj;
+      await loadICPGProject(proj);
+      return;
+    }
     const data = await api('/icpg/overview');
-    if (ICPG_PROJECT) { await loadICPGProject(ICPG_PROJECT); return; }
     pane.innerHTML = renderICPGOverview(data);
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
   }
 }
+async function loadICPG() { return loadCortex(); }
 
 function renderICPGOverview(data) {
   const t = data.total || {};
   let html = `<div class="overflow-y-auto h-full">`;
-  html += `<h2 class="text-sm font-bold text-white mb-3"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>iCPG — Intent Graph</h2>`;
+  html += `<h2 class="text-sm font-bold text-white mb-3"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>Cortex — Code Intelligence</h2>`;
   html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
     <div class="card p-3 text-center"><div class="text-xl font-bold text-orange-400">${t.reasons || 0}</div><div class="text-[10px] text-gray-500">ReasonNodes</div></div>
     <div class="card p-3 text-center"><div class="text-xl font-bold text-blue-400">${t.symbols || 0}</div><div class="text-[10px] text-gray-500">Symbols</div></div>
@@ -2763,7 +2890,7 @@ async function openICPGProject(key) {
 }
 
 async function loadICPGProject(key) {
-  const pane = document.getElementById('pane-icpg');
+  const pane = document.getElementById('pane-cortex');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading ${esc(key)}…</div>`;
   try {
     const [reasons, drift] = await Promise.all([
@@ -2779,7 +2906,7 @@ async function loadICPGProject(key) {
 function renderICPGProject(key, reasons, drift) {
   let html = `<div class="overflow-y-auto h-full">`;
   html += `<div class="flex items-center gap-2 mb-3">
-    <button onclick="ICPG_PROJECT=null;loadICPG()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
+    <button onclick="ICPG_PROJECT=null;loadCortex()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
     <h2 class="text-sm font-bold text-white"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>${esc(key)}</h2>
     <span class="text-[10px] text-gray-500">${(reasons.reasons||[]).length} intents</span>
     <div class="flex-1"></div>
@@ -2853,7 +2980,7 @@ function filterICPGIntents() {
 }
 
 async function loadICPGGraph(key) {
-  const pane = document.getElementById('pane-icpg');
+  const pane = document.getElementById('pane-cortex');
   try {
     const data = await api(`/icpg/${encodeURIComponent(key)}/graph?limit=150`);
     const nodes = data.nodes || [];
@@ -2916,9 +3043,11 @@ async function loadMemory() {
   const pane = document.getElementById('pane-memory');
   pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i>Loading memory...</div>';
   try {
+    const proj = getProjectKey();
+    const ns = proj ? '?namespace=' + encodeURIComponent(proj) : '';
     const [engramDiag, engramQuery] = await Promise.all([
-      api('/engram/diagnostics').catch(function() { return {}; }),
-      api('/engram/query?limit=5').catch(function() { return { records: [] }; })
+      api('/engram/diagnostics' + ns).catch(function() { return {}; }),
+      api('/engram/query?limit=5' + (proj ? '&namespace=' + encodeURIComponent(proj) : '')).catch(function() { return { records: [] }; })
     ]);
     var html = '<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">';
     html += '<div class="card p-4">';
@@ -2956,7 +3085,7 @@ async function loadMemory() {
 
 // ── Progress Dashboard ──────────────────────────────────────────────────
 async function loadProgress() {
-  var pane = document.getElementById('pane-progress');
+  var pane = document.getElementById('pane-insights');
   pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i>Loading progress...</div>';
   try {
     var [execSessions, signals] = await Promise.all([

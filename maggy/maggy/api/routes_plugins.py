@@ -16,14 +16,17 @@ router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 @router.get("")
 async def list_plugins(request: Request):
     """List loaded plugins and their hooks."""
-    pm = get_plugin_manager()
+    pm = getattr(request.app.state, "plugins", None) or get_plugin_manager()
     plugins = []
     for pid, manifest in pm.plugins.items():
         plugins.append({
             "id": manifest.id,
+            "name": manifest.id.replace("-", " ").title(),
+            "description": ", ".join(manifest.permissions) if manifest.permissions else "",
             "version": manifest.version,
             "permissions": manifest.permissions,
             "hooks": [h["event"] for h in manifest.hooks],
+            "status": "active",
         })
     return {"plugins": plugins, "total": len(plugins)}
 
@@ -31,7 +34,7 @@ async def list_plugins(request: Request):
 @router.post("/reload")
 async def reload_plugins(request: Request):
     """Reload all plugins from disk."""
-    pm = get_plugin_manager()
+    pm = getattr(request.app.state, "plugins", None) or get_plugin_manager()
     loaded = pm.load_all()
     return {"loaded": loaded}
 

@@ -257,7 +257,7 @@ class BuildInPublic:
 
     def __init__(self, manifest):
         self._manifest = manifest
-        self._config = getattr(manifest, 'config', manifest.get('config', {}))
+        self._config = getattr(manifest, 'config', {}) or {}
         self._anonymize = self._load_anonymize()
         self._customization = self._load_customization()
         self._tags = self._load_tags()
@@ -353,7 +353,7 @@ class BuildInPublic:
         path.write_text(json.dumps(self._project_state, indent=2))
 
     def _load_anonymize(self) -> dict:
-        manifest_path = getattr(self._manifest, 'path', self._manifest.get('_path', ''))
+        manifest_path = getattr(self._manifest, 'path', '')
         rules_path = Path(manifest_path) / "anonymize.yaml" if manifest_path else Path(__file__).parent / "anonymize.yaml"
         try:
             return yaml.safe_load(rules_path.read_text())

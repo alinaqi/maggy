@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.38.0] - 2026-05-25
+
+### Maggy: Council of Experts — Multi-Model Deliberation + Auto-Execution Gating
+
+3-round deliberation engine where AI models independently evaluate, cross-examine each other's feedback, and reach consensus. Approved changes are gated through blast radius analysis (file count, subsystem boundaries, test coverage) and validation classification (objective vs subjective). Only low-blast objective changes auto-execute; critical paths always require human review.
+
+#### Added
+- **Council deliberation** — async parallel reviewer queries, 3 rounds max (independent → cross-examine → final)
+- **Blast radius analyzer** — severity scoring (low/medium/high/critical), auth/UI/API detection
+- **Executor gate** — decision matrix with 4 actions: AUTO_EXECUTE, AUTO_WITH_ROLLBACK, AUTO_WITH_NOTIFY, HUMAN_REVIEW
+- **Audit log** — SQLite WAL persistence for all council decisions
+- **Council config** — YAML-based reviewer panels (plan, review, architecture), 13-tier model registry
+- 62 new tests across 6 test files
+
+#### Fixed
+- Build-in-public plugin: PluginManifest dataclass compatibility (was calling `.get()` on a dataclass)
+- Dashboard: project-scoped activity filter, plugin list improvements
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detailed changes.
+
+---
+
 ## [6.37.0] - 2026-05-24
 
 ### Maggy: Skill Protocols — Intent-Driven Execution

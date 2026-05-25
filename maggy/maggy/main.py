@@ -55,6 +55,7 @@ from maggy.api.routes_orchestrator import router as orchestrator_router
 from maggy.api.routes_pipeline import router as pipeline_router
 from maggy.api.routes_refresh import router as refresh_router
 from maggy.api.routes_shell import router as shell_router
+from maggy.api.routes_models import router as models_router
 from maggy.mesh.ws_server import router as ws_mesh_router
 from maggy.budget import BudgetManager
 from maggy.event_spine.emitter import EventEmitter
@@ -342,7 +343,7 @@ _ROUTERS = (
     cikg_router, deploy_router, editor_router, engram_router, escalation_router, icpg_router,
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,
-    mesh_router, mesh_admin_router, observability_router,
+    mesh_router, mesh_admin_router, models_router, observability_router,
     orchestrator_router, pipeline_router, planning_router, plugins_router,
     process_router, projects_router, refresh_router, routing_router,
     setup_router, shell_router, skills_router, system_router, testing_router, users_router,

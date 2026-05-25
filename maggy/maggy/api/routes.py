@@ -54,9 +54,23 @@ async def health(request: Request) -> dict:
 
 
 @router.get("/activity")
-async def get_activity(request: Request) -> dict:
-    """Live CLI sessions + recent prompts. No credentials needed."""
-    return request.app.state.activity.get_activity()
+async def get_activity(
+    request: Request,
+    project: str | None = Query(None),
+) -> dict:
+    """Live CLI sessions + recent prompts. Optional project filter."""
+    data = request.app.state.activity.get_activity()
+    if project:
+        pl = project.lower()
+        data["sessions"] = [
+            s for s in data["sessions"]
+            if (s.get("project") or "").lower() == pl
+        ]
+        data["recent"] = [
+            r for r in data["recent"]
+            if (r.get("project") or "").lower() == pl
+        ]
+    return data
 
 
 @router.get("/discovery")
