@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.38.1] - 2026-05-26
+
+### Maggy: Model Health + Dashboard Regression Guards
+
+#### Added
+- **Model health checker** — parallel ping of all configured models with allowlist/blocklist security, timeout handling, latency tracking
+- **Sidebar structure tests** — regression guards for tab/pane consistency, catches stale HTML after dashboard changes
+- **Project scoping tests** — verifies JS functions pass project keys to API endpoints (inbox, team, cortex, memory, plugins)
+- **Routes models tests** — structural checks for model/health/council API endpoints
+- 30 new tests across 4 test files
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detailed changes.
+
+---
+
 ## [6.38.0] - 2026-05-25
 
 ### Maggy: Council of Experts — Multi-Model Deliberation + Auto-Execution Gating

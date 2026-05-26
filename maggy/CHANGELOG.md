@@ -4,6 +4,19 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.38.1] - 2026-05-26
+
+### Model Health + Dashboard Regression Guards
+
+#### Added
+- `maggy/services/model_health.py` — parallel health checks via ThreadPoolExecutor, command allowlist/blocklist, timeout + latency tracking
+- `tests/test_model_health.py` — 7 tests: success, output capture, missing binary, timeout, parallel, null cmd, allowlist security
+- `tests/test_sidebar_structure.py` — 8 tests: tab/pane consistency, stale tab detection, plugin pane isolation
+- `tests/test_project_scoping.py` — 9 tests: project key passed to inbox, team, cortex, memory, plugins, activity endpoints
+- `tests/test_routes_models.py` — 5 tests: routes_models.py exists, exposes list/health/council endpoints, registered in main
+
+---
+
 ## [6.38.0] - 2026-05-25
 
 ### Council of Experts — Multi-Model Deliberation + Auto-Execution Gating
