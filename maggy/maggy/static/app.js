@@ -2577,9 +2577,66 @@ async function refreshSystemStatus() {
     let html = _renderToolPills(data.clis || [], 'ai');
     html += _renderToolPills(data.tools || [], 'dev');
     container.innerHTML = html;
+    _lastSetupData = data;
+    _showSetupModal(data);
   } catch (e) {
     container.innerHTML = '';
   }
+}
+
+var _lastSetupData = null;
+
+function closeSetupModal() {
+  var ov = document.getElementById('setup-modal-overlay');
+  if (ov) ov.classList.add('hidden');
+}
+
+function _showSetupModal(data) {
+  var ov = document.getElementById('setup-modal-overlay');
+  var body = document.getElementById('setup-modal-body');
+  if (!ov || !body) return;
+  ov.classList.remove('hidden');
+  var cats = {};
+  var all = (data.clis || []).concat(data.tools || []);
+  for (var i = 0; i < all.length; i++) {
+    var t = all[i];
+    var cat = t.category || 'other';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(t);
+  }
+  var catLabels = { ai: 'AI Models', dev: 'Dev Tools', lint: 'Linting', type: 'Type Checking', test: 'Testing', infra: 'Infrastructure', deploy: 'Deployment', scm: 'Source Control', pkg: 'Package Managers', other: 'Other' };
+  var catIcons = { ai: 'fa-robot', dev: 'fa-wrench', lint: 'fa-broom', type: 'fa-spell-check', test: 'fa-vial', infra: 'fa-server', deploy: 'fa-rocket', scm: 'fa-code-branch', pkg: 'fa-box', other: 'fa-ellipsis' };
+  var html = '';
+  var totalOk = 0, totalAll = 0;
+  for (var c in cats) {
+    var items = cats[c];
+    var label = catLabels[c] || c;
+    var icon = catIcons[c] || 'fa-circle';
+    html += '<div class="mb-3"><div class="flex items-center gap-1.5 mb-1.5 text-[11px] text-gray-300 font-semibold"><i class="fas ' + icon + ' text-orange-400/70" style="font-size:10px"></i>' + esc(label) + '</div>';
+    html += '<div class="grid grid-cols-2 gap-1">';
+    for (var j = 0; j < items.length; j++) {
+      var item = items[j];
+      totalAll++;
+      var ok = item.installed;
+      if (ok) totalOk++;
+      var dotCls = ok ? 'text-green-400' : 'text-gray-600';
+      var ico = ok ? 'fa-circle-check' : 'fa-circle-xmark';
+      var nameCls = ok ? 'text-gray-300' : 'text-gray-600';
+      var pathTip = item.path ? ' title="' + esc(item.path) + '"' : '';
+      html += '<div class="flex items-center gap-1.5 py-0.5 px-1.5 rounded" style="background:rgba(255,255,255,0.02)"' + pathTip + '>';
+      html += '<i class="fas ' + ico + ' ' + dotCls + '" style="font-size:9px"></i>';
+      html += '<span class="' + nameCls + '">' + esc(item.name) + '</span>';
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+  var summary = '<div class="flex items-center gap-2 mb-4 py-2 px-3 rounded" style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15)">';
+  summary += '<i class="fas fa-circle-check text-green-400" style="font-size:11px"></i>';
+  summary += '<span class="text-gray-300"><span class="text-white font-bold">' + totalOk + '</span> tools available</span>';
+  var missing = totalAll - totalOk;
+  if (missing > 0) summary += '<span class="ml-auto text-[10px] text-gray-600">' + missing + ' not installed</span>';
+  summary += '</div>';
+  body.innerHTML = summary + html;
 }
 
 function _renderToolPills(tools, group) {

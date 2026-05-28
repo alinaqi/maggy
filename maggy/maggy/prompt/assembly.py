@@ -36,6 +36,7 @@ class PromptAssemblyService:
         try:
             sections = self._stable_sections(project_key)
             sections += self._context_sections(working_dir)
+            sections += self._tooling_section()
             sections += self._skill_sections(
                 working_dir, project_key,
             )
@@ -82,6 +83,29 @@ class PromptAssemblyService:
             ),
             priority=14,
         )
+
+    def _tooling_section(self) -> list[PromptSection]:
+        try:
+            from maggy.services.project_bootstrap import (
+                detect_cli_inventory,
+                detect_dev_tools,
+            )
+            ai = [c.name for c in detect_cli_inventory() if c.installed]
+            dev = [c.name for c in detect_dev_tools() if c.installed]
+            if not ai and not dev:
+                return []
+            parts: list[str] = []
+            if ai:
+                parts.append("AI models: " + ", ".join(ai))
+            if dev:
+                parts.append("Dev tools: " + ", ".join(dev))
+            content = "## Available Tooling\n" + "\n".join(parts)
+            return [PromptSection(
+                id="tooling", layer="context",
+                content=content, priority=7,
+            )]
+        except Exception:
+            return []
 
     def _skill_sections(
         self, working_dir: str, project_key: str,

@@ -62,7 +62,7 @@ def _git_dict(g: GitState) -> dict:
 
 
 _AI_CLIS = [
-    "claude", "codex", "kimi", "deepseek", "ollama",
+    "claude", "codex", "kimi", "deepseek", "qwen3", "ollama",
     "gemini", "grok", "agy",
 ]
 

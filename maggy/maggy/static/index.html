@@ -193,7 +193,7 @@
           <span>live</span>
         </div>
         <button onclick="toggleTheme()" class="btn btn-ghost text-[10px]" title="Toggle light/dark mode" id="btn-theme"><i class="fas fa-moon" style="font-size:10px"></i></button>
-        <button onclick="refreshSystemStatus()" class="btn btn-ghost text-[10px]" title="Auto-detect setup" id="btn-detect"><i class="fas fa-radar" style="font-size:10px"></i></button>
+        <button onclick="refreshSystemStatus()" class="btn btn-ghost text-[10px]" title="Auto-detect setup" id="btn-detect"><i class="fas fa-satellite-dish" style="font-size:10px"></i></button>
         <button onclick="loadAll()" class="btn btn-ghost text-[10px]" title="Refresh all"><i class="fas fa-sync-alt"></i></button>
       </div>
     </header>
@@ -390,8 +390,24 @@
     <div id="drawer-body" class="text-sm text-gray-300"></div>
   </div>
 
+  <!-- Setup Detection Modal -->
+  <div id="setup-modal-overlay" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" onclick="if(event.target===this)closeSetupModal()" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+    <div class="glass-card p-5 w-[480px] max-w-[90vw] max-h-[70vh] overflow-y-auto scroll-thin" style="border-color:var(--border)">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-satellite-dish text-orange-500"></i>
+          <h3 class="text-sm font-bold text-white">Setup Detection</h3>
+        </div>
+        <button onclick="closeSetupModal()" class="text-gray-400 hover:text-white"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div id="setup-modal-body" class="text-xs text-gray-400">
+        <div class="flex items-center justify-center py-8"><i class="fas fa-spinner fa-spin text-orange-400 mr-2"></i>Detecting setup...</div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/app.js?v=15"></script>
+  <script src="/static/app.js?v=16"></script>
   <script>
     document.addEventListener('keydown', function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -400,7 +416,7 @@
       if ((e.metaKey || e.ctrlKey) && e.key === 's' && typeof _activeEditorTab !== 'undefined' && _activeEditorTab !== '__chat__') {
         e.preventDefault(); saveEditorTab(_activeEditorTab);
       }
-      if (e.key === 'Escape') { closeProjectSearch(); closeNewSession(); closeDrawer(); }
+      if (e.key === 'Escape') { closeProjectSearch(); closeNewSession(); closeDrawer(); closeSetupModal(); }
     });
 
     function openProjectSearch() {
