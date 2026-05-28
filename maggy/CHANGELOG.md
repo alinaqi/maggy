@@ -4,6 +4,35 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.39.0] - 2026-05-28
+
+### Layered System Prompt Architecture (ADR-001)
+
+Council-approved 3-layer prompt system replacing the static system prompt. Maggy now assembles context-aware prompts dynamically based on where it's running — existing project, git workspace, or empty directory.
+
+#### Added
+- `maggy/prompt/modes.py` — mode detection (project/workspace/bootstrap) with confidence scoring and marker tracking
+- `maggy/prompt/sections.py` — composable PromptSection dataclass + stable layer builders (identity, capabilities, rules, mode semantics, safety)
+- `maggy/prompt/context_layer.py` — context layer: file tree, git state, tech stack detection, CLAUDE.md loading, mode display
+- `maggy/prompt/assembly.py` — PromptAssemblyService combining all layers with fallback to legacy prompt on error
+- `maggy/prompt/skill_index.py` — Hermes-style compact skill index (one-line per skill in prompt, not full content dump)
+- `maggy/services/chat_grounding.py` — balanced grounding instructions covering code AND non-code tasks (research, planning, brainstorming)
+- `docs/ADRs/001-layered-system-prompt.md` — full council verdict with 8 design decisions
+- `docs/ADRs/002-agy-prototype-evaluation.md` — prototype assessment and adoption strategy
+- 40 new tests across 6 test files (modes, sections, context, assembly, skill_index, chat_grounding)
+
+#### Changed
+- `maggy/services/chat_stream.py` — `_build_system_prompt()` now uses PromptAssemblyService instead of static string; removed `_load_skills()` full-content dump (skills now indexed via assembly)
+
+#### Architecture
+| Layer | Lifetime | Content |
+|-------|----------|---------|
+| Stable | Per session, cacheable | Identity, capabilities, rules, safety |
+| Context | Session + invalidation | Mode, file tree, git state, tech stack, CLAUDE.md, skill index |
+| Volatile | Per turn (future) | Intent flags, conversation state |
+
+---
+
 ## [6.38.1] - 2026-05-26
 
 ### Model Health + Dashboard Regression Guards
