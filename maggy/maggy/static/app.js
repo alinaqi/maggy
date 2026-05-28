@@ -759,7 +759,7 @@ function renderChatMain() {
     html += `<div id="editor-tab-bar" class="hidden shrink-0 flex items-center gap-0 border-b overflow-x-auto scroll-thin" style="border-color:var(--border);background:rgba(10,13,20,0.6);min-height:28px;"></div>`;
     // Messages scroll area (wrapped for show/hide)
     html += `<div id="chat-content-area" class="flex-1 overflow-hidden min-h-0 flex flex-col">`;
-    html += `<div id="chat-messages" class="flex-1 overflow-y-auto min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3 pb-4"></div></div>`;
+    html += `<div id="chat-messages" class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3 pb-4 min-w-0"></div></div>`;
     html += `</div>`;
     // Editor panes container (hidden by default)
     html += `<div id="editor-panes-container" class="hidden flex-1 overflow-hidden min-h-0"></div>`;
@@ -930,14 +930,14 @@ function renderHistoryContext(ctx) {
 
 function renderUserMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
-  return `<div class="flex justify-end px-2"><div class="max-w-[65%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
-    <div class="text-xs text-white whitespace-pre-wrap break-words">${esc(m.content)}</div>${ts}
+  return `<div class="flex justify-end px-2 min-w-0"><div class="max-w-[65%] min-w-0 bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
+    <div class="text-xs text-white whitespace-pre-wrap break-words overflow-hidden">${esc(m.content)}</div>${ts}
   </div></div>`;
 }
 
 function renderAssistantMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
-  return `<div class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
+  return `<div class="flex justify-start min-w-0"><div class="max-w-[75%] min-w-0 card px-3 py-2 overflow-hidden">
     ${renderMd(m.content)}${ts}
   </div></div>`;
 }
@@ -2012,9 +2012,9 @@ async function sendChatMessage() {
   const outer = document.getElementById('chat-messages');
   const el = document.getElementById('chat-messages-inner') || outer;
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
-  el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
-    <div id="stream-text" class="text-xs text-gray-300"></div>
-    <div id="stream-tools" class="mt-1"></div>
+  el.innerHTML += `<div id="stream-response" class="flex justify-start min-w-0"><div class="max-w-[75%] min-w-0 card px-3 py-2 overflow-hidden">
+    <div id="stream-text" class="text-xs text-gray-300 chat-md overflow-hidden"></div>
+    <div id="stream-tools" class="mt-1 overflow-hidden"></div>
   </div></div>`;
   if (outer) outer.scrollTop = outer.scrollHeight;
   showWorking();
