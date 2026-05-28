@@ -14,6 +14,8 @@ def skill_index_section(skills: list[Skill]) -> PromptSection:
     lines: list[str] = []
     for skill in skills:
         meta = skill.metadata
+        if not meta.name:
+            continue
         tag = " [/invocable]" if meta.user_invocable else ""
         lines.append(f"- **{meta.name}**: {meta.description}{tag}")
     content = "## Available Skills\n" + "\n".join(lines)
