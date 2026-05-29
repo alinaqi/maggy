@@ -20,12 +20,13 @@ from maggy.prompt.sections import (
     safety_section,
 )
 from maggy.prompt.skill_index import skill_index_section
+from maggy.skills.selective import build_skill_index
 
 _FALLBACK = (
-    "You are Maggy, an autonomous AI engineering assistant.\n"
-    "Help with coding, debugging, research, planning, "
-    "architecture, and any engineering task.\n"
-    "Be concise. Read code before answering code questions."
+    "You are Maggy, an autonomous AI engineering agent.\n"
+    "Execute tasks directly — edit files, run commands, run tests. "
+    "Never tell the user what to do; do it yourself and report the result.\n"
+    "Be concise. Read code before making changes."
 )
 
 
@@ -119,8 +120,13 @@ class PromptAssemblyService:
                 reg.load_project(project_key, working_dir)
             skills = reg.resolve(project_key or None)
             matched = match_skills(skills, working_dir)
-            section = skill_index_section(matched)
-            return [section] if section.content else []
+            index = build_skill_index(matched)
+            if not index:
+                return []
+            return [PromptSection(
+                id="skill_index", layer="context",
+                content=index, priority=8,
+            )]
         except Exception:
             return []
 

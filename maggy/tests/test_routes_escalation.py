@@ -9,11 +9,10 @@ def _app(tmp_path):
     """Build a minimal FastAPI app with escalation router."""
     from fastapi import FastAPI
     from maggy.api.routes_escalation import router
-    from maggy.config import DashboardConfig, MaggyConfig, OrgConfig, StorageConfig
+    from maggy.config import DashboardConfig, MaggyConfig, StorageConfig
     from maggy.escalation.protocol import Escalator
 
     cfg = MaggyConfig(
-        org=OrgConfig(name="test"),
         storage=StorageConfig(path=str(tmp_path / "store.db")),
         dashboard=DashboardConfig(),
     )

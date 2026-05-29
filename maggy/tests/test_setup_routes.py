@@ -69,16 +69,6 @@ class TestSetupStatus:
 
 class TestSetupConfigure:
     @patch("maggy.config.save")
-    def test_updates_org(self, mock_save, client):
-        resp = client.post(
-            "/api/setup/configure",
-            json={"org_name": "Protaige"},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["saved"] is True
-        mock_save.assert_called_once()
-
-    @patch("maggy.config.save")
     def test_updates_github_repos(
         self, mock_save, client,
     ):

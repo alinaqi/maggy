@@ -45,7 +45,6 @@ async def health(request: Request) -> dict:
         "version": "0.1.0",
         "mode": mode,
         "provider": cfg.issue_tracker.provider,
-        "org": cfg.org.name,
         "codebases": len(cfg.codebases),
         "competitors_enabled": bool(
             cfg.competitors.categories,
@@ -90,8 +89,24 @@ async def get_discovery(request: Request) -> dict:
 @router.get("/config")
 async def get_config(request: Request, x_api_key: str | None = Header(None)) -> dict:
     _auth(request, x_api_key)
+    return _serialize_config(request.app.state.cfg)
+
+
+@router.patch("/config")
+async def patch_config(request: Request, x_api_key: str | None = Header(None)) -> dict:
+    _auth(request, x_api_key)
+    from maggy.config import save
+    body = await request.json()
     cfg = request.app.state.cfg
-    # Redact secrets before returning
+    _apply_patch(cfg, body)
+    save(cfg)
+    return _serialize_config(cfg)
+
+
+_REDACTED = {"api_key", "token", "org_key_secret"}
+
+
+def _serialize_config(cfg) -> dict:
     import os as _os
     return {
         "env": {
@@ -99,13 +114,39 @@ async def get_config(request: Request, x_api_key: str | None = Header(None)) -> 
             "ASANA_TOKEN": bool(_os.environ.get("ASANA_TOKEN")),
             "MONDAY_TOKEN": bool(_os.environ.get("MONDAY_TOKEN")),
         },
-        "org": {"name": cfg.org.name, "domain": cfg.org.domain},
         "issue_tracker": {"provider": cfg.issue_tracker.provider},
         "codebases": [{"key": c.key, "path": c.path} for c in cfg.codebases],
-        "competitors": {"categories": cfg.competitors.categories, "seed": cfg.competitors.seed},
-        "okrs": {"source": cfg.okrs.source, "count": len(cfg.okrs.items)},
         "ai": {"provider": cfg.ai.provider, "model": cfg.ai.model, "has_key": bool(cfg.ai.api_key)},
+        "budget": {
+            "daily_limit_usd": cfg.budget.daily_limit_usd,
+            "warning_threshold": cfg.budget.warning_threshold,
+        },
+        "dashboard": {
+            "host": cfg.dashboard.host,
+            "port": cfg.dashboard.port,
+            "auth_mode": cfg.dashboard.auth_mode,
+        },
+        "routing": {"mode": cfg.routing.mode},
     }
+
+
+def _apply_patch(cfg, body: dict) -> None:
+    _SECTIONS = {
+        "issue_tracker": cfg.issue_tracker,
+        "ai": cfg.ai,
+        "budget": cfg.budget,
+        "dashboard": cfg.dashboard,
+        "routing": cfg.routing,
+    }
+    for section, values in body.items():
+        target = _SECTIONS.get(section)
+        if not target or not isinstance(values, dict):
+            continue
+        for key, val in values.items():
+            if key in _REDACTED:
+                continue
+            if hasattr(target, key):
+                setattr(target, key, val)
 
 
 # ── Inbox ────────────────────────────────────────────────────────────────

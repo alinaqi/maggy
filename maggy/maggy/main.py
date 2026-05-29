@@ -55,6 +55,7 @@ from maggy.api.routes_orchestrator import router as orchestrator_router
 from maggy.api.routes_pipeline import router as pipeline_router
 from maggy.api.routes_refresh import router as refresh_router
 from maggy.api.routes_shell import router as shell_router
+from maggy.api.routes_approval import router as approval_router
 from maggy.api.routes_models import router as models_router
 from maggy.mesh.ws_server import router as ws_mesh_router
 from maggy.budget import BudgetManager
@@ -109,6 +110,8 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     session_store = SessionStore(db_dir / "sessions.db")
     app.state.session_store = session_store
     app.state.chat = ChatManager(cfg, store=session_store)
+    from maggy.services.approval import ApprovalStore
+    app.state.approval_store = ApprovalStore(str(db_dir / "approvals.db"))
     from maggy.registry import ProjectRegistry
     app.state.registry = ProjectRegistry(cfg)
     from maggy.escalation.protocol import Escalator
@@ -338,7 +341,7 @@ class _NoCacheStatic(BaseHTTPMiddleware):
 
 
 _ROUTERS = (
-    aggregator_router, api_router, blueprints_router, budget_router,
+    aggregator_router, api_router, approval_router, blueprints_router, budget_router,
     chat_router, chat_sessions_router,
     cikg_router, deploy_router, editor_router, engram_router, escalation_router, icpg_router,
     events_router, forge_router, heartbeat_router,

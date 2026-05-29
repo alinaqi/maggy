@@ -30,7 +30,6 @@ def render_health(data: dict) -> None:
     t.add_column()
     t.add_row("Status", f"[green]{data.get('status', '?')}[/green]")
     t.add_row("Mode", data.get("mode", "?"))
-    t.add_row("Org", data.get("org", "?"))
     t.add_row("Codebases", str(data.get("codebases", 0)))
     t.add_row("Provider", data.get("provider", "?"))
     console.print(Panel(t, title="Maggy Status", border_style="blue"))

@@ -22,7 +22,6 @@ from maggy.config import (
     DashboardConfig,
     MaggyConfig,
     MeshConfig,
-    OrgConfig,
     RoutingConfig,
     StorageConfig,
 )
@@ -46,7 +45,6 @@ from maggy.routing import RoutingService
 def app_with_services(tmp_path: Path) -> FastAPI:
     """Build a FastAPI app with all services wired."""
     cfg = MaggyConfig(
-        org=OrgConfig(name="test-org", domain="devtools"),
         storage=StorageConfig(path=str(tmp_path / "store.db")),
         dashboard=DashboardConfig(auth_mode="local"),
         budget=BudgetConfig(daily_limit_usd=10.0),

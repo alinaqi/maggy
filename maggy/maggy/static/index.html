@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="en" class="dark">
-<script>if(localStorage.getItem('maggy-theme')==='light'){document.documentElement.classList.replace('dark','light')}</script>
+<html lang="en" class="light">
+<script>if(localStorage.getItem('maggy-theme')==='dark'){document.documentElement.classList.replace('light','dark')}</script>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -184,7 +184,7 @@
         <span class="text-gray-700">·</span>
         <span id="header-model" class="badge model-badge hidden"></span>
         <span id="header-blast" class="hidden text-gray-500"></span>
-        <span id="header-clis" class="flex items-center gap-1 ml-2"></span>
+        <span id="header-clis" class="hidden"></span>
         <span class="flex-1"></span>
       </div>
       <div class="flex items-center gap-2">
@@ -192,14 +192,13 @@
           <span class="w-1.5 h-1.5 rounded-full bg-green-500 pulse-glow"></span>
           <span>live</span>
         </div>
-        <button onclick="toggleTheme()" class="btn btn-ghost text-[10px]" title="Toggle light/dark mode" id="btn-theme"><i class="fas fa-moon" style="font-size:10px"></i></button>
-        <button onclick="refreshSystemStatus()" class="btn btn-ghost text-[10px]" title="Auto-detect setup" id="btn-detect"><i class="fas fa-satellite-dish" style="font-size:10px"></i></button>
+        <button onclick="toggleTheme()" class="btn btn-ghost text-[10px]" title="Toggle light/dark mode" id="btn-theme"><i class="fas fa-sun" style="font-size:10px"></i></button>
         <button onclick="loadAll()" class="btn btn-ghost text-[10px]" title="Refresh all"><i class="fas fa-sync-alt"></i></button>
       </div>
     </header>
     <main class="flex-1 overflow-hidden">
       <div id="pane-chat" class="h-full"><div class="flex items-center justify-center h-full text-gray-600 text-xs">Loading chat...</div></div>
-      <div id="pane-inbox" class="h-full p-4 hidden"></div>
+      <div id="pane-inbox" class="h-full p-4 hidden overflow-y-auto"></div>
       <div id="pane-team" class="h-full p-4 hidden"></div>
       <div id="pane-cortex" class="h-full p-4 hidden"></div>
       <div id="pane-plugins" class="h-full p-4 hidden"></div>
@@ -255,7 +254,7 @@
           </div>
         </div>
       </div>
-      <div id="pane-settings" class="h-full p-4 hidden"></div>
+      <div id="pane-settings" class="h-full p-4 hidden overflow-y-auto"></div>
       <div id="pane-issues" class="h-full p-4 hidden"></div>
       <div id="pane-project-settings" class="h-full hidden">
         <div class="pane-content">
@@ -407,7 +406,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/app.js?v=16"></script>
+  <script src="/static/app.js?v=22"></script>
   <script>
     document.addEventListener('keydown', function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

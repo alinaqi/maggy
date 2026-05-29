@@ -6,7 +6,7 @@ let CURRENT_TAB = 'chat';
 
 // ── Theme ──────────────────────────────────────────────────────────────
 function getTheme() {
-  return localStorage.getItem('maggy-theme') || 'dark';
+  return localStorage.getItem('maggy-theme') || 'light';
 }
 function applyTheme(theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -62,10 +62,42 @@ function safeHref(url) {
 }
 
 // ── Markdown renderer (uses marked.js CDN, falls back to pre) ─────────
+function _mergeBashDetails(blocks) {
+  let inner = '';
+  for (const block of blocks) {
+    const m = block.match(/<summary\b[^>]*>[\s\S]*?<\/summary>([\s\S]*?)<\/details>/i);
+    if (m) inner += m[1];
+  }
+  return '<details class="bash-group"><summary class="bash-group-summary">Bash (' + blocks.length + ')</summary>' + inner + '</details>';
+}
+
+function groupBashBlocks(html) {
+  const re = /<details\b[^>]*>([\s\S]*?)<\/details>/gi;
+  const matches = Array.from(html.matchAll(re));
+  if (!matches.length) return html;
+  const bashRe = /<summary\b[^>]*>\s*Bash\s*<\/summary>/i;
+  const bashMatches = matches.filter(m => bashRe.test(m[1]));
+  if (bashMatches.length <= 1) return html;
+  // Collapse every Bash <details> in the message into a single grouped card
+  // placed at the position of the first Bash block. Non-Bash content keeps
+  // its original location.
+  const merged = _mergeBashDetails(bashMatches.map(m => m[0]));
+  let out = '';
+  let idx = 0;
+  let placed = false;
+  for (const m of bashMatches) {
+    out += html.slice(idx, m.index);
+    if (!placed) { out += merged; placed = true; }
+    idx = m.index + m[0].length;
+  }
+  out += html.slice(idx);
+  return out;
+}
+
 function renderMd(raw) {
   if (!raw) return '';
   if (typeof marked !== 'undefined') {
-    return '<div class="chat-md text-xs text-gray-300">' + marked.parse(raw) + '</div>';
+    return '<div class="chat-md text-xs text-gray-300">' + groupBashBlocks(marked.parse(raw)) + '</div>';
   }
   return '<pre class="text-xs text-gray-300 whitespace-pre-wrap">' + esc(raw) + '</pre>';
 }
@@ -284,10 +316,70 @@ async function loadInbox(refresh = false) {
     }
     html += `</div></div>`;
   }
-  if (!sessions.length && !recent.length && !items.length) {
-    html = `<div class="card p-4 text-sm text-gray-400">No activity detected. Start a Claude, Codex, or Kimi session to see it here.</div>`;
+  const [pendingApprovals, approvalHistory] = await Promise.all([
+    api('/approval/pending').catch(() => ({ items: [] })),
+    api('/approval/history?limit=20').catch(() => ({ items: [] })),
+  ]);
+  const pending = pendingApprovals.items || [];
+  const resolved = approvalHistory.items || [];
+  if (pending.length) {
+    html += `<div class="mb-4"><div class="flex items-center gap-3 mb-2">
+      <h2 class="text-sm font-bold text-white"><i class="fas fa-shield-halved mr-1 text-yellow-400"></i>Pending Approvals (${pending.length})</h2>
+    </div><div class="space-y-2">`;
+    for (const a of pending) {
+      html += `<div class="card p-3 border border-yellow-900/50">
+        <div class="flex items-start gap-3">
+          <div class="text-xs font-mono text-yellow-400 mt-0.5">${esc(a.action)}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white">${esc(a.context || '').substring(0, 120)}</div>
+            <div class="text-[10px] text-gray-500 mt-1">${esc(relDate(a.created_at))}</div>
+          </div>
+          <div class="flex gap-1 shrink-0">
+            <button onclick="approvalAction('${jsStr(a.id)}','approve')" class="text-[10px] px-2 py-1 rounded bg-green-700 hover:bg-green-600 text-white">Approve</button>
+            <button onclick="approvalAction('${jsStr(a.id)}','reject')" class="text-[10px] px-2 py-1 rounded bg-red-700 hover:bg-red-600 text-white">Reject</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  if (resolved.length) {
+    html += `<div class="mb-4"><div class="flex items-center gap-3 mb-2">
+      <h2 class="text-sm font-bold text-white"><i class="fas fa-clock-rotate-left mr-1 text-gray-400"></i>Approval History</h2>
+    </div><div class="space-y-1">`;
+    for (const a of resolved) {
+      const badge = a.status === 'approved'
+        ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-green-900 text-green-300">approved</span>'
+        : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">rejected</span>';
+      html += `<div class="card p-2 flex items-center gap-2">
+        <span class="text-[10px] font-mono text-gray-400 w-16">${esc(a.action)}</span>
+        ${badge}
+        <span class="text-[11px] text-gray-300 flex-1 truncate">${esc(a.context || '').substring(0, 80)}</span>
+        <span class="text-[10px] text-gray-500 shrink-0">${a.resolved_by ? esc(a.resolved_by) + ' · ' : ''}${esc(relDate(a.resolved_at || a.created_at))}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  if (!sessions.length && !recent.length && !items.length && !pending.length && !resolved.length) {
+    html = `<div class="card p-4 text-sm text-gray-400">
+      <div class="mb-2"><i class="fas fa-inbox mr-1 text-orange-400"></i>Inbox is empty</div>
+      <div class="text-[11px] text-gray-500 space-y-1">
+        <div>• Connect an issue tracker (Asana, GitHub, Linear) in Settings to see assigned tasks</div>
+        <div>• AI tool executions and approval requests will appear here</div>
+        <div>• Active CLI sessions show when Claude, Codex, or Kimi are running</div>
+      </div>
+    </div>`;
   }
   pane.innerHTML = html;
+}
+
+async function approvalAction(id, action) {
+  try {
+    await api(`/approval/${id}/${action}`, { method: 'POST' });
+    loadInbox();
+  } catch (e) {
+    console.error('Approval action failed:', e);
+  }
 }
 
 // ── Issues (raw tracker view) ───────────────────────────────────────────
@@ -2067,7 +2159,29 @@ async function streamChatResponse(message, el) {
         if (data.type === 'tool_use' && toolsEl) {
           var tool = data.tool || data.content || 'tool';
           var toolInput = data.input ? JSON.stringify(data.input).substring(0, 200) : '';
-          toolsEl.innerHTML += '<div class="card p-1.5 my-1 cursor-pointer" onclick="var d=this.querySelector(\'.tool-detail\');if(d)d.classList.toggle(\'hidden\')"><div class="flex items-center gap-1.5 text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50"></i><span class="text-orange-400/60">' + esc(tool) + '</span><i class="fas fa-chevron-down text-[7px] ml-auto text-gray-600"></i></div><div class="tool-detail hidden mt-1 p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div></div>';
+          // Group all same-type tools within this turn into one collapsible
+          // card, even when other event types (agent_status, protocol_step)
+          // arrive between them.
+          var groupSel = '[data-tool-group="' + tool.replace(/"/g, '\\"') + '"]';
+          var existingGroup = toolsEl.querySelector(groupSel);
+          if (existingGroup) {
+            var body = existingGroup.querySelector('.tool-group-body');
+            var countEl = existingGroup.querySelector('.tool-group-count');
+            if (body) {
+              var entry = document.createElement('div');
+              entry.className = 'py-1 border-t border-gray-800/40';
+              entry.innerHTML = '<div class="tool-detail mt-1 p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div>';
+              body.appendChild(entry);
+            }
+            if (countEl) {
+              var n = parseInt(countEl.textContent.replace(/[()]/g, ''), 10) || 1;
+              countEl.textContent = '(' + (n + 1) + ')';
+            }
+          } else {
+            var groupId = 'tool-group-' + tool.replace(/[^a-zA-Z0-9]/g, '_') + '-' + Date.now();
+            var groupHtml = '<div id="' + groupId + '" data-tool-group="' + esc(tool) + '" class="card p-1.5 my-1 cursor-pointer" onclick="var b=this.querySelector(\'.tool-group-body\'),c=this.querySelector(\'.tool-chevron\');if(b){b.classList.toggle(\'hidden\');c.classList.toggle(\'fa-chevron-down\');c.classList.toggle(\'fa-chevron-up\');}"><div class="flex items-center gap-1.5 text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50"></i><span class="text-orange-400/60">' + esc(tool) + '</span><span class="tool-group-count text-[9px] text-gray-600">(1)</span><i class="tool-chevron fas fa-chevron-down text-[7px] ml-auto text-gray-600"></i></div><div class="tool-group-body hidden mt-1"><div class="py-1"><div class="tool-detail p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div></div></div></div>';
+            toolsEl.insertAdjacentHTML('beforeend', groupHtml);
+          }
           el.scrollTop = el.scrollHeight;
           continue;
         }
@@ -2144,14 +2258,39 @@ async function loadSettings() {
     const clis = sys.clis || [];
     const installed = clis.filter(c => c.installed);
     const missing = clis.filter(c => !c.installed);
-    html += `<div class="card p-4 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2">AI Models (${installed.length}/${clis.length})</div>`;
-    html += `<div class="flex flex-wrap gap-1.5">`;
+    html += `<div class="card p-4 mb-3">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-[10px] text-gray-500 uppercase">AI Models (${installed.length}/${clis.length})</div>
+        <span class="flex-1"></span>
+        <button onclick="toggleAddModelForm()" class="btn btn-ghost text-[10px]" id="btn-add-model"><i class="fas fa-plus mr-1"></i>Add Model</button>
+      </div>`;
+    html += `<div class="flex flex-wrap gap-1.5 mb-3">`;
     for (const c of clis) {
       const color = c.installed ? 'text-green-400 border-green-900' : 'text-gray-600 border-gray-800';
       const icon = c.installed ? 'fa-check-circle' : 'fa-times-circle';
       html += `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${color}" title="${esc(c.path || 'not found')}"><i class="fas ${icon}" style="font-size:8px"></i>${esc(c.name)}</span>`;
     }
-    html += `</div></div>`;
+    html += `</div>`;
+    html += `<div id="add-model-form" class="hidden mb-3 p-3 rounded border" style="border-color:var(--border);background:var(--bg-secondary)">
+        <div class="space-y-2">
+          <input id="am-id" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="Model ID (e.g. my-llama)">
+          <input id="am-label" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="Display name (e.g. Local Llama 3)">
+          <select id="am-type" onchange="toggleAccessFields()" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+            <option value="cli">CLI Command</option>
+            <option value="api">API Key</option>
+          </select>
+          <input id="am-cli" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="CLI command (e.g. ollama run llama3)">
+          <input id="am-apikey" class="w-full px-2 py-1 rounded text-xs hidden" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="API key" type="password">
+          <input id="am-apibase" class="w-full px-2 py-1 rounded text-xs hidden" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="API base URL (optional)">
+          <div class="flex gap-2">
+            <button onclick="submitAddModel()" class="btn btn-primary text-[10px] flex-1">Validate & Add</button>
+            <button onclick="toggleAddModelForm()" class="btn btn-ghost text-[10px]">Cancel</button>
+          </div>
+          <div id="am-status" class="text-[10px] hidden"></div>
+        </div>
+      </div>`;
+    html += `<div id="custom-models-list" class="space-y-1"></div>`;
+    html += `</div>`;
 
     // Dev Tools section
     const tools = sys.tools || [];
@@ -2186,23 +2325,73 @@ async function loadSettings() {
       </div>
     </div>`;
 
+    // Suggested Local Models section
+    html += `<div class="card p-4 mb-3" id="local-models-card">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-[10px] text-gray-500 uppercase">Suggested Local Models</div>
+        <span class="flex-1"></span>
+        <button onclick="loadLocalSuggestions()" class="btn btn-ghost text-[10px]" id="btn-scan-hw"><i class="fas fa-microchip mr-1"></i>Scan Hardware</button>
+      </div>
+      <div id="local-hw-summary" class="text-[10px] text-gray-600 mb-2"></div>
+      <div id="local-models-list" class="space-y-1">
+        <div class="text-[10px] text-gray-600">Click "Scan Hardware" to detect your system and get model recommendations</div>
+      </div>
+    </div>`;
+
     // Council Config section
     html += `<div class="card p-4 mb-3" id="council-config-card">
       <div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-users-gear mr-1"></i>Council of Experts</div>
       <div id="council-config-body" class="text-[10px] text-gray-600">Loading…</div>
     </div>`;
 
-    // Config (collapsed)
+    // Editable Configuration
     if (cfg) {
-      html += `<details class="card p-4"><summary class="text-[10px] text-gray-500 uppercase cursor-pointer">Config (config.yaml)</summary>`;
-      html += `<div class="mt-2 space-y-1 text-xs text-gray-400">`;
-      html += `<div>Org: ${esc(cfg.org?.name || '—')}</div>`;
-      html += `<div>AI: ${esc(cfg.ai?.provider || '—')} / ${esc(cfg.ai?.model || '—')} · key ${cfg.ai?.has_key ? '<span class="text-green-400">set</span>' : '<span class="text-red-400">missing</span>'}</div>`;
-      html += `<div>Tracker: ${esc(cfg.issue_tracker?.provider || '—')}</div>`;
-      html += `</div></details>`;
+      html += `<div class="card p-4 mb-3" id="config-card">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="text-[10px] text-gray-500 uppercase"><i class="fas fa-cog mr-1"></i>Configuration</div>
+          <span class="flex-1"></span>
+          <span id="cfg-status" class="text-[10px] text-gray-600 hidden"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-[11px]">
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">AI Provider</label>
+            <input id="cfg-ai-provider" value="${esc(cfg.ai?.provider || '')}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">AI Model</label>
+            <input id="cfg-ai-model" value="${esc(cfg.ai?.model || '')}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Issue Tracker</label>
+            <select id="cfg-tracker" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+              ${['github','asana','linear','monday','none'].map(t => `<option value="${t}" ${cfg.issue_tracker?.provider === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Routing Mode</label>
+            <select id="cfg-routing" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+              ${['dynamic','static','manual'].map(m => `<option value="${m}" ${cfg.routing?.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Daily Budget (USD)</label>
+            <input id="cfg-budget" type="number" step="0.5" value="${cfg.budget?.daily_limit_usd ?? 10}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Dashboard Port</label>
+            <input id="cfg-port" type="number" value="${cfg.dashboard?.port ?? 8080}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="saveConfig()" class="btn btn-primary text-[10px]"><i class="fas fa-save mr-1"></i>Save</button>
+          <div class="flex-1"></div>
+          <span class="text-[9px] text-gray-600 self-center">API Key: ${cfg.ai?.has_key ? '<span class="text-green-400">set (env)</span>' : '<span class="text-red-400">missing</span>'}</span>
+        </div>
+      </div>`;
     }
 
     pane.innerHTML = html;
+    loadCustomModels();
     loadCouncilConfig();
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Detection failed: ${esc(e.message)}</div>`;
@@ -2233,6 +2422,156 @@ async function runModelHealthCheck() {
     grid.innerHTML = html || '<div class="text-[10px] text-gray-600">No models configured</div>';
   } catch (e) {
     grid.innerHTML = `<div class="text-[10px] text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+  if (btn) btn.disabled = false;
+}
+
+function toggleAddModelForm() {
+  const form = document.getElementById('add-model-form');
+  if (form) form.classList.toggle('hidden');
+}
+
+function toggleAccessFields() {
+  const type = document.getElementById('am-type')?.value;
+  const cli = document.getElementById('am-cli');
+  const key = document.getElementById('am-apikey');
+  const base = document.getElementById('am-apibase');
+  if (type === 'api') {
+    if (cli) cli.classList.add('hidden');
+    if (key) key.classList.remove('hidden');
+    if (base) base.classList.remove('hidden');
+  } else {
+    if (cli) cli.classList.remove('hidden');
+    if (key) key.classList.add('hidden');
+    if (base) base.classList.add('hidden');
+  }
+}
+
+async function submitAddModel() {
+  const status = document.getElementById('am-status');
+  const id = document.getElementById('am-id')?.value?.trim();
+  const label = document.getElementById('am-label')?.value?.trim();
+  const type = document.getElementById('am-type')?.value;
+  const cli = document.getElementById('am-cli')?.value?.trim();
+  const key = document.getElementById('am-apikey')?.value?.trim();
+  const base = document.getElementById('am-apibase')?.value?.trim();
+  if (!id || !label) {
+    if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = 'Model ID and name required'; status.classList.remove('hidden'); }
+    return;
+  }
+  if (status) { status.className = 'text-[10px] text-yellow-400'; status.textContent = 'Validating…'; status.classList.remove('hidden'); }
+  try {
+    const vr = await api('/models/check/validate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ access_type: type, cli_cmd: cli || '', api_key: key || '', api_base: base || '' }) });
+    if (!vr.valid) {
+      if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = vr.error || 'Validation failed'; }
+      return;
+    }
+    const ar = await api('/models', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ model_id: id, label: label, access_type: type, cli_cmd: cli || '', api_key: key || '', api_base: base || '' }) });
+    if (!ar.ok) {
+      if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = ar.error || 'Add failed'; }
+      return;
+    }
+    if (status) { status.className = 'text-[10px] text-green-400'; status.textContent = 'Added!'; }
+    toggleAddModelForm();
+    loadCustomModels();
+  } catch (e) {
+    if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = e.message; }
+  }
+}
+
+async function removeCustomModel(id) {
+  if (!confirm(`Remove model "${id}"?`)) return;
+  try {
+    const r = await api(`/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok) { alert(r.error || 'Remove failed'); return; }
+    loadCustomModels();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadCustomModels() {
+  const list = document.getElementById('custom-models-list');
+  if (!list) return;
+  try {
+    const data = await api('/models');
+    const custom = (data.models || []).filter(m => m.custom);
+    if (!custom.length) {
+      list.innerHTML = '<div class="text-[10px] text-gray-600">No custom models added yet</div>';
+      return;
+    }
+    let html = '';
+    for (const m of custom) {
+      html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded border text-[11px]" style="border-color:var(--border)">
+        <i class="fas fa-robot text-purple-400" style="font-size:9px"></i>
+        <span style="color:var(--text)" class="flex-1 truncate">${esc(m.label || m.id)}</span>
+        <span class="text-gray-600">tier ${m.tier}</span>
+        <button onclick="removeCustomModel('${esc(m.id)}')" class="text-red-400 hover:text-red-300" title="Remove"><i class="fas fa-trash" style="font-size:9px"></i></button>
+      </div>`;
+    }
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = `<div class="text-[10px] text-red-400">${esc(e.message)}</div>`;
+  }
+}
+
+async function saveConfig() {
+  const status = document.getElementById('cfg-status');
+  if (status) { status.textContent = 'Saving…'; status.classList.remove('hidden'); }
+  try {
+    const body = {
+      ai: {
+        provider: document.getElementById('cfg-ai-provider')?.value || '',
+        model: document.getElementById('cfg-ai-model')?.value || ''
+      },
+      issue_tracker: { provider: document.getElementById('cfg-tracker')?.value || 'github' },
+      routing: { mode: document.getElementById('cfg-routing')?.value || 'dynamic' },
+      budget: { daily_limit_usd: parseFloat(document.getElementById('cfg-budget')?.value) || 10 },
+      dashboard: { port: parseInt(document.getElementById('cfg-port')?.value) || 8080 }
+    };
+    await api('/config', { method: 'PATCH', body: JSON.stringify(body) });
+    if (status) { status.textContent = 'Saved ✓'; status.style.color = 'var(--green)'; }
+    setTimeout(() => { if (status) status.classList.add('hidden'); }, 2000);
+  } catch (e) {
+    if (status) { status.textContent = 'Error: ' + e.message; status.style.color = 'var(--red)'; }
+  }
+}
+
+async function loadLocalSuggestions() {
+  const hw = document.getElementById('local-hw-summary');
+  const list = document.getElementById('local-models-list');
+  const btn = document.getElementById('btn-scan-hw');
+  if (btn) btn.disabled = true;
+  if (hw) hw.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Scanning…';
+  if (list) list.innerHTML = '';
+  try {
+    const data = await api('/system/suggest-models');
+    const h = data.hardware || {};
+    const gpu = h.gpu || {};
+    let hwHtml = `<span class="text-gray-400">RAM:</span> ${h.ram_gb}GB`;
+    hwHtml += ` · <span class="text-gray-400">CPU:</span> ${h.cpu_cores} cores`;
+    hwHtml += ` · <span class="text-gray-400">Disk:</span> ${h.disk_free_gb}GB free`;
+    if (gpu.type !== 'none') hwHtml += ` · <span class="text-gray-400">GPU:</span> ${esc(gpu.name)} (${gpu.vram_gb}GB)`;
+    hwHtml += ` · <span class="text-gray-400">Ollama:</span> ${h.ollama_installed ? '<span class="text-green-400">installed</span>' : '<span class="text-red-400">not found</span>'}`;
+    if (hw) hw.innerHTML = hwHtml;
+    const suggestions = data.suggestions || [];
+    if (!suggestions.length) {
+      if (list) list.innerHTML = '<div class="text-[10px] text-yellow-400">No models fit your hardware</div>';
+    } else {
+      let html = '';
+      for (const s of suggestions) {
+        const fitColor = s.fit === 'comfortable' ? 'text-green-400' : 'text-yellow-400';
+        const fitIcon = s.fit === 'comfortable' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded border text-[11px]" style="border-color:var(--border)">
+          <i class="fas ${fitIcon} ${fitColor}" style="font-size:9px"></i>
+          <span style="color:var(--text)" class="truncate">${esc(s.label)}</span>
+          <span class="text-gray-600 flex-shrink-0">${s.min_ram_gb}GB RAM · ${s.disk_gb}GB disk</span>
+          <span class="text-gray-600 flex-shrink-0 truncate ml-auto" title="${esc(s.strengths)}">${esc(s.strengths)}</span>
+        </div>`;
+      }
+      if (list) list.innerHTML = html;
+    }
+  } catch (e) {
+    if (hw) hw.innerHTML = '';
+    if (list) list.innerHTML = `<div class="text-[10px] text-red-400">${esc(e.message)}</div>`;
   }
   if (btn) btn.disabled = false;
 }
@@ -2578,7 +2917,10 @@ async function refreshSystemStatus() {
     html += _renderToolPills(data.tools || [], 'dev');
     container.innerHTML = html;
     _lastSetupData = data;
-    _showSetupModal(data);
+    if (!sessionStorage.getItem('setup-seen')) {
+      _showSetupModal(data);
+      sessionStorage.setItem('setup-seen', '1');
+    }
   } catch (e) {
     container.innerHTML = '';
   }

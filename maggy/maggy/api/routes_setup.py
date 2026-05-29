@@ -11,7 +11,6 @@ router = APIRouter(prefix="/api/setup", tags=["setup"])
 
 
 class ConfigureRequest(BaseModel):
-    org_name: str = ""
     github_org: str = ""
     github_repos: list[str] = Field(default_factory=list)
     competitor_categories: list[str] = Field(
@@ -91,8 +90,6 @@ async def configure(
 ) -> dict:
     """Update config sections dynamically."""
     cfg = request.app.state.cfg
-    if body.org_name:
-        cfg.org.name = body.org_name
     if body.github_org:
         cfg.issue_tracker.github.org = body.github_org
     if body.github_repos:

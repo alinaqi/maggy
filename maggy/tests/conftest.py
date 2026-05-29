@@ -13,7 +13,6 @@ from maggy.config import (
     DashboardConfig,
     MaggyConfig,
     MeshConfig,
-    OrgConfig,
     RoutingConfig,
     StorageConfig,
 )
@@ -28,7 +27,6 @@ def tmp_dir(tmp_path: Path) -> Path:
 def mock_cfg(tmp_path: Path) -> MaggyConfig:
     """Minimal MaggyConfig pointing to tmp storage."""
     return MaggyConfig(
-        org=OrgConfig(name="test-org"),
         storage=StorageConfig(path=str(tmp_path / "store.db")),
         dashboard=DashboardConfig(),
         budget=BudgetConfig(daily_limit_usd=10.0),

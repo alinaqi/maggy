@@ -76,6 +76,7 @@ class RoutingService:
             ctx.blast_score,
             ctx.task_type,
             ctx.security_sensitive,
+            tiers=self._load_tiers(),
             stakes=ctx.stakes,
             fatigue=ctx.fatigue_score,
         )
@@ -138,6 +139,13 @@ class RoutingService:
                    f" → {model_name}",
         )
 
+    def _load_tiers(self) -> list:
+        try:
+            from maggy.services.model_registry import build_routing_tiers
+            return build_routing_tiers()
+        except Exception:
+            return DEFAULT_TIERS
+
     def _penalize_uncalibrated(
         self, decision: RoutingDecision,
     ) -> RoutingDecision:
@@ -154,8 +162,15 @@ class RoutingService:
 
 
 def _find_tier(name: str):
-    """Look up a ModelTier by name from defaults."""
+    """Look up a ModelTier by name from defaults + custom."""
     for t in DEFAULT_TIERS:
         if t.name == name:
             return t
+    try:
+        from maggy.services.model_registry import build_routing_tiers
+        for t in build_routing_tiers():
+            if t.name == name:
+                return t
+    except Exception:
+        pass
     return None

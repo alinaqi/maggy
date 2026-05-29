@@ -124,6 +124,27 @@ class Deliberation:
         log.append({"round": 3, "votes": [v.to_dict() for v in r3]})
         return _build_result(r3, 3, log, threshold)
 
+    async def run_with_personas(
+        self,
+        ctx: ContextPackage,
+        reviewers: list[dict],
+        threshold: int,
+    ) -> DeliberationResult:
+        ids = [r["persona"] for r in reviewers]
+        systems = {r["persona"]: r.get("system", "") for r in reviewers}
+        orig_query = self._query
+
+        async def persona_query(rid: str, prompt: str) -> str:
+            prefix = systems.get(rid, "")
+            full = f"{prefix}\n\n{prompt}" if prefix else prompt
+            return await orig_query(rid, full)
+
+        self._query = persona_query
+        try:
+            return await self.run(ctx, ids, threshold)
+        finally:
+            self._query = orig_query
+
     async def _round(
         self,
         reviewers: list[str],

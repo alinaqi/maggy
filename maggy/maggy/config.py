@@ -124,12 +124,6 @@ class DashboardConfig:
 
 
 @dataclass
-class OrgConfig:
-    name: str = "Your Org"
-    domain: str = ""
-
-
-@dataclass
 class BootstrapConfig:
     path: str = ""
 
@@ -194,7 +188,6 @@ class OrchestratorConfig:
 
 @dataclass
 class MaggyConfig:
-    org: OrgConfig = field(default_factory=OrgConfig)
     issue_tracker: IssueTrackerConfig = field(default_factory=IssueTrackerConfig)
     codebases: list[CodebaseConfig] = field(default_factory=list)
     projects: list[ProjectConfig] = field(default_factory=list)
@@ -278,7 +271,6 @@ def _from_dict(data: dict[str, Any]) -> MaggyConfig:
     storage_raw = data.get("storage") or {}
 
     return MaggyConfig(
-        org=OrgConfig(**(data.get("org") or {})),
         issue_tracker=tracker,
         codebases=[CodebaseConfig(**c) for c in (data.get("codebases") or [])],
         projects=[ProjectConfig(**p) for p in (data.get("projects") or [])],

@@ -4,6 +4,90 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.42.0] - 2026-05-29
+
+### Autonomous Agent Pipeline — Tool Execution, Steering, Contracts, Approvals
+
+Full 5-phase autonomous agent system: Pi models can now execute typed tools (file read/write, grep, git ops, test run) inside a sandbox, with advise-only steering detection, execution contracts, selective skill loading, and an inbox-based approval flow for write operations.
+
+#### Added
+- `maggy/pipeline/tool_schema.py` — 9 typed tools (6 read, 3 write) with allowlist-only enforcement, no shell passthrough
+- `maggy/pipeline/tool_sandbox.py` — path validation, symlink escape prevention, secret file blocking (.env, credentials.json, etc.)
+- `maggy/pipeline/tool_parser.py` — extracts `tool_call` fenced JSON blocks from model text output
+- `maggy/pipeline/tool_handlers.py` — concrete handlers: file_read, grep, git_status/diff/log, test_run, file_write, file_edit, git_commit
+- `maggy/pipeline/tool_executor.py` — sandboxed execution with backup/rollback, max 10 calls per round, approval store notifications
+- `maggy/pipeline/steering.py` — detects advise-only responses ("here's what you should do") and injects "act now" re-prompt
+- `maggy/pipeline/contracts.py` — `ExecutionContract` enforces `strict-agentic` mode: rejects planning-only responses
+- `maggy/skills/selective.py` — on-demand skill loading: index (names only) in prompt, full content loaded by keyword match (max 3)
+- `maggy/services/approval.py` — SQLite-backed approval store with pending/resolve/history, thread-safe (WAL + check_same_thread=False)
+- `maggy/api/routes_approval.py` — REST endpoints: GET pending, GET history, POST approve, POST reject
+- `tests/test_e2e_autonomous.py` — 24 end-to-end integration tests covering full pipeline
+- `tests/test_tool_schema.py` — 15 unit tests
+- `tests/test_tool_sandbox.py` — 10 unit tests
+- `tests/test_tool_parser.py` — 7 unit tests
+- `tests/test_tool_handlers.py` — 11 unit tests
+- `tests/test_tool_executor.py` — 7 unit tests
+- `tests/test_steering.py` — 10 unit tests
+- `tests/test_selective_skills.py` — 9 unit tests
+- `tests/test_approval.py` — 10 unit tests
+- `tests/test_execution_contracts.py` — 8 unit tests
+- `tests/test_routes_approval.py` — 9 unit tests
+- `tests/test_pi_tool_wiring.py` — 6 unit tests
+- `tests/test_agent_prompt.py` — 8 unit tests
+- `scripts/test-autonomous.sh` — consolidated test runner for all autonomous agent tests (134 tests, <0.5s)
+
+#### Changed
+- `maggy/pipeline/backend_pi.py` — wired tool executor + steering + contracts into Pi execution loop (parse → sandbox → execute → steer → validate)
+- `maggy/prompt/assembly.py` — uses `build_skill_index()` for index-only skill references in prompts
+- `maggy/main.py` — registers approval_router, initializes ApprovalStore
+- `maggy/static/app.js` — Inbox UI: pending approvals with Approve/Reject buttons, history with status badges
+- `maggy/static/index.html` — pane-inbox overflow styling
+
+---
+
+## [6.41.0] - 2026-05-28
+
+### Updated Model Tiers + Local System Validator
+
+Research-backed tier update (12 tiers) with Gemini 3.5 Flash and Claude Opus 4.7. Hardware detection suggests which local models fit the user's system.
+
+#### Added
+- `maggy/process/model_tiers.py` — extracted tier definitions: 12 tiers from local (Qwen3) to Claude Opus 4.7, adding Gemini 3.5 Flash (tier 8, agentic coding, 278 t/s)
+- `maggy/process/model_budget.py` — extracted daily budget tracking + spend estimation from routing log
+- `maggy/services/system_validator.py` — `detect_hardware()` (RAM, CPU, GPU/Metal/CUDA, disk), `suggest_local_models()` with fit classification (comfortable/tight/too_large), 12 local model profiles (Qwen3 0.6B–32B, DeepSeek R1 distilled, Codestral, Llama 4 Scout/Maverick)
+- `tests/test_system_validator.py` — 12 tests: hardware detection, model requirements, suggestion filtering by RAM/disk/GPU
+- `tests/test_routes_system_validator.py` — 2 tests: hardware + suggest-models API routes
+- API routes: `GET /api/system/hardware`, `GET /api/system/suggest-models`
+
+#### Changed
+- `maggy/process/model_router.py` — split into model_tiers.py (data) + model_budget.py (budget tracking); imports from both
+- `maggy/static/app.js` — Settings: "Suggested Local Models" card with Scan Hardware button, hardware summary, model list with fit indicators
+- `maggy/static/index.html` — cache bust v18
+
+---
+
+## [6.40.0] - 2026-05-28
+
+### User Model Registry — Custom AI Models + Council Persona Fallback
+
+Users can add custom AI models (CLI or API) via Settings, with validation on add. Council of Experts falls back to persona-based prompts when only one model is available.
+
+#### Added
+- `maggy/services/model_registry.py` — add, remove, validate, list custom models; `build_council_reviewers()` with single-model persona fallback (security, architecture, pragmatist); `build_routing_tiers()` merges custom models into routing tiers
+- `tests/test_model_registry.py` — 17 tests: add CLI/API, duplicate rejection, validation, persistence, remove, list with custom flag, council persona fallback
+- `tests/test_routes_models_crud.py` — 9 tests: POST/DELETE/validate API routes with mocked registry
+- `tests/test_registry_wiring.py` — 7 tests: custom models in routing tiers, persona injection into deliberation, fallback compatibility
+- API routes: `POST /api/models`, `DELETE /api/models/{id}`, `POST /api/models/check/validate`
+
+#### Changed
+- `maggy/api/routes_models.py` — `GET /api/models` now uses model_registry with `custom` flag; added CRUD + validate endpoints
+- `maggy/council/deliberation.py` — added `run_with_personas()` that injects persona system prompts into the query function per reviewer
+- `maggy/routing.py` — `RoutingService.route()` now loads custom models via `build_routing_tiers()`; `_find_tier()` searches custom models too
+- `maggy/static/app.js` — Settings pane: "Custom Models" card with add form (validates CLI/API before adding), list with remove buttons
+- `maggy/static/index.html` — cache bust v17
+
+---
+
 ## [6.39.0] - 2026-05-28
 
 ### Layered System Prompt Architecture (ADR-001)

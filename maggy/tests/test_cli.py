@@ -42,18 +42,17 @@ def test_status_shows_health():
     health = {
         "status": "ok",
         "mode": "full",
-        "org": "Protaige",
         "codebases": 5,
         "provider": "github",
     }
     with patch("maggy.cli_client.httpx.get", return_value=_mock_get(health)):
         result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
-    assert "Protaige" in result.output
+    assert "full" in result.output
 
 
 def test_status_json_flag():
-    health = {"status": "ok", "mode": "full", "org": "X", "codebases": 1}
+    health = {"status": "ok", "mode": "full", "codebases": 1}
     with patch("maggy.cli_client.httpx.get", return_value=_mock_get(health)):
         result = runner.invoke(app, ["status", "--json"])
     assert result.exit_code == 0
@@ -184,7 +183,7 @@ def test_server_not_running_starts_it(monkeypatch):
         "maggy.cli_client.MaggyClient._start_server",
         lambda self: None,
     )
-    health = {"status": "ok", "mode": "local", "org": "Test", "codebases": 0}
+    health = {"status": "ok", "mode": "local", "codebases": 0}
     with patch("maggy.cli_client.httpx.get", return_value=_mock_get(health)):
         result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
@@ -213,7 +212,7 @@ def test_stale_port_killed_before_start(monkeypatch):
     )
     health = {
         "status": "ok", "mode": "local",
-        "org": "T", "codebases": 0,
+        "codebases": 0,
     }
     with patch(
         "maggy.cli_client.httpx.get",

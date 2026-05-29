@@ -9,124 +9,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-
 from maggy.mnemos.constants import (
     FATIGUE_ROUTING_ESCALATE as _ESCALATE,
     FATIGUE_ROUTING_PREMIUM as _REM,
 )
 
+from .model_budget import (
+    BUDGET_BLOCK_THRESHOLD,
+    BUDGET_WARN_THRESHOLD,
+    MODEL_DAILY_BUDGETS,
+    get_model_usage_today,
+)
+from .model_tiers import DEFAULT_TIERS
 from .models import ModelTier
-
-# Model-level budget caps (daily, in USD) — block/demote when exceeded
-MODEL_DAILY_BUDGETS: dict[str, float] = {
-    "claude": 2.00,         # Max $2/day for Claude — back off after 50% of this
-    "gemini-pro-search": 1.00,
-    "codex": 1.50,
-    "kimi": 0.50,
-}
-# Warning threshold: start biasing away at this fraction of budget
-BUDGET_WARN_THRESHOLD = 0.5   # 50% of daily budget → start demoting
-BUDGET_BLOCK_THRESHOLD = 0.8  # 80% → block entirely for non-critical tasks
-
-
-DEFAULT_TIERS: list[ModelTier] = [
-    ModelTier(
-        name="local",
-        provider="ollama",
-        model="qwen3-coder:30b-a3b-q8_0",
-        cost_rank=1,
-        complexity_min=0,
-        complexity_max=3,
-        strengths=["formatting", "simple_edits", "crud"],
-    ),
-    ModelTier(
-        name="gemini-flash-lite",
-        provider="google",
-        model="gemini-2.5-flash-lite",
-        cost_rank=2,
-        complexity_min=0,
-        complexity_max=4,
-        strengths=["bulk_extraction", "classification", "cheap_summarization"],
-    ),
-    ModelTier(
-        name="deepseek-flash",
-        provider="deepseek",
-        model="deepseek-v4-flash",
-        cost_rank=3,
-        complexity_min=0,
-        complexity_max=5,
-        strengths=["boilerplate", "simple_features", "tests", "crud"],
-    ),
-    ModelTier(
-        name="deepseek-pro",
-        provider="deepseek",
-        model="deepseek-v4-pro",
-        cost_rank=4,
-        complexity_min=2,
-        complexity_max=8,
-        strengths=["code_generation", "debugging", "refactor", "feature"],
-    ),
-    ModelTier(
-        name="gemini-flash",
-        provider="google",
-        model="gemini-2.5-flash",
-        cost_rank=5,
-        complexity_min=1,
-        complexity_max=6,
-        strengths=["multimodal", "video_analysis", "image_analysis", "brand_assets"],
-    ),
-    ModelTier(
-        name="kimi",
-        provider="moonshot",
-        model="kimi-k2.6",
-        cost_rank=6,
-        complexity_min=3,
-        complexity_max=8,
-        strengths=["documentation", "agentic_loops", "research"],
-    ),
-    ModelTier(
-        name="grok",
-        provider="xai",
-        model="grok-4.3",
-        cost_rank=7,
-        complexity_min=4,
-        complexity_max=10,
-        strengths=["competitor_intel", "ckg_building", "deep_reasoning",
-                   "truthful_insights", "market_analysis"],
-    ),
-    ModelTier(
-        name="gemini-pro-search",
-        provider="google",
-        model="gemini-3.1-pro",
-        cost_rank=8,
-        complexity_min=5,
-        complexity_max=10,
-        strengths=["deep_research", "google_grounding", "competitor_intel",
-                   "market_research", "large_context"],
-    ),
-    ModelTier(
-        name="codex",
-        provider="openai",
-        model="codex",
-        cost_rank=9,
-        complexity_min=4,
-        complexity_max=10,
-        strengths=["review", "bulk_generation", "api_design"],
-        role="validator",
-    ),
-    ModelTier(
-        name="claude",
-        provider="anthropic",
-        model="claude-sonnet-4",
-        cost_rank=10,
-        complexity_min=5,
-        complexity_max=10,
-        strengths=["complex_reasoning", "security", "architecture"],
-    ),
-]
 
 
 @dataclass
@@ -163,7 +58,7 @@ def route_task(
         t for t in available if t.role == "validator"
     ]
 
-    model_usage = _get_model_usage_today()
+    model_usage = get_model_usage_today()
     primary = _select_primary(
         complexity_score, task_type, primaries, stakes, fatigue,
         model_usage=model_usage,
@@ -183,41 +78,6 @@ def route_task(
         reason=reason,
         fallback_chain=fallback,
     )
-
-
-def _get_model_usage_today() -> dict[str, float]:
-    """Read routing log and estimate per-model spend for today."""
-    path = Path.home() / ".claude" / "routing-log.jsonl"
-    if not path.exists():
-        return {}
-
-    now = datetime.now(timezone.utc)
-    since = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    usage: dict[str, float] = {}
-
-    # Cost per token estimates for spend calculation
-    rates = {
-        "claude": 3.0, "codex": 2.5, "gemini-pro-search": 1.25,
-        "kimi": 0.6, "deepseek-pro": 0.44, "gemini-flash": 0.15,
-        "deepseek-flash": 0.14, "gemini-flash-lite": 0.10,
-    }
-
-    for line in path.read_text().strip().split("\n"):
-        try:
-            entry = json.loads(line)
-            ts = entry.get("ts", "")
-            ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            if ts_dt < since:
-                continue
-            tier = entry.get("tier", "").lower().replace("_", "-")
-            saved = entry.get("tokens_saved", 0) or 0
-            est_tokens = saved * 2  # rough estimate
-            rate = rates.get(tier, 0.44)
-            usage[tier] = usage.get(tier, 0.0) + (est_tokens / 1_000_000) * rate
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
-
-    return usage
 
 
 def _select_primary(
@@ -240,7 +100,7 @@ def _select_primary(
 
     # Model budget check: if a model is overused today, demote or block it
     if model_usage is None:
-        model_usage = _get_model_usage_today()
+        model_usage = get_model_usage_today()
 
     # Filter out models that have exceeded their daily budget
     budget_filtered = []
