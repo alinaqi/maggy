@@ -3378,15 +3378,32 @@ function filterICPGIntents() {
   }
 }
 
-async function loadICPGGraph(key) {
+async function loadICPGGraph(key, autoBuilt = false) {
   const pane = document.getElementById('pane-cortex');
   try {
     const data = await api(`/icpg/${encodeURIComponent(key)}/graph?limit=150`);
     const nodes = data.nodes || [];
     const edges = data.edges || [];
-    if (!nodes.length) { alert('No graph data'); return; }
+    if (!nodes.length) {
+      if (autoBuilt) { alert('No graph data — build produced no intents'); return; }
+      return buildICPGGraph(key);
+    }
     renderICPGGraphSVG(pane, key, nodes, edges);
   } catch (e) { alert('Graph failed: ' + e.message); }
+}
+
+async function buildICPGGraph(key) {
+  const pane = document.getElementById('pane-cortex');
+  if (!confirm(`No iCPG graph for "${key}" yet. Build it now from git history?`)) return;
+  pane.innerHTML = `<div class="p-8 text-center text-gray-400 text-sm">`
+    + `<i class="fas fa-spinner fa-spin mr-2"></i>Building iCPG for ${esc(key)}… this can take a minute.</div>`;
+  try {
+    const res = await api(`/icpg/${encodeURIComponent(key)}/build`, { method: 'POST' });
+    if (res.error) { pane.innerHTML = `<div class="p-8 text-center text-red-400 text-sm">Build failed: ${esc(res.error)}</div>`; return; }
+    await loadICPGGraph(key, true);
+  } catch (e) {
+    pane.innerHTML = `<div class="p-8 text-center text-red-400 text-sm">Build failed: ${esc(e.message)}</div>`;
+  }
 }
 
 function renderICPGGraphSVG(pane, key, nodes, edges) {
