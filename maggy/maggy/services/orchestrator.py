@@ -46,14 +46,16 @@ class TeamSession:
     status: str = "running"
 
 
-def route_subtask(subtask: Task) -> RunSpec:
+def route_subtask(
+    subtask: Task, image: str = "polyphony-worker:latest",
+) -> RunSpec:
     """Build a RunSpec for a subtask. Minimal defaults."""
     return RunSpec(
         task_id=subtask.id,
         agent="claude",
         identity="default",
         workspace="",
-        image="polyphony:latest",
+        image=image,
     )
 
 
@@ -103,7 +105,7 @@ class OrchestratorService:
         self, subtask: Task, session: TeamSession,
     ) -> Result:
         """Run a single subtask in a Docker container."""
-        spec = route_subtask(subtask)
+        spec = route_subtask(subtask, self._cfg.orchestrator.image)
         try:
             cid = await async_create_container(spec)
             await async_start_container(cid)

@@ -83,3 +83,35 @@ class TestCancelTeam:
             session = await svc.spawn_team("t1", subtasks)
         await svc.cancel_team(session.team_id)
         assert svc.get_team(session.team_id).status == "cancelled"
+
+
+class TestRouteSubtaskImage:
+    def test_default_image_matches_built_worker(self):
+        from maggy.services.orchestrator import route_subtask
+        spec = route_subtask(_make_task())
+        assert spec.image == "polyphony-worker:latest"
+
+    def test_honors_explicit_image(self):
+        from maggy.services.orchestrator import route_subtask
+        spec = route_subtask(_make_task(), image="custom:tag")
+        assert spec.image == "custom:tag"
+
+    @pytest.mark.asyncio
+    async def test_run_one_uses_configured_image(self):
+        svc = _make_service()
+        svc._cfg.orchestrator.image = "from-config:latest"
+        subtask = _make_task()
+        session = TeamSession(team_id="tm1", task_id="p1", subtasks=[subtask])
+        captured = {}
+
+        async def _capture(spec):
+            captured["image"] = spec.image
+            return "cid1"
+
+        with patch(f"{_MOD}.async_create_container", new=_capture), \
+             patch(f"{_MOD}.async_start_container", new_callable=AsyncMock), \
+             patch(f"{_MOD}.async_wait_container", new_callable=AsyncMock, return_value=0), \
+             patch(f"{_MOD}.container_logs", return_value="done"), \
+             patch(f"{_MOD}.async_remove_container", new_callable=AsyncMock):
+            await svc._run_one(subtask, session)
+        assert captured["image"] == "from-config:latest"

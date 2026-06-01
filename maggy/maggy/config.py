@@ -184,6 +184,7 @@ class OrchestratorConfig:
     container_timeout: int = 600
     decompose_threshold: int = 7
     isolation: str = "auto"
+    image: str = "polyphony-worker:latest"
 
 
 @dataclass
