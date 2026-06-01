@@ -214,10 +214,47 @@ class TestIsolationDispatch:
         local.assert_awaited_once()
         assert result.status == "succeeded"
 
-    def test_local_command_includes_prompt(self):
+    def test_local_command_sandboxed_no_skip_permissions(self):
         svc = _make_service()
         task = Task(title="Add login", source="t", source_ref="r")
         task.description = "JWT based"
-        cmd = svc._local_command(task)
-        assert cmd[0] == "claude"
+        cmd = svc._local_command(task, "firejail --net=none")
+        # Sandbox wrapper is prepended; dangerous flag must be absent.
+        assert cmd[:2] == ["firejail", "--net=none"]
+        assert "claude" in cmd
+        assert "--dangerously-skip-permissions" not in cmd
         assert any("Add login" in part for part in cmd)
+
+    @pytest.mark.asyncio
+    async def test_run_local_refuses_without_sandbox(self):
+        svc = _make_service()
+        svc._cfg.orchestrator.local_sandbox = ""
+        spec = MagicMock(workspace="/ws")
+        with pytest.raises(PermissionError):
+            await svc._run_local(spec, _make_task())
+
+    @pytest.mark.asyncio
+    async def test_run_local_runs_when_sandboxed(self):
+        svc = _make_service()
+        svc._cfg.orchestrator.local_sandbox = "firejail"
+        spec = MagicMock(workspace="/ws")
+        proc = MagicMock(returncode=0)
+        with patch(f"{_MOD}.subprocess.run", return_value=proc) as run:
+            code = await svc._run_local(spec, _make_task())
+        assert code == 0
+        assert run.call_args.args[0][0] == "firejail"
+
+    @pytest.mark.asyncio
+    async def test_worktree_without_sandbox_fails_safe(self):
+        """Worktree isolation + no sandbox => failed, never runs agent."""
+        svc = _make_service()
+        svc._isolation = IsolationLevel.WORKTREE
+        svc._cfg.orchestrator.local_sandbox = ""
+        session = TeamSession(team_id="tm1", task_id="p1",
+                              subtasks=[_make_task()], repo_dir="/repo")
+        with patch(f"{_MOD}.provision_workspace", return_value="/ws/worktrees/s1"), \
+             patch(f"{_MOD}.cleanup_workspace"), \
+             patch(f"{_MOD}.subprocess.run") as run:
+            result = await svc._run_one(session.subtasks[0], session)
+        run.assert_not_called()
+        assert result.status == "failed"

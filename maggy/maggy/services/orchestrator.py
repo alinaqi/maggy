@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 import subprocess
 import uuid
 from dataclasses import dataclass, field
@@ -202,8 +203,21 @@ class OrchestratorService:
         return code
 
     async def _run_local(self, spec: RunSpec, subtask: Task) -> int:
-        """Run a subtask locally in its workspace; returns exit code."""
-        cmd = self._local_command(subtask)
+        """Run a subtask locally in its workspace; returns exit code.
+
+        Refuses unless a sandbox wrapper is configured: a non-container
+        agent run would otherwise have full host access. The agent is
+        invoked WITHOUT --dangerously-skip-permissions, so its own
+        permission policy still applies.
+        """
+        sandbox = (self._cfg.orchestrator.local_sandbox or "").strip()
+        if not sandbox:
+            raise PermissionError(
+                "Local (non-container) execution requires "
+                "orchestrator.local_sandbox (e.g. firejail/bwrap); "
+                "refusing to run an unsandboxed agent."
+            )
+        cmd = self._local_command(subtask, sandbox)
         proc = await asyncio.to_thread(
             subprocess.run, cmd,
             cwd=spec.workspace or None,
@@ -211,14 +225,11 @@ class OrchestratorService:
         )
         return proc.returncode
 
-    def _local_command(self, subtask: Task) -> list[str]:
-        """Build the local agent CLI invocation for a subtask."""
+    def _local_command(self, subtask: Task, sandbox: str) -> list[str]:
+        """Build the sandboxed local agent CLI invocation for a subtask."""
         desc = getattr(subtask, "description", "") or ""
         prompt = f"{subtask.title}\n\n{desc}".strip()
-        return [
-            "claude", "-p", prompt,
-            "--dangerously-skip-permissions",
-        ]
+        return [*shlex.split(sandbox), "claude", "-p", prompt]
 
     async def cancel_team(self, team_id: str) -> None:
         """Cancel a running team."""

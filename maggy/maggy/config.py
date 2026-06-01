@@ -185,6 +185,10 @@ class OrchestratorConfig:
     decompose_threshold: int = 7
     isolation: str = "auto"
     image: str = "polyphony-worker:latest"
+    # Sandbox wrapper (e.g. "firejail --net=none", "bwrap ...") required to
+    # run agents under non-container isolation. Empty = refuse local runs,
+    # since an unsandboxed agent would have full host access.
+    local_sandbox: str = ""
 
 
 @dataclass
