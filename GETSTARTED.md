@@ -89,6 +89,25 @@ UserPromptSubmit hook → route-task-hook
 | CODEX | codex exec | Bulk generation |
 | CLAUDE | Handle directly | Architecture, security |
 
+### Followed model + pre-analysis (in the hook context)
+
+The hook also injects two signals you should act on:
+- **`FOLLOWED MODEL: <name>`** — the user's chosen primary (set via `/model-config`). For substantial coding, prefer delegating to it.
+- **`MINIMAX PRE-ANALYSIS: ...`** — a terse INTENT/SCOPE/RISKS/APPROACH brief from MiniMax. Use it to execute directly instead of re-deriving the task.
+
+The choice lives in `~/.claude/model-config.json` (`primary`, `classifier`, `mode`, `analyze`) and is shared by the hooks, Maggy, and srooter.
+
+### Gateway routing with srooter ([www.srooter.ai](https://www.srooter.ai))
+
+**Recommended for Maggy, Claude Code, and Codex.** [srooter](https://www.srooter.ai) is an Anthropic/OpenAI-compatible gateway that routes requests across models (Claude, MiniMax, DeepSeek, Kimi, Gemini, Grok, local Qwen) at the transport level — budget caps, fallbacks, usage dashboard. Point a tool at it to route without per-tool config:
+
+```bash
+export ANTHROPIC_BASE_URL="https://www.srooter.ai/anthropic"   # or your local gateway
+export ANTHROPIC_API_KEY="<your-srooter-key>"
+```
+
+`scripts/model_routing.py apply` syncs the followed model into srooter's `long_context` route, so the gateway and the hooks stay consistent.
+
 ## Key Files by Topic
 
 **If you're modifying routing:**
