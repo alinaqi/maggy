@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.40.0] - 2026-06-04
+
+### Followed-Model Routing — One Choice, Every Layer (srooter + hooks + Maggy)
+
+A single "followed" (primary) model is configured once and respected across the
+srooter gateway, the route-task hooks, and Maggy — auto-detected from the
+machine, overridable in onboarding. Smart mode keeps trivial/cheap asks local.
+
+#### Added
+- **Shared source of truth** — `scripts/model_routing.py` writes/reads
+  `~/.claude/model-config.json` (`primary`, `classifier`, `mode`, `analyze`).
+  `detect_available()` probes provider keys (env + `~/.zshrc` + srooter env),
+  `~/bin` CLI wrappers, and local Ollama; `ensure()` auto-creates the config;
+  `apply` syncs the primary into srooter's `long_context` route. CLI:
+  `detect | show | get | set-primary | set-analyze | apply`. 12 tests.
+- **Onboarding picker** — `scripts/onboard.sh` collects the MiniMax key and
+  asks which detected model to follow; `/model-config` views/changes it anytime.
+- **route-task hook** — additively injects `FOLLOWED MODEL: <primary>` into
+  routing context (tier classification untouched; explicit overrides win).
+- **MiniMax pre-analysis (opt-out)** — when `analyze: true` (default), the hook
+  sends each prompt to MiniMax for a terse INTENT/SCOPE/RISKS/APPROACH brief
+  injected into context so Claude executes accordingly; fails open, capped at
+  `MINIMAX_TIMEOUT=20s`, toggle via `set-analyze`.
+- **MiniMax wired into srooter** — `MINIMAX_API_KEY` activates the
+  pre-configured `minimax-m2.5` main coding route; `~/bin/minimax` wrapper.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.43.0) for the Maggy-side changes.
+
+---
+
 ## [6.39.0] - 2026-06-04
 
 ### Mnemos: Claude Transcript Ingestion + Per-Session Haziness Scoring
@@ -50,6 +80,8 @@ history rather than only live signals.
 #### Tests
 - 52 new tests covering ingestion, migration, redaction, idempotency, the two
   CLI commands, and the session-hooks installer. ruff + mypy clean.
+
+---
 
 ## [6.38.1] - 2026-05-26
 

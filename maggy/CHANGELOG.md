@@ -4,6 +4,24 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.43.0] - 2026-06-04
+
+### Dashboard iCPG Auto-Build, Orchestrator Isolation, Followed-Model Routing
+
+#### Added
+- **iCPG graph auto-build** — "Visualize Graph" on an empty graph now offers to bootstrap the iCPG from git history (`POST /api/icpg/{key}/build`), runs `icpg bootstrap` off the event loop, with a per-project in-flight lock to prevent concurrent builds corrupting `reason.db`
+- **Orchestrator isolated workspaces** — each subtask gets a per-session git worktree (via `orchestrator.isolation`) mounted into its container, cleaned up after the run; fixes the empty `-v :/workspace` mount
+- **Isolation modes honored** — `orchestrator.isolation` (`auto`/`worktree`/`local`) resolves to a strategy (`auto` probes docker > worktree > lock-only); non-container levels run locally instead of requiring Docker
+- **`minimax` model** in `adapters/pi.py` (dispatches `~/bin/minimax`) + `process/model_preference.py` so `chat_router.decide()` follows the user's shared primary model for real work
+- Tests for build endpoint, isolation/provisioning, model preference
+
+#### Fixed
+- **Orchestrator image mismatch** — `route_subtask` hardcoded `polyphony:latest`; now config-driven (`orchestrator.image`, default `polyphony-worker:latest`, the image that's actually built)
+- **Security (HIGH):** local (non-container) agent runs no longer pass `--dangerously-skip-permissions`; `_run_local` refuses unless `orchestrator.local_sandbox` (firejail/bwrap) is configured — fail-safe by default
+- Two stale `pi_adapter` tests with hardcoded model counts
+
+---
+
 ## [6.42.0] - 2026-05-29
 
 ### Autonomous Agent Pipeline — Tool Execution, Steering, Contracts, Approvals
