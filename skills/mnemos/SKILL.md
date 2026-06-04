@@ -68,7 +68,44 @@ mnemos consolidate             # Run micro-consolidation
 mnemos nodes --type goal       # List active GoalNodes
 mnemos add goal "Build auth"   # Add a GoalNode
 mnemos bridge-icpg             # Import iCPG ReasonNodes
+mnemos ingest-claude --all     # Ingest Claude Code transcripts (see below)
+mnemos haze --recent 10        # Show per-session haziness scores
 ```
+
+## Claude Transcript Ingestion & Haziness
+
+Mnemos can ingest Claude Code session transcripts (the per-session JSONL under
+`~/.claude/projects/`) and score each session's **haziness** — a measure of how
+much the agent struggled. The `Stop` hook does this automatically on session
+exit; it is also available manually.
+
+**What's stored:** only structural fields (roles, tool names, file paths, error
+flags, timestamps) plus a **redacted, 200-char preview** of each turn. Full
+content is never persisted, and secrets (API keys, tokens, PEM blocks, JWTs,
+credentials) are redacted before anything touches disk.
+
+**Haziness** is a weighted score over five dimensions, each in `[0,1]`:
+
+| Dimension | Weight | What it measures |
+|-----------|--------|------------------|
+| correction_density | 0.30 | User corrections per eligible user turn |
+| redo_ratio | 0.25 | Edits re-touched after an error |
+| first_try_error_rate | 0.20 | Edits followed by errors within 3 turns |
+| orphan_tool_use_rate | 0.15 | Tool calls with no matching result |
+| backtrack_norm | 0.10 | `git revert`/`reset --hard`/`restore` calls |
+
+The composite maps to a band: `clear` < 0.25 ≤ `cloudy` < 0.50 ≤ `hazy` < 0.75 ≤ `lost`.
+
+```bash
+mnemos ingest-claude --all              # ingest every transcript + score
+mnemos ingest-claude --session <id>     # one session by id
+mnemos ingest-claude --transcript <f>   # a specific JSONL file
+mnemos haze --recent 10                 # table of recent sessions
+mnemos haze --session <id>              # per-dimension breakdown
+```
+
+Ingestion is idempotent (resumes via `last_line_offset`). **Opt out per project**
+with `touch .mnemos/claude-log.disabled`.
 
 ## Agent Instructions
 

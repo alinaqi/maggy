@@ -89,10 +89,9 @@ echo ""
 echo "Installing templates..."
 mkdir -p "$CLAUDE_DIR/templates"
 cp "$SCRIPT_DIR/templates/"* "$CLAUDE_DIR/templates/" 2>/dev/null || true
-chmod +x "$CLAUDE_DIR/templates/tdd-loop-check.sh" 2>/dev/null || true
-chmod +x "$CLAUDE_DIR/templates/pre-compact.sh" 2>/dev/null || true
-chmod +x "$CLAUDE_DIR/templates/codex-auto-review.sh" 2>/dev/null || true
-echo "✓ Installed templates (CLAUDE.md, AGENTS.md, CLAUDE.local.md, settings.json, config.toml)"
+# Make every hook script executable (mnemos-*, icpg-*, tdd-loop-check, codex-auto-review, etc.)
+chmod +x "$CLAUDE_DIR/templates/"*.sh 2>/dev/null || true
+echo "✓ Installed templates (CLAUDE.md, AGENTS.md, CLAUDE.local.md, settings.json, config.toml, and all hook scripts)"
 
 # Cross-tool config installation
 if echo "$DETECTED_AGENTS" | grep -q "kimi"; then
@@ -117,6 +116,10 @@ chmod +x "$CLAUDE_DIR/install-hooks.sh" 2>/dev/null || true
 # Copy graph tools installer
 cp "$SCRIPT_DIR/scripts/install-graph-tools.sh" "$CLAUDE_DIR/" 2>/dev/null || true
 chmod +x "$CLAUDE_DIR/install-graph-tools.sh" 2>/dev/null || true
+
+# Copy session-hooks installer (wires mnemos/icpg hooks into a project's
+# .claude/settings.json — used by /initialize-project)
+cp "$SCRIPT_DIR/scripts/install_session_hooks.py" "$CLAUDE_DIR/" 2>/dev/null || true
 
 # Install Polyphony CLI shim
 POLYPHONY_SRC="$SCRIPT_DIR/scripts/polyphony"
