@@ -84,6 +84,21 @@ maggy serve    # web dashboard at localhost:8080
 maggy          # CLI REPL (auto-detects current project)
 ```
 
+### Recommended: route through srooter ([www.srooter.ai](https://www.srooter.ai))
+
+For transparent multi-model routing across **Maggy, Claude Code, and Codex**, point your tools at **[srooter](https://www.srooter.ai)** — an Anthropic/OpenAI-compatible gateway that routes each request to the right model (Claude, MiniMax, DeepSeek, Kimi, Gemini, Grok, local Qwen) with budget caps, fallbacks, and a usage dashboard. No per-tool config.
+
+```bash
+# Get a key at www.srooter.ai, then point Claude Code / Codex at the gateway:
+export ANTHROPIC_BASE_URL="https://www.srooter.ai/anthropic"   # or your local gateway
+export ANTHROPIC_API_KEY="<your-srooter-key>"
+claude        # now routed through srooter
+
+# Choose the model you "follow" once — Maggy, the route-task hooks, and srooter
+# all honor the same choice (trivial asks stay cheap/local):
+/model-config minimax
+```
+
 ### What you get (on top of Bootstrap)
 
 **Multi-model routing** -- 13-tier routing across Qwen (local/free), DeepSeek, Gemini, Kimi, Grok, Codex, and Claude. Routes by task complexity. DeepSeek handles ~80% of coding work. Claude reserved for architecture and security.
