@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.39.0] - 2026-06-04
+
+### Mnemos: Claude Transcript Ingestion + Per-Session Haziness Scoring
+
+A new memory dimension — Mnemos now ingests Claude Code session transcripts and
+scores how much each session *struggled*, so fatigue can be measured from real
+history rather than only live signals.
+
+#### Added
+- **Transcript ingester** (`scripts/mnemos/claude_log.py`) — parses the per-session
+  JSONL under `~/.claude/projects/` into `claude_sessions` / `claude_turns`.
+  Idempotent (resumes via `last_line_offset`, `INSERT OR IGNORE` on
+  `(session_id, idx)`). Stores **only** structural fields + a redacted 200-char
+  preview — never full content.
+- **Haziness scoring** (`scripts/mnemos/haziness.py`) — weighted 5-dimension score
+  (correction density, redo ratio, first-try error rate, orphan tool-use,
+  backtracking) with `clear`/`cloudy`/`hazy`/`lost` bands and dominant-dimension
+  reporting, persisted to `claude_haze`.
+- **Secret redaction** (`scripts/mnemos/redact.py`) — ordered patterns
+  (PEM/JWT/Anthropic/Stripe/OpenAI/GitHub/AWS/credential) applied to every text
+  field before it is persisted.
+- **CLI** — `mnemos ingest-claude` (`--all` / `--session` / `--slug` /
+  `--transcript`) and `mnemos haze` (`--recent` / `--session` / `--explain`).
+- **Stop hook** (`templates/mnemos-stop-ingest.sh`) — ingests + scores the
+  just-closed session on exit; never blocks the user; per-project opt-out via
+  `touch .mnemos/claude-log.disabled`.
+- **Session-hooks installer** (`scripts/install_session_hooks.py`) — idempotent,
+  non-destructive merge of the session-hook chain into a project's
+  `.claude/settings.json`. Wired into `/initialize-project` (new Step 7c) and
+  shipped by `install.sh`.
+
+#### Fixed
+- **Schema migration for existing databases** — `MnemosStore.ensure_schema()`
+  applies the schema idempotently so pre-existing `.mnemos/mnemo.db` files gain
+  the new `claude_*` tables. Previously the first ingest on an existing DB failed
+  with `no such table` (and the Stop hook swallowed it silently).
+
+#### Hardened
+- `install.sh` now `chmod +x` **all** `~/.claude/templates/*.sh` hook scripts
+  (previously only two were made executable).
+
+#### Tests
+- 52 new tests covering ingestion, migration, redaction, idempotency, the two
+  CLI commands, and the session-hooks installer. ruff + mypy clean.
+
 ## [6.38.1] - 2026-05-26
 
 ### Maggy: Model Health + Dashboard Regression Guards

@@ -1373,6 +1373,35 @@ This hook:
 
 To disable: `rm .git/hooks/pre-push`
 
+### Step 7c: Install Mnemos/iCPG session lifecycle hooks
+
+**Always wire the Claude Code session hooks into the project's `.claude/settings.json`.**
+
+This enables the full memory + intent lifecycle: pre-compact checkpoints,
+post-compact restore, fatigue/intent context on edits, tool-outcome logging,
+TDD loop checks, intent-graph recording, session checkpoints, **and Claude
+transcript ingestion + haziness scoring on session stop**.
+
+```bash
+BOOTSTRAP_DIR=$(cat ~/.claude/.bootstrap-dir 2>/dev/null)
+# Prefer the installed copy; fall back to the bootstrap clone.
+INSTALLER="$HOME/.claude/install_session_hooks.py"
+[ -f "$INSTALLER" ] || INSTALLER="$BOOTSTRAP_DIR/scripts/install_session_hooks.py"
+
+python3 "$INSTALLER" --project .
+```
+
+This merge is **idempotent and non-destructive**: existing project hooks and
+permissions are preserved, and hook entries are de-duplicated by command, so
+re-running `/initialize-project` simply tops up any newly-added hooks (e.g. the
+`mnemos-stop-ingest` transcript ingester) without clobbering customizations.
+
+The hook commands resolve their scripts from `.claude/scripts/` with a
+`$HOME/.claude/templates/` fallback (installed by `install.sh`), so no scripts
+are copied into the project.
+
+To opt out of transcript ingestion for a project: `touch .mnemos/claude-log.disabled`.
+
 ### Step 8: GitHub repository setup (if selected and not already configured)
 
 **Create new repository:**
@@ -1416,6 +1445,7 @@ Updated:
   - react-web.md (updated)
   - code-graph.md (updated)
 ✓ Pre-push code review hook (installed/updated)
+✓ Session lifecycle hooks wired into .claude/settings.json (mnemos/icpg, incl. transcript ingest + haziness)
 
 Added:
 ✓ llm-patterns.md (new skill added)
@@ -1454,6 +1484,7 @@ Created:
 ✓ .github/workflows/quality.yml
 ✓ Pre-commit hooks configured
 ✓ Pre-push code review hook (blocks on Critical/High issues)
+✓ Session lifecycle hooks wired into .claude/settings.json (mnemos/icpg, incl. transcript ingest + haziness)
 ✓ GitHub repository: https://github.com/[owner]/[repo]
 
 Code Graph (fully automated):

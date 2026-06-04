@@ -61,6 +61,59 @@ CREATE INDEX IF NOT EXISTS idx_mnemo_status ON mnemo_nodes(status);
 CREATE INDEX IF NOT EXISTS idx_mnemo_weight ON mnemo_nodes(activation_weight);
 CREATE INDEX IF NOT EXISTS idx_checkpoint_task ON checkpoints(task_id);
 CREATE INDEX IF NOT EXISTS idx_fatigue_time ON fatigue_log(computed_at);
+
+CREATE TABLE IF NOT EXISTS claude_sessions (
+    id TEXT PRIMARY KEY,
+    project_path TEXT NOT NULL,
+    project_slug TEXT,
+    task_id TEXT,
+    model TEXT,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    turn_count INTEGER NOT NULL DEFAULT 0,
+    tokens_in INTEGER DEFAULT 0,
+    tokens_out INTEGER DEFAULT 0,
+    source_path TEXT NOT NULL,
+    last_line_offset INTEGER NOT NULL DEFAULT 0,
+    last_ingested_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS claude_turns (
+    session_id TEXT NOT NULL,
+    idx INTEGER NOT NULL,
+    uuid TEXT,
+    parent_uuid TEXT,
+    role TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    tool_name TEXT,
+    tool_use_id TEXT,
+    file_path TEXT,
+    is_error INTEGER NOT NULL DEFAULT 0,
+    text_preview TEXT,
+    correction_match INTEGER NOT NULL DEFAULT 0,
+    ts TEXT NOT NULL,
+    PRIMARY KEY (session_id, idx),
+    FOREIGN KEY (session_id) REFERENCES claude_sessions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS claude_haze (
+    session_id TEXT PRIMARY KEY,
+    correction_density REAL NOT NULL,
+    redo_ratio REAL NOT NULL,
+    first_try_error_rate REAL NOT NULL,
+    orphan_tool_use_rate REAL NOT NULL,
+    backtrack_norm REAL NOT NULL,
+    composite REAL NOT NULL,
+    turns_analyzed INTEGER NOT NULL,
+    computed_at TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES claude_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_path);
+CREATE INDEX IF NOT EXISTS idx_claude_sessions_task ON claude_sessions(task_id);
+CREATE INDEX IF NOT EXISTS idx_claude_turns_session ON claude_turns(session_id);
+CREATE INDEX IF NOT EXISTS idx_claude_turns_tool ON claude_turns(tool_name);
+CREATE INDEX IF NOT EXISTS idx_claude_turns_file ON claude_turns(file_path);
 """
 
 
@@ -73,13 +126,24 @@ class MnemosStore:
         self.db_path = self.mnemos_dir / DB_NAME
 
     def init_db(self) -> None:
-        """Create .mnemos/ directory and initialize schema."""
+        """Create .mnemos/ directory, .gitignore, and initialize schema."""
         self.mnemos_dir.mkdir(parents=True, exist_ok=True)
         gitignore = self.mnemos_dir / '.gitignore'
         if not gitignore.exists():
             gitignore.write_text('*\n')
+        self.ensure_schema()
+
+    def ensure_schema(self) -> None:
+        """Apply SCHEMA idempotently — safe on new and pre-existing dbs.
+
+        Migration-safe: SCHEMA is all `CREATE ... IF NOT EXISTS`, so calling
+        this on a database created before later tables were added simply
+        fills in the missing tables/indexes without touching existing data.
+        """
+        self.mnemos_dir.mkdir(parents=True, exist_ok=True)
         with self._conn() as conn:
             conn.executescript(SCHEMA)
+            conn.execute('PRAGMA user_version = 1')
 
     def exists(self) -> bool:
         return self.db_path.exists()
