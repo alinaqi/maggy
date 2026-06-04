@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from maggy.adapters.pi import (
+    DEFAULT_MODELS,
     ModelEntry,
     PiAdapter,
 )
@@ -16,7 +17,7 @@ from maggy.adapters.pi import (
 class TestModelRegistry:
     def test_default_models_loaded(self):
         adapter = PiAdapter()
-        assert len(adapter.list_models()) == 6
+        assert len(adapter.list_models()) == len(DEFAULT_MODELS)
 
     def test_get_known_model(self):
         adapter = PiAdapter()
@@ -51,7 +52,7 @@ class TestFallbackChain:
     def test_unknown_start_returns_all(self):
         adapter = PiAdapter()
         chain = adapter.fallback_chain("nonexistent")
-        assert len(chain) == 6
+        assert len(chain) == len(DEFAULT_MODELS)
 
 
 class TestQuotaDetection:

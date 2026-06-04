@@ -14,6 +14,9 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo ".")
 CACHE_FILE="$HOME/.claude/routing-cache.json"
 LOG_FILE="$HOME/.claude/routing-log.jsonl"
 
+# Followed (primary) model — shared with srooter + Maggy
+PRIMARY_MODEL=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.claude/model-config.json'))).get('primary',''))" 2>/dev/null || echo "")
+
 # Skip empty prompts only
 if [ -z "$PROMPT" ]; then
   exit 0
@@ -191,6 +194,10 @@ case "$TIER" in
     CTX="ROUTING DECISION: CLAUDE (architecture/security-critical). Reason: ${REASON}. PLAN FIRST — write plan to ~/.claude/plans/<name>.md, then run ~/bin/validate-plan <plan-file>. If 2+ reviewers approve, execute immediately. Do NOT enter Claude Code plan mode — it requires manual approval. Write the plan as a file and validate autonomously.${TOOLS_HINT}"
     ;;
 esac
+
+if [ -n "$PRIMARY_MODEL" ]; then
+  CTX="${CTX} FOLLOWED MODEL: ${PRIMARY_MODEL} — the user's chosen primary; for substantial coding, prefer delegating to it over other tiers."
+fi
 
 cat <<EOF
 {

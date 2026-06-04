@@ -69,6 +69,8 @@ DEFAULT_MODELS: list[ModelEntry] = [
                os.path.join(DELEGATION_BIN, "kimi"), 128_000),
     ModelEntry("grok", "xai", "grok-4.3", "premium", 0.005, 30.0,
                os.path.join(DELEGATION_BIN, "grok"), 128_000),
+    ModelEntry("minimax", "minimax", "MiniMax-M2.5", "premium", 0.0005, 30.0,
+               os.path.join(DELEGATION_BIN, "minimax"), 200_000),
     ModelEntry("gemini-pro-search", "google", "gemini-3.1-pro", "premium", 0.001, 30.0,
                os.path.join(DELEGATION_BIN, "gemini-api"), 2_000_000),
     ModelEntry("gpt", "openai", "gpt-4o", "medium", 0.01, 20.0, "codex", 128_000),
@@ -212,6 +214,8 @@ class PiAdapter:
             return [model.cli_command, "--pro", prompt]
         if "/kimi" in model.cli_command:
             return [model.cli_command, "--quiet", "-p", prompt]
+        if "/minimax" in model.cli_command:
+            return [model.cli_command, prompt]
         # Default: CLI with -p flag
         return [model.cli_command, "-p", prompt]
 

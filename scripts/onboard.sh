@@ -58,6 +58,19 @@ fi
 echo "  └────────────────────"
 
 echo ""
+echo "  ┌─ MiniMax M-series (OpenAI-compatible, strong on SWE-bench)"
+read -rsp "  │  API Key: " MM_KEY
+echo ""
+if [ -n "$MM_KEY" ]; then
+  MINIMAX_ENABLED=1
+  echo "  │  → MiniMax M2.5 / M3 enabled"
+else
+  MINIMAX_ENABLED=0
+  echo "  │  → MiniMax disabled (no key)"
+fi
+echo "  └────────────────────"
+
+echo ""
 echo "  ┌─ Local Models"
 echo -n "  │  Is Ollama running locally? [Y/n]: "
 read -r OLLAMA_OK
@@ -92,6 +105,9 @@ fi
   if [ "$CODEX_ENABLED" -eq 1 ]; then
     echo "export OPENAI_API_KEY=\"$OAI_KEY\""
   fi
+  if [ "$MINIMAX_ENABLED" -eq 1 ]; then
+    echo "export MINIMAX_API_KEY=\"$MM_KEY\""
+  fi
   echo "$MARKER_END"
 } >> "$ZSRC"
 
@@ -119,10 +135,37 @@ EOF
 
 echo "  ✓ Model config written to $CONFIG_DIR/model-config.json"
 
+# ── Primary ("followed") model picker ─────────────────────────────────────
+# Smart routing: this model handles the main coding work across srooter, the
+# route-task hooks, and Maggy. Cheap/trivial asks still route locally.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MR="$SCRIPT_DIR/model_routing.py"
+
+if [ -f "$MR" ] && command -v python3 >/dev/null 2>&1; then
+  echo ""
+  echo "  ┌─ Primary model (the one you want to 'follow' for coding)"
+  AVAIL=$(python3 "$MR" detect 2>/dev/null | python3 -c "import sys,json;print(' '.join(k for k,v in json.load(sys.stdin).items() if v))" 2>/dev/null)
+  REC=$(python3 "$MR" get primary 2>/dev/null || echo claude)
+  if [ -n "$AVAIL" ]; then
+    echo "  │  Available: $AVAIL"
+    echo -n "  │  Which model should be primary? [$REC]: "
+    read -r PICK
+    PICK="${PICK:-$REC}"
+    python3 "$MR" set-primary "$PICK" >/dev/null 2>&1 && \
+      echo "  │  → primary = $PICK (smart routing)" || \
+      echo "  │  → kept $REC"
+    # Sync the choice into srooter's routing if srooter is present.
+    SYNC=$(python3 "$MR" apply 2>/dev/null || echo "srooter sync: skipped")
+    echo "  │  $SYNC"
+  fi
+  echo "  └────────────────────"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────
 
 ACTIVE=0
-TOTAL=9
+TOTAL=10
 echo ""
 echo "  ╔══════════════════════════════════════╗"
 echo "  ║         Routing Status              ║"
@@ -146,6 +189,7 @@ status_line "Gemini Flash" "$GEMINI_ENABLED" "\$0.15/M"
 status_line "Gemini Pro Search" "$GEMINI_ENABLED" "\$1.25/M"
 status_line "Kimi K2.6" 1 "\$0.60/M"
 status_line "Codex" "$CODEX_ENABLED" "varies"
+status_line "MiniMax M2.5" "$MINIMAX_ENABLED" "low"
 status_line "Claude" 1 "\$3-5/M"
 
 echo "  ╠══════════════════════════════════════╣"
