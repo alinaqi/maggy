@@ -146,6 +146,21 @@ Every message is scored 1–10 for complexity and classified by task type. The c
 
 Routing is semantic (Qwen3 as local classifier), fatigue-aware, budget-capped, and cascading.
 
+### Gateway routing with srooter — [www.srooter.ai](https://www.srooter.ai)
+
+We've added first-class support for **[srooter](https://www.srooter.ai)**, an Anthropic/OpenAI-compatible LLM gateway that routes your requests across models (Claude, MiniMax, DeepSeek, Kimi, Gemini, Grok, local Qwen) transparently — intent-based routing, budget caps, fallbacks, and a usage dashboard, without changing your tools.
+
+**Recommended with Maggy, Claude Code, or Codex.** Point any of them at the gateway and your traffic is routed for you — no per-tool config:
+
+```bash
+# Claude Code (or Codex) → srooter
+export ANTHROPIC_BASE_URL="https://www.srooter.ai/anthropic"   # or your local gateway
+export ANTHROPIC_API_KEY="<your-srooter-key>"
+claude        # now routed through srooter
+```
+
+Pick the model you "follow" once with `/model-config` — Maggy, the route-task hooks, and srooter all honor the same choice. Trivial asks stay on the cheap/local tier; real coding goes to your primary model (e.g. MiniMax-M2.5).
+
 ---
 
 ## Telos: Testing Beyond TDD
