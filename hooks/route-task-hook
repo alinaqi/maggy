@@ -195,6 +195,15 @@ case "$TIER" in
     ;;
 esac
 
+# ── MiniMax pre-analysis (always-on; toggle: model-config.json "analyze": false) ──
+ANALYZE=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.claude/model-config.json'))).get('analyze',True))" 2>/dev/null || echo "True")
+if [ "$ANALYZE" = "True" ] && [ -x "$HOME/bin/minimax" ] && [ -n "$PROMPT" ]; then
+  ANALYSIS=$(MINIMAX_TIMEOUT=20 "$HOME/bin/minimax" --max-tokens 700 "You are a pre-analysis pass for a coding agent. Analyze the request in 4 terse lines, output directly with NO reasoning preamble — INTENT: / SCOPE: / RISKS: / APPROACH:. Request: ${PROMPT}" 2>/dev/null | head -c 1200 || true)
+  if [ -n "$ANALYSIS" ]; then
+    CTX="${CTX} MINIMAX PRE-ANALYSIS (use this to execute directly): ${ANALYSIS}"
+  fi
+fi
+
 if [ -n "$PRIMARY_MODEL" ]; then
   CTX="${CTX} FOLLOWED MODEL: ${PRIMARY_MODEL} — the user's chosen primary; for substantial coding, prefer delegating to it over other tiers."
 fi

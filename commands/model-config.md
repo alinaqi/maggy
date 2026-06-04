@@ -60,6 +60,21 @@ cd "$(cat ~/.claude/.bootstrap-dir)/../srooter" 2>/dev/null && \
 - No hardcoding — if the config is missing it is auto-created from what's
   installed/keyed on the machine.
 
+### Pre-analysis (MiniMax on every prompt)
+
+When `"analyze": true` (default), the route-task hook sends each prompt to
+MiniMax first for a terse INTENT / SCOPE / RISKS / APPROACH brief and injects
+it into context, so Claude executes with that read of the task. Adds ~3-5s per
+prompt. Toggle:
+
+```bash
+python3 "$MR" set-analyze false   # turn off (prompts go straight through)
+python3 "$MR" set-analyze true    # turn back on
+```
+
+The hook fails open — if MiniMax is slow/unreachable, routing proceeds without
+the analysis (capped at MINIMAX_TIMEOUT=20s).
+
 ## Related
 
 - `scripts/onboard.sh` — sets this during onboarding

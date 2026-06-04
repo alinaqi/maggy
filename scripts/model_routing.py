@@ -136,6 +136,8 @@ def ensure(path: Path = CONFIG_PATH, env: dict | None = None) -> dict:
     cfg["primary"] = recommend_primary(available)
     cfg["classifier"] = recommend_classifier(available)
     cfg.setdefault("mode", "smart")
+    # Pre-analyze every prompt via minimax in the route-task hook.
+    cfg.setdefault("analyze", True)
     cfg["auto_detected"] = True
     save(cfg, path)
     return cfg
@@ -190,6 +192,14 @@ def main(argv: list[str] | None = None) -> int:
         cfg["auto_detected"] = False
         save(cfg)
         print(json.dumps(cfg, indent=2))
+    elif cmd == "set-analyze":
+        if not rest or rest[0] not in ("true", "false"):
+            print("usage: set-analyze true|false", file=sys.stderr)
+            return 1
+        cfg = ensure()
+        cfg["analyze"] = rest[0] == "true"
+        save(cfg)
+        print(f"analyze = {cfg['analyze']}")
     elif cmd == "apply":
         srooter = Path.home() / "Documents" / "AI-Playground" / "srooter" / "srooter.yaml"
         ok = apply_to_srooter(ensure(), srooter)
