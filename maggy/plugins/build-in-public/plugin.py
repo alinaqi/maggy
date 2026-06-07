@@ -601,26 +601,32 @@ class BuildInPublic:
         if buffer_posts:
             await self._schedule_buffer_posts(buffer_posts, media_path)
 
-    async def _submit_reddit(self, post: dict):
-        """Submit a build-in-public self-post to the configured subreddit."""
+    def _resolve_reddit_subreddit(self) -> str:
+        """Pick the publish subreddit. Maggy chooses autonomously if unset."""
         cfg = self._config.get("channels", {}).get("reddit", {})
-        subreddit = cfg.get("subreddit", "")
-        if not subreddit:
-            logger.info("build-in-public: reddit channel has no subreddit configured")
-            self._log_post(post)
-            return
+        explicit = (cfg.get("subreddit") or "").strip().lstrip("r/").strip("/")
+        if explicit:
+            return explicit
+        # Autonomous default for build-in-public content.
+        topics = getattr(self, "_topics", {}) or {}
+        candidates = topics.get("reddit_publish") or []
+        return (candidates[0] if candidates else "buildinpublic")
+
+    async def _submit_reddit(self, post: dict):
+        """Submit a build-in-public self-post (subreddit chosen autonomously)."""
+        subreddit = self._resolve_reddit_subreddit()
         title = post.get("title") or post.get("text", "").split("\n")[0][:300]
         try:
             from maggy.plugins.build_in_public.social_api import SocialMonitor
             monitor = SocialMonitor()
-            ok = await monitor.reddit_submit(subreddit, title, post.get("text", ""))
+            ok = await monitor.reddit_post(subreddit, title, post.get("text", ""))
             if ok:
                 self._posts_today += 1
                 logger.info("build-in-public: submitted to r/%s", subreddit)
             else:
                 logger.info(
-                    "build-in-public: reddit submit skipped/failed "
-                    "(needs REDDIT_REFRESH_TOKEN + write scope)"
+                    "build-in-public: reddit post skipped/failed "
+                    "(needs Reddit write creds — refresh token or username/password)"
                 )
                 self._log_post(post)
         except Exception as e:

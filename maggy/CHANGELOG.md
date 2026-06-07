@@ -9,13 +9,14 @@ All notable changes to Maggy will be documented in this file.
 ### Build-in-Public: Reddit Publishing Channel
 
 #### Added
-- **Reddit as a third publish channel** (alongside LinkedIn + X). `config.channels.reddit` (subreddit, tone, max_chars, schedule) drives a Reddit-native narrative; posts are submitted as self-posts.
-- `social_api.SocialMonitor.reddit_submit(subreddit, title, body)` — OAuth submit via `https://oauth.reddit.com/api/submit` (mirrors `reddit_comment`; needs `REDDIT_REFRESH_TOKEN` + write scope).
-- `_schedule_posts` now routes Reddit posts directly (Reddit isn't a Buffer service) and the rest via Buffer (`_schedule_buffer_posts`). `ScheduledPost` gained a `title` (Reddit self-post titles).
-- 8 tests (submit success/no-token/missing-subreddit/api-error, title plumbing, routing).
+- **Reddit as a third publish channel** (alongside LinkedIn + X). The narrative engine generates a Reddit-native self-post; `_schedule_posts` routes Reddit directly (not a Buffer service) while the rest go via Buffer (`_schedule_buffer_posts`). `ScheduledPost` gained a `title`.
+- **Autonomous subreddit** — `_resolve_reddit_subreddit()` picks the target automatically (defaults to r/buildinpublic, or `topics.yaml` `reddit_publish`); `config.channels.reddit.subreddit` is an optional override.
+- **Credential fallback from ideaminer** — `reddit_cred()` reads Reddit creds from the environment, then a sibling ideaminer checkout (`~/Documents/AI-Playground/ideaminer/.env`), so local Maggy reuses ideaminer's Reddit app with no extra setup.
+- **Write-auth flexibility** — `_get_reddit_access_token` now supports both a web-app refresh token and a script-app password grant (`REDDIT_USERNAME`/`REDDIT_PASSWORD`); `reddit_post`/`reddit_comment` gate on available write creds. Posting uses the existing `reddit_post`.
+- 12 tests (cred resolution, grant selection, post success/no-creds, title plumbing, autonomous + override subreddit, routing).
 
 #### Notes
-- `reddit.write` permission added. Subreddit defaults to blank — Reddit posting is skipped until you set `config.channels.reddit.subreddit`.
+- `reddit.write` permission added. Reading/monitoring works with ideaminer's creds out of the box; **posting** still needs a write credential (a refresh token or username/password) — ideaminer ships read-only creds only.
 
 ---
 

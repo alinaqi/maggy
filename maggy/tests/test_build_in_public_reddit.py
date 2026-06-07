@@ -35,7 +35,8 @@ plugin = _load("plugin", "plugin.py")
 class _FakeResp:
     def __init__(self, status=200, payload=None):
         self.status_code = status
-        self._payload = payload or {"json": {"errors": []}}
+        self._payload = payload or {}
+        self.text = ""
 
     def json(self):
         return self._payload
@@ -43,7 +44,6 @@ class _FakeResp:
 
 class _FakeClient:
     def __init__(self, resp):
-        self._resp = resp
         self.post = AsyncMock(return_value=resp)
 
     async def __aenter__(self):
@@ -53,87 +53,118 @@ class _FakeClient:
         return False
 
 
-# ── reddit_submit ──────────────────────────────────────────────────────
+# ── credential resolution (env → ideaminer) ────────────────────────────
+
+def test_reddit_cred_prefers_env(monkeypatch):
+    monkeypatch.setenv("REDDIT_CLIENT_ID", "from-env")
+    assert social_api.reddit_cred("REDDIT_CLIENT_ID") == "from-env"
+
+
+def test_reddit_cred_falls_back_to_ideaminer(monkeypatch):
+    monkeypatch.delenv("REDDIT_CLIENT_ID", raising=False)
+    social_api._ideaminer_env_cache = {"REDDIT_CLIENT_ID": "from-ideaminer"}
+    try:
+        assert social_api.reddit_cred("REDDIT_CLIENT_ID") == "from-ideaminer"
+    finally:
+        social_api._ideaminer_env_cache = None
+
+
+# ── OAuth grant selection ──────────────────────────────────────────────
+
+def test_grant_uses_refresh_token(monkeypatch):
+    monkeypatch.setenv("REDDIT_REFRESH_TOKEN", "rt")
+    g = social_api.SocialMonitor._reddit_grant()
+    assert g["grant_type"] == "refresh_token"
+
+
+def test_grant_uses_password(monkeypatch):
+    monkeypatch.delenv("REDDIT_REFRESH_TOKEN", raising=False)
+    monkeypatch.setenv("REDDIT_USERNAME", "u")
+    monkeypatch.setenv("REDDIT_PASSWORD", "p")
+    social_api._ideaminer_env_cache = {}
+    try:
+        g = social_api.SocialMonitor._reddit_grant()
+        assert g["grant_type"] == "password" and g["username"] == "u"
+    finally:
+        social_api._ideaminer_env_cache = None
+
+
+def test_grant_empty_without_creds(monkeypatch):
+    for k in ("REDDIT_REFRESH_TOKEN", "REDDIT_USERNAME", "REDDIT_PASSWORD"):
+        monkeypatch.delenv(k, raising=False)
+    social_api._ideaminer_env_cache = {}
+    try:
+        assert social_api.SocialMonitor._reddit_grant() == {}
+    finally:
+        social_api._ideaminer_env_cache = None
+
+
+# ── reddit_post ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_reddit_submit_success(monkeypatch):
+async def test_reddit_post_success(monkeypatch):
     monkeypatch.setenv("REDDIT_REFRESH_TOKEN", "rt")
     m = social_api.SocialMonitor()
     m._get_reddit_access_token = AsyncMock(return_value="tok")
-    client = _FakeClient(_FakeResp(200, {"json": {"errors": []}}))
+    client = _FakeClient(_FakeResp(200))
     with patch.object(social_api.httpx, "AsyncClient", return_value=client):
-        ok = await m.reddit_submit("buildinpublic", "Shipped X", "body text")
+        ok = await m.reddit_post("buildinpublic", "Shipped X", "body")
     assert ok is True
     args, kwargs = client.post.call_args
     assert args[0].endswith("/api/submit")
     assert kwargs["data"]["sr"] == "buildinpublic"
-    assert kwargs["data"]["kind"] == "self"
 
 
 @pytest.mark.asyncio
-async def test_reddit_submit_no_token(monkeypatch):
-    monkeypatch.delenv("REDDIT_REFRESH_TOKEN", raising=False)
-    m = social_api.SocialMonitor()
-    assert await m.reddit_submit("buildinpublic", "t", "b") is False
-
-
-@pytest.mark.asyncio
-async def test_reddit_submit_missing_subreddit(monkeypatch):
-    monkeypatch.setenv("REDDIT_REFRESH_TOKEN", "rt")
-    m = social_api.SocialMonitor()
-    assert await m.reddit_submit("", "t", "b") is False
-
-
-@pytest.mark.asyncio
-async def test_reddit_submit_api_errors(monkeypatch):
-    monkeypatch.setenv("REDDIT_REFRESH_TOKEN", "rt")
-    m = social_api.SocialMonitor()
-    m._get_reddit_access_token = AsyncMock(return_value="tok")
-    client = _FakeClient(_FakeResp(200, {"json": {"errors": [["RATELIMIT", "slow down"]]}}))
-    with patch.object(social_api.httpx, "AsyncClient", return_value=client):
-        assert await m.reddit_submit("buildinpublic", "t", "b") is False
+async def test_reddit_post_no_write_creds(monkeypatch):
+    for k in ("REDDIT_REFRESH_TOKEN", "REDDIT_USERNAME", "REDDIT_PASSWORD"):
+        monkeypatch.delenv(k, raising=False)
+    social_api._ideaminer_env_cache = {}
+    try:
+        m = social_api.SocialMonitor()
+        assert await m.reddit_post("buildinpublic", "t", "b") is False
+    finally:
+        social_api._ideaminer_env_cache = None
 
 
 # ── ScheduledPost + strategy title ─────────────────────────────────────
 
 def test_scheduled_post_has_title():
-    p = plugin.ScheduledPost(channel="reddit", text="hi", title="My Title")
-    assert p.title == "My Title"
+    assert plugin.ScheduledPost(channel="reddit", title="T").title == "T"
     assert plugin.ScheduledPost().title == ""
 
 
 def test_plan_sets_reddit_title():
-    cfg = {"channels": {"reddit": {"max_chars": 8000}}}
-    strat = plugin.ContentStrategy(cfg)
-    posts = strat.plan("on_feature_shipped",
-                       {"what": "Auth revamp"},
-                       {"reddit": "We rebuilt auth.\nDetails follow."})
+    strat = plugin.ContentStrategy({"channels": {"reddit": {"max_chars": 8000}}})
+    posts = strat.plan("on_feature_shipped", {"what": "Auth revamp"},
+                       {"reddit": "We rebuilt auth.\nDetails."})
     reddit = [p for p in posts if p.channel == "reddit"]
     assert reddit and reddit[0].title == "Auth revamp"
 
 
-# ── _submit_reddit routing ─────────────────────────────────────────────
+# ── autonomous subreddit + routing ─────────────────────────────────────
+
+def test_subreddit_default_is_autonomous():
+    obj = object.__new__(plugin.BuildInPublic)
+    obj._config = {"channels": {"reddit": {}}}
+    assert obj._resolve_reddit_subreddit() == "buildinpublic"
+
+
+def test_subreddit_explicit_override():
+    obj = object.__new__(plugin.BuildInPublic)
+    obj._config = {"channels": {"reddit": {"subreddit": "r/SideProject/"}}}
+    assert obj._resolve_reddit_subreddit() == "SideProject"
+
 
 @pytest.mark.asyncio
-async def test_submit_reddit_calls_monitor():
+async def test_submit_reddit_uses_resolved_subreddit():
     obj = object.__new__(plugin.BuildInPublic)
-    obj._config = {"channels": {"reddit": {"subreddit": "buildinpublic"}}}
+    obj._config = {"channels": {"reddit": {}}}  # blank → autonomous
     obj._posts_today = 0
     obj._log_post = MagicMock()
-    fake_monitor = MagicMock()
-    fake_monitor.reddit_submit = AsyncMock(return_value=True)
-    with patch.object(social_api, "SocialMonitor", return_value=fake_monitor):
+    monitor = MagicMock()
+    monitor.reddit_post = AsyncMock(return_value=True)
+    with patch.object(social_api, "SocialMonitor", return_value=monitor):
         await obj._submit_reddit({"channel": "reddit", "title": "T", "text": "B"})
-    fake_monitor.reddit_submit.assert_awaited_once_with("buildinpublic", "T", "B")
+    monitor.reddit_post.assert_awaited_once_with("buildinpublic", "T", "B")
     assert obj._posts_today == 1
-
-
-@pytest.mark.asyncio
-async def test_submit_reddit_skips_without_subreddit():
-    obj = object.__new__(plugin.BuildInPublic)
-    obj._config = {"channels": {"reddit": {"subreddit": ""}}}
-    obj._posts_today = 0
-    obj._log_post = MagicMock()
-    await obj._submit_reddit({"channel": "reddit", "text": "B"})
-    obj._log_post.assert_called_once()
-    assert obj._posts_today == 0

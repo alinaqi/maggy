@@ -25,8 +25,9 @@ config:
       tone: "sharp, punchy, no threads unless the insight is too good. Developers who ship read this."
       schedule: "10:30 UTC weekdays"
     reddit:
-      # Set your target subreddit (e.g. "buildinpublic", "SideProject", or your own).
-      # Left blank = Reddit posting is skipped until configured.
+      # Optional. Leave blank — Maggy chooses autonomously (defaults to
+      # r/buildinpublic, or topics.yaml `reddit_publish`). Override only to
+      # force a specific subreddit.
       subreddit: ""
       max_chars: 8000
       tone: "authentic, story-first, no marketing speak. Redditors downvote hype. Lead with the problem and what you learned."
