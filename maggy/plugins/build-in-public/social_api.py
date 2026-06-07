@@ -281,6 +281,27 @@ class SocialMonitor:
 
         return posts
 
+    async def reddit_post_comments(self, submission_id: str,
+                                   limit: int = 50) -> list[dict]:
+        """Fetch top-level comments on one of our posts (read client)."""
+        client = self._get_reddit_client()
+        if not client:
+            return []
+        out: list[dict] = []
+        try:
+            sub = await client.submission(id=submission_id.replace("t3_", ""))
+            await sub.comments.replace_more(limit=0)
+            for c in sub.comments.list()[:limit]:
+                out.append({
+                    "id": c.id,
+                    "fullname": f"t1_{c.id}",
+                    "author": str(c.author) if c.author else "",
+                    "body": getattr(c, "body", "") or "",
+                })
+        except Exception as e:
+            logger.debug("Reddit comments fetch failed: %s", e)
+        return out
+
     async def reddit_monitor_subreddits(self, subreddits: list[str],
                                         limit: int = 5) -> list[SocialPost]:
         """Monitor multiple subreddits for new content."""
@@ -358,17 +379,21 @@ class SocialMonitor:
         return {}
 
     async def reddit_post(self, subreddit: str, title: str,
-                          text: str = "", url: str = "") -> bool:
-        """Submit a post to Reddit. Requires OAuth2 refresh token with submit scope."""
+                          text: str = "", url: str = "") -> str:
+        """Submit a post. Returns the post fullname (t3_…) on success, else "".
+
+        Requires user write credentials (refresh token or username/password).
+        """
         if not self._reddit_grant():
             logger.debug("Reddit post skipped: no user write credentials")
-            return False
+            return ""
         try:
             access_token = await self._get_reddit_access_token()
             if not access_token:
-                return False
+                return ""
 
-            data = {"sr": subreddit, "title": title, "kind": "self", "text": text}
+            data = {"sr": subreddit.lstrip("r/").strip("/"), "title": title[:300],
+                    "kind": "self", "text": text, "api_type": "json"}
             if url:
                 data["kind"] = "link"
                 data["url"] = url
@@ -376,13 +401,22 @@ class SocialMonitor:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     "https://oauth.reddit.com/api/submit",
-                    headers={"Authorization": f"Bearer {access_token}"},
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "User-Agent": reddit_cred("REDDIT_USER_AGENT") or "Maggy/1.0",
+                    },
                     data=data,
                 )
-                return resp.status_code == 200
+                if resp.status_code != 200:
+                    return ""
+                jd = resp.json().get("json", {})
+                if jd.get("errors"):
+                    logger.debug("Reddit post errors: %s", jd["errors"])
+                    return ""
+                return jd.get("data", {}).get("name", "") or "t3_unknown"
         except Exception as e:
             logger.debug("Reddit post failed: %s", e)
-        return False
+        return ""
 
 
 # ═══ Competitor & Influencer Discovery ═══════════════════════════════════

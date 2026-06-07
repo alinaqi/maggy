@@ -102,17 +102,16 @@ def test_grant_empty_without_creds(monkeypatch):
 # ── reddit_post ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_reddit_post_success(monkeypatch):
+async def test_reddit_post_success_returns_id(monkeypatch):
     monkeypatch.setenv("REDDIT_REFRESH_TOKEN", "rt")
     m = social_api.SocialMonitor()
     m._get_reddit_access_token = AsyncMock(return_value="tok")
-    client = _FakeClient(_FakeResp(200))
+    client = _FakeClient(_FakeResp(200, {"json": {"errors": [], "data": {"name": "t3_zzz"}}}))
     with patch.object(social_api.httpx, "AsyncClient", return_value=client):
-        ok = await m.reddit_post("buildinpublic", "Shipped X", "body")
-    assert ok is True
-    args, kwargs = client.post.call_args
-    assert args[0].endswith("/api/submit")
-    assert kwargs["data"]["sr"] == "buildinpublic"
+        post_id = await m.reddit_post("buildinpublic", "Shipped X", "body")
+    assert post_id == "t3_zzz"
+    assert client.post.call_args.args[0].endswith("/api/submit")
+    assert client.post.call_args.kwargs["data"]["sr"] == "buildinpublic"
 
 
 @pytest.mark.asyncio
@@ -122,7 +121,7 @@ async def test_reddit_post_no_write_creds(monkeypatch):
     social_api._ideaminer_env_cache = {}
     try:
         m = social_api.SocialMonitor()
-        assert await m.reddit_post("buildinpublic", "t", "b") is False
+        assert await m.reddit_post("buildinpublic", "t", "b") == ""
     finally:
         social_api._ideaminer_env_cache = None
 
@@ -157,14 +156,62 @@ def test_subreddit_explicit_override():
 
 
 @pytest.mark.asyncio
-async def test_submit_reddit_uses_resolved_subreddit():
+async def test_submit_reddit_applies_voice_and_tracks(tmp_path, monkeypatch):
     obj = object.__new__(plugin.BuildInPublic)
-    obj._config = {"channels": {"reddit": {}}}  # blank → autonomous
+    obj._config = {"channels": {"reddit": {"subreddit": "ClaudeCode"}},
+                   "voice": {"no_em_dash": True, "strip_markdown": True,
+                             "typos": {"enabled": False}}}
     obj._posts_today = 0
     obj._log_post = MagicMock()
+    obj._redact = lambda x: x
+    monkeypatch.setattr(obj, "_reddit_posts_path",
+                        lambda: tmp_path / "reddit-posts.json")
     monitor = MagicMock()
-    monitor.reddit_post = AsyncMock(return_value=True)
+    monitor.reddit_post = AsyncMock(return_value="t3_abc")
     with patch.object(social_api, "SocialMonitor", return_value=monitor):
-        await obj._submit_reddit({"channel": "reddit", "title": "T", "text": "B"})
-    monitor.reddit_post.assert_awaited_once_with("buildinpublic", "T", "B")
+        await obj._submit_reddit({"channel": "reddit",
+                                  "title": "Shipped",
+                                  "text": "**bold**—done"})
+    # voice applied: no markdown, no em-dash
+    _, kwargs = monitor.reddit_post.call_args
+    args = monitor.reddit_post.call_args.args
+    assert "**" not in args[2] and "—" not in args[2]
+    # tracked for reply monitoring
     assert obj._posts_today == 1
+    tracked = obj._load_reddit_posts()
+    assert tracked and tracked[0]["id"] == "t3_abc"
+
+
+# ── reply agent ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_check_reddit_replies_skips_self_and_replies_once(tmp_path, monkeypatch):
+    monkeypatch.setenv("REDDIT_USERNAME", "naxmax2019")
+    social_api._ideaminer_env_cache = {}
+    obj = object.__new__(plugin.BuildInPublic)
+    obj._config = {"channels": {"reddit": {}}, "voice": {"typos": {"enabled": False}}}
+    obj._redact = lambda x: x
+    monkeypatch.setattr(obj, "_reddit_posts_path",
+                        lambda: tmp_path / "p.json")
+    obj._save_reddit_posts([{"id": "t3_x", "subreddit": "ClaudeCode", "replied": []}])
+    obj._generate_reply = lambda body, sr: "thanks for trying it"
+    monitor = MagicMock()
+    monitor.reddit_post_comments = AsyncMock(return_value=[
+        {"id": "c1", "fullname": "t1_c1", "author": "someone", "body": "nice tool"},
+        {"id": "c2", "fullname": "t1_c2", "author": "naxmax2019", "body": "my own"},
+    ])
+    monitor.reddit_comment = AsyncMock(return_value=True)
+    try:
+        with patch.object(social_api, "SocialMonitor", return_value=monitor):
+            n = await obj.check_reddit_replies()
+    finally:
+        social_api._ideaminer_env_cache = None
+    assert n == 1  # replied to c1, skipped own c2
+    monitor.reddit_comment.assert_awaited_once()
+    assert monitor.reddit_comment.call_args.args[0] == "t1_c1"
+    # second run does not re-reply
+    monitor.reddit_comment.reset_mock()
+    with patch.object(social_api, "SocialMonitor", return_value=monitor):
+        n2 = await obj.check_reddit_replies()
+    assert n2 == 0
+    monitor.reddit_comment.assert_not_awaited()

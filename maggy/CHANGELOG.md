@@ -4,6 +4,32 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.45.0] - 2026-06-08
+
+### Reddit Agent: Voice Rules + Reply Monitoring
+
+Build-in-public's Reddit channel is now a full agent — it posts in a
+human, Reddit-safe voice and replies to comments on its own posts.
+
+#### Added
+- **Voice rules** (`voice.py`, user-definable under `config.voice`, per-channel
+  override) applied before every Reddit post/reply:
+  - `no_em_dash` — strips em/en dashes
+  - `strip_markdown` — flattens Markdown to plain text (Reddit fancy-editor
+    renders stray Markdown literally)
+  - `typos` — injects occasional realistic typos (seedable, rate-controlled) so
+    posts don't read like a bot
+- **Reply-monitoring agent** — a heartbeat (`reddit_reply_monitor`, every 30 min)
+  tracks Maggy's submitted posts (`~/.maggy/build-in-public/reddit-posts.json`),
+  finds new non-self comments, drafts a short voice-applied reply, and posts it.
+  Never replies to itself or the same comment twice; rate-limited per cycle.
+- `social_api`: `reddit_post` now returns the post fullname (for tracking) and
+  posts cleanly via `api_type=json`; `reddit_post_comments()` fetches comments.
+- Default publish target set to **r/ClaudeCode**.
+- 24 tests (voice rules, post-id tracking, self-skip + reply-once monitoring).
+
+---
+
 ## [6.44.0] - 2026-06-07
 
 ### Build-in-Public: Reddit Publishing Channel

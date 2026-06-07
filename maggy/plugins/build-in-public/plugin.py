@@ -245,16 +245,29 @@ class ContentStrategy:
         qf.write_text(json.dumps(self._queue[-50:], indent=2))
 
 
+_plugin: "BuildInPublic | None" = None
+
+
 def register(bus: HookBus, manifest: PluginManifest):
     """Called by PluginManager on load. Registers hook handlers."""
-    plugin = BuildInPublic(manifest)
+    global _plugin
+    _plugin = BuildInPublic(manifest)
     for hook in manifest.hooks:
         event = hook["event"]
         handler_name = hook["handler"]
-        handler = getattr(plugin, handler_name, None)
+        handler = getattr(_plugin, handler_name, None)
         if handler:
             bus.subscribe(event, manifest.id, handler)
             logger.info("build-in-public: registered %s → %s", event, handler_name)
+
+
+async def monitor_reddit_replies():
+    """Heartbeat: reply to new comments on our recent Reddit posts."""
+    if _plugin:
+        try:
+            await _plugin.check_reddit_replies()
+        except Exception as e:
+            logger.warning("build-in-public: reply monitor failed: %s", e)
 
 
 class BuildInPublic:
@@ -613,16 +626,26 @@ class BuildInPublic:
         return (candidates[0] if candidates else "buildinpublic")
 
     async def _submit_reddit(self, post: dict):
-        """Submit a build-in-public self-post (subreddit chosen autonomously)."""
+        """Submit a build-in-public self-post (subreddit chosen autonomously).
+
+        Applies the configured voice (no em-dash, Markdown-stripped,
+        human typos) and records the post id so replies can be monitored.
+        """
+        from maggy.plugins.build_in_public.social_api import SocialMonitor
+        from maggy.plugins.build_in_public.voice import apply_voice, resolve_voice
         subreddit = self._resolve_reddit_subreddit()
-        title = post.get("title") or post.get("text", "").split("\n")[0][:300]
+        rules = resolve_voice(self._config, "reddit")
+        body = apply_voice(post.get("text", ""), rules)
+        raw_title = post.get("title") or body.split("\n")[0]
+        # Titles get the clean-up rules but never typos.
+        title = apply_voice(raw_title, {**rules, "typos": {"enabled": False}})[:300]
         try:
-            from maggy.plugins.build_in_public.social_api import SocialMonitor
             monitor = SocialMonitor()
-            ok = await monitor.reddit_post(subreddit, title, post.get("text", ""))
-            if ok:
+            post_id = await monitor.reddit_post(subreddit, title, body)
+            if post_id:
                 self._posts_today += 1
-                logger.info("build-in-public: submitted to r/%s", subreddit)
+                self._track_reddit_post(post_id, subreddit)
+                logger.info("build-in-public: submitted to r/%s (%s)", subreddit, post_id)
             else:
                 logger.info(
                     "build-in-public: reddit post skipped/failed "
@@ -632,6 +655,93 @@ class BuildInPublic:
         except Exception as e:
             logger.warning("build-in-public: reddit submit error: %s", e)
             self._log_post(post)
+
+    # ── Reply agent ─────────────────────────────────────────────────────
+
+    def _reddit_posts_path(self) -> Path:
+        return Path.home() / ".maggy" / "build-in-public" / "reddit-posts.json"
+
+    def _load_reddit_posts(self) -> list[dict]:
+        try:
+            return json.loads(self._reddit_posts_path().read_text())
+        except (OSError, ValueError):
+            return []
+
+    def _save_reddit_posts(self, posts: list[dict]) -> None:
+        p = self._reddit_posts_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(posts, indent=2))
+
+    def _track_reddit_post(self, post_id: str, subreddit: str) -> None:
+        posts = self._load_reddit_posts()
+        posts.append({
+            "id": post_id, "subreddit": subreddit,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "replied": [],
+        })
+        self._save_reddit_posts(posts[-50:])  # keep last 50
+
+    async def check_reddit_replies(self, max_replies: int = 5) -> int:
+        """Monitor our recent posts and reply to new comments. Returns count."""
+        from maggy.plugins.build_in_public.social_api import (
+            SocialMonitor,
+            reddit_cred,
+        )
+        from maggy.plugins.build_in_public.voice import apply_voice, resolve_voice
+        posts = self._load_reddit_posts()
+        if not posts:
+            return 0
+        monitor = SocialMonitor()
+        me = (reddit_cred("REDDIT_USERNAME") or "").lower()
+        rules = resolve_voice(self._config, "reddit")
+        replied = 0
+        for entry in posts:
+            if replied >= max_replies:
+                break
+            done = set(entry.get("replied", []))
+            comments = await monitor.reddit_post_comments(entry["id"])
+            for c in comments:
+                if replied >= max_replies:
+                    break
+                if c["id"] in done or not c["body"]:
+                    continue
+                if me and c["author"].lower() == me:
+                    continue  # never reply to ourselves
+                reply = self._generate_reply(c["body"], entry["subreddit"])
+                if not reply:
+                    continue
+                reply = apply_voice(reply, rules)
+                ok = await monitor.reddit_comment(c["fullname"], reply)
+                if ok:
+                    done.add(c["id"])
+                    replied += 1
+                    logger.info("build-in-public: replied to %s on %s",
+                                c["id"], entry["id"])
+            entry["replied"] = sorted(done)
+        self._save_reddit_posts(posts)
+        return replied
+
+    def _generate_reply(self, comment_body: str, subreddit: str) -> str:
+        """Draft a short, human reply to a comment (pre-voice)."""
+        prompt = (
+            "You are the maker replying to a comment on your Reddit post in "
+            f"r/{subreddit}. Reply in 1-3 sentences, warm and concrete, no "
+            "marketing, no markdown, answer or thank genuinely. If it's hostile "
+            "or spam, reply 'SKIP'.\n\n"
+            f"Comment: {comment_body[:600]}\n\nReply:"
+        )
+        try:
+            deepseek = os.path.expanduser("~/bin/deepseek")
+            result = subprocess.run(
+                [deepseek, "--flash", prompt],
+                capture_output=True, text=True, timeout=30,
+            )
+            out = result.stdout.strip()
+            if result.returncode == 0 and out and "SKIP" not in out[:10].upper():
+                return self._redact(out[:1500])
+        except Exception:
+            pass
+        return ""
 
     async def _schedule_buffer_posts(self, posts: list[dict], media_path: str = ""):
         """Schedule posts via Buffer GraphQL API."""
