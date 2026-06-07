@@ -4,6 +4,21 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.44.0] - 2026-06-07
+
+### Build-in-Public: Reddit Publishing Channel
+
+#### Added
+- **Reddit as a third publish channel** (alongside LinkedIn + X). `config.channels.reddit` (subreddit, tone, max_chars, schedule) drives a Reddit-native narrative; posts are submitted as self-posts.
+- `social_api.SocialMonitor.reddit_submit(subreddit, title, body)` — OAuth submit via `https://oauth.reddit.com/api/submit` (mirrors `reddit_comment`; needs `REDDIT_REFRESH_TOKEN` + write scope).
+- `_schedule_posts` now routes Reddit posts directly (Reddit isn't a Buffer service) and the rest via Buffer (`_schedule_buffer_posts`). `ScheduledPost` gained a `title` (Reddit self-post titles).
+- 8 tests (submit success/no-token/missing-subreddit/api-error, title plumbing, routing).
+
+#### Notes
+- `reddit.write` permission added. Subreddit defaults to blank — Reddit posting is skipped until you set `config.channels.reddit.subreddit`.
+
+---
+
 ## [6.43.0] - 2026-06-04
 
 ### Dashboard iCPG Auto-Build, Orchestrator Isolation, Followed-Model Routing

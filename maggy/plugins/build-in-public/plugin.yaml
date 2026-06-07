@@ -1,7 +1,7 @@
 id: build-in-public
 version: 1
 entrypoint: plugin.py
-permissions: [github.read, buffer.write, screenshots.capture, ai.generate]
+permissions: [github.read, buffer.write, reddit.write, screenshots.capture, ai.generate]
 hooks:
   - event: on_pr_merged
     handler: handle_pr_merged
@@ -24,6 +24,13 @@ config:
       max_chars: 280
       tone: "sharp, punchy, no threads unless the insight is too good. Developers who ship read this."
       schedule: "10:30 UTC weekdays"
+    reddit:
+      # Set your target subreddit (e.g. "buildinpublic", "SideProject", or your own).
+      # Left blank = Reddit posting is skipped until configured.
+      subreddit: ""
+      max_chars: 8000
+      tone: "authentic, story-first, no marketing speak. Redditors downvote hype. Lead with the problem and what you learned."
+      schedule: "11:00 UTC weekdays"
   approval_mode: "auto_if_safe"
   screenshot:
     mode: "playwright"

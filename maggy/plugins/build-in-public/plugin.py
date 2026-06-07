@@ -56,7 +56,7 @@ SERIES_TEMPLATE = [
 class ScheduledPost:
     def __init__(self, channel="", text="", scheduled_at="", format="single",
                  thread_index=0, thread_total=1, media=None,
-                 thread_replies=None):
+                 thread_replies=None, title=""):
         self.channel = channel
         self.text = text
         self.scheduled_at = scheduled_at
@@ -65,6 +65,7 @@ class ScheduledPost:
         self.thread_total = thread_total
         self.media = media or []
         self.thread_replies = thread_replies or []
+        self.title = title  # Reddit self-post title (max 300)
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,13 @@ class ContentStrategy:
             elif fmt == "series":
                 posts += self._build_series(channel, context, cfg)
             else:
+                # Reddit self-posts need a title (the body is the narrative).
+                title = (context.get("what", "") or text.split("\n")[0])[:300] \
+                    if channel == "reddit" else ""
                 posts.append(ScheduledPost(
                     channel=channel, text=text[:cfg.get("max_chars", 3000)],
                     scheduled_at=self._best_time(channel, content_type), format="single",
+                    title=title,
                 ))
         return self._space_out(posts)
 
@@ -588,6 +593,41 @@ class BuildInPublic:
         ))
 
     async def _schedule_posts(self, posts: list[dict], media_path: str = ""):
+        """Route posts: Reddit via its API, the rest via Buffer."""
+        reddit_posts = [p for p in posts if p.get("channel") == "reddit"]
+        buffer_posts = [p for p in posts if p.get("channel") != "reddit"]
+        for rp in reddit_posts:
+            await self._submit_reddit(rp)
+        if buffer_posts:
+            await self._schedule_buffer_posts(buffer_posts, media_path)
+
+    async def _submit_reddit(self, post: dict):
+        """Submit a build-in-public self-post to the configured subreddit."""
+        cfg = self._config.get("channels", {}).get("reddit", {})
+        subreddit = cfg.get("subreddit", "")
+        if not subreddit:
+            logger.info("build-in-public: reddit channel has no subreddit configured")
+            self._log_post(post)
+            return
+        title = post.get("title") or post.get("text", "").split("\n")[0][:300]
+        try:
+            from maggy.plugins.build_in_public.social_api import SocialMonitor
+            monitor = SocialMonitor()
+            ok = await monitor.reddit_submit(subreddit, title, post.get("text", ""))
+            if ok:
+                self._posts_today += 1
+                logger.info("build-in-public: submitted to r/%s", subreddit)
+            else:
+                logger.info(
+                    "build-in-public: reddit submit skipped/failed "
+                    "(needs REDDIT_REFRESH_TOKEN + write scope)"
+                )
+                self._log_post(post)
+        except Exception as e:
+            logger.warning("build-in-public: reddit submit error: %s", e)
+            self._log_post(post)
+
+    async def _schedule_buffer_posts(self, posts: list[dict], media_path: str = ""):
         """Schedule posts via Buffer GraphQL API."""
         token = os.environ.get("BUFFER_ACCESS_TOKEN", "")
         if not token:

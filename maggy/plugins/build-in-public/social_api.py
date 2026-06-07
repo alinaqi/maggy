@@ -274,6 +274,46 @@ class SocialMonitor:
             logger.debug("Reddit comment failed: %s", e)
         return False
 
+    async def reddit_submit(self, subreddit: str, title: str, body: str) -> bool:
+        """Submit a self (text) post to a subreddit. Requires REDDIT_REFRESH_TOKEN."""
+        refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
+        if not refresh_token:
+            logger.debug("Reddit submit skipped: no user refresh token")
+            return False
+        if not subreddit or not title:
+            logger.debug("Reddit submit skipped: missing subreddit/title")
+            return False
+        try:
+            access_token = await self._get_reddit_access_token()
+            if not access_token:
+                return False
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://oauth.reddit.com/api/submit",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "User-Agent": os.environ.get("REDDIT_USER_AGENT", "Maggy/1.0"),
+                    },
+                    data={
+                        "sr": subreddit.lstrip("r/").strip("/"),
+                        "kind": "self",
+                        "title": title[:300],
+                        "text": body,
+                        "api_type": "json",
+                    },
+                )
+                if resp.status_code != 200:
+                    logger.debug("Reddit submit HTTP %s", resp.status_code)
+                    return False
+                errors = resp.json().get("json", {}).get("errors", [])
+                if errors:
+                    logger.debug("Reddit submit errors: %s", errors)
+                    return False
+                return True
+        except Exception as e:
+            logger.debug("Reddit submit failed: %s", e)
+        return False
+
     async def reddit_reply_to_comment(self, comment_id: str, text: str) -> bool:
         """Reply to a comment. comment_id = fullname (t1_abc123)."""
         return await self.reddit_comment(comment_id, text)
