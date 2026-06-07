@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.41.0] - 2026-06-08
+
+### Build-in-Public Reddit Agent + Gemini Search Fix
+
+#### Added
+- **Reddit is the third build-in-public channel** (with LinkedIn + X). The
+  narrative engine generates a Reddit-native self-post and submits it directly
+  (Reddit isn't a Buffer service).
+- **Autonomous subreddit** — Maggy picks the target itself (defaults to
+  r/ClaudeCode / r/buildinpublic); no manual config required.
+- **Reddit Agent — voice + replies** (`plugins/build-in-public/voice.py`,
+  user-definable under `config.voice`): every post/reply is run through
+  `no_em_dash`, `strip_markdown` (Reddit-safe plain text), and optional human
+  `typos`. A heartbeat monitors comments on Maggy's own posts and replies once
+  each, rate-limited, never to itself.
+- **Credential reuse** — Reddit creds resolve from the environment, then a
+  sibling ideaminer checkout; auth supports refresh-token and script-app
+  (username/password) grants.
+
+#### Fixed
+- **Gemini `--pro-search`** (`bin/gemini-api`) — grounding was sent to the
+  OpenAI-compat endpoint (400 `Unknown name "google_search"`) with a
+  non-existent model id. Now routes to the native `generateContent` endpoint on
+  `gemini-3.5-flash`, where the `google_search` tool is valid.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.43.0–6.45.0) for the full Maggy
+detail: iCPG dashboard auto-build, orchestrator image fix + isolated worktrees
++ isolation modes, the unsandboxed-agent security fix, and the Reddit agent.
+
+---
+
 ## [6.40.0] - 2026-06-04
 
 ### Followed-Model Routing — One Choice, Every Layer (srooter + hooks + Maggy)
