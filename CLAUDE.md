@@ -221,3 +221,11 @@ Multi-backend research with auto-evaluation:
 - When WebSearch fails: run `~/bin/research "your search query"`
 - Evaluation stats: `~/bin/research --eval`
 - Score log: `~/.claude/research-eval.jsonl`
+
+## Followed Model & Pre-Analysis (hook signals)
+
+The route-task hook injects two signals into every prompt — act on them:
+- **`FOLLOWED MODEL: <name>`** — the user's chosen primary model (`/model-config`). For substantial coding, prefer delegating to it.
+- **`MINIMAX PRE-ANALYSIS: ...`** — a terse INTENT / SCOPE / RISKS / APPROACH brief. Use it to execute directly instead of re-deriving the task.
+
+The choice lives in `~/.claude/model-config.json` (`primary`, `classifier`, `mode`, `analyze`) and is shared by the hooks, Maggy, and srooter. See [GETTING_STARTED.md](GETTING_STARTED.md) for setup.
