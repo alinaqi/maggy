@@ -36,13 +36,22 @@ Before marking a PR as done, run:
 
 Council behavior is configured in `~/.claude/council.yaml`. The Maggy dashboard (Settings > Council) also manages this config.
 
+### Chief of the Council
+
+`chief: claude-fable-5` — Claude Fable 5 (Anthropic's most capable widely-released
+model, GA 2026-06-09) leads every panel as the chief: it reviews first and casts
+the deciding synthesis. Invoked via `~/bin/claude-fable-5`. Override the chief in
+`~/.claude/council.yaml`.
+
 ### Reviewer Contexts
+
+The chief leads each context, followed by the panel:
 
 | Context | Default Reviewers | When |
 |---------|-------------------|------|
-| `plan` | DeepSeek Pro, Codex, Gemini Pro | Before executing any plan |
-| `review` | DeepSeek Pro, Kimi | Code review, PR review |
-| `architecture` | DeepSeek Pro, Gemini Pro, Grok | System design, schema changes |
+| `plan` | **Claude Fable 5 (chief)**, DeepSeek Pro, Codex, Gemini Pro | Before executing any plan |
+| `review` | **Claude Fable 5 (chief)**, DeepSeek Pro, Kimi | Code review, PR review |
+| `architecture` | **Claude Fable 5 (chief)**, DeepSeek Pro, Gemini Pro, Grok | System design, schema changes |
 
 ### Threshold Rules
 

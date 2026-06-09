@@ -75,6 +75,8 @@ DEFAULT_MODELS: list[ModelEntry] = [
                os.path.join(DELEGATION_BIN, "gemini-api"), 2_000_000),
     ModelEntry("gpt", "openai", "gpt-4o", "medium", 0.01, 20.0, "codex", 128_000),
     ModelEntry("claude", "anthropic", "claude-sonnet-4", "premium", 0.03, 50.0, "claude", 200_000),
+    ModelEntry("claude-fable-5", "anthropic", "claude-fable-5", "premium", 0.01, 50.0,
+               os.path.join(DELEGATION_BIN, "claude-fable-5"), 1_000_000),
     ModelEntry("codex", "openai", "codex", "validator", 0.02, 30.0, "codex", 200_000),
 ]
 
@@ -214,7 +216,7 @@ class PiAdapter:
             return [model.cli_command, "--pro", prompt]
         if "/kimi" in model.cli_command:
             return [model.cli_command, "--quiet", "-p", prompt]
-        if "/minimax" in model.cli_command:
+        if "/minimax" in model.cli_command or "/claude-fable-5" in model.cli_command:
             return [model.cli_command, prompt]
         # Default: CLI with -p flag
         return [model.cli_command, "-p", prompt]

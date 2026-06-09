@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.42.0] - 2026-06-09
+
+### Council Chief: Claude Fable 5
+
+Claude Fable 5 (`claude-fable-5`, GA 2026-06-09) is now chief of the council of
+experts across the stack: it leads every review panel and casts the deciding
+synthesis.
+
+- `~/bin/claude-fable-5` wrapper (Anthropic Messages API).
+- council-review skill + `~/.claude/council.yaml`: `chief: claude-fable-5`, added
+  as lead reviewer in plan/review/architecture.
+- Maggy: `CouncilConfig.chief`, model registry + health allowlist entries.
+- srooter: `council_chief` + `claude-fable-5` model + risk validator.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.46.0) for the Maggy detail.
+
 ## [6.41.0] - 2026-06-08
 
 ### Build-in-Public Reddit Agent + Gemini Search Fix

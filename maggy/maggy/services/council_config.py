@@ -9,18 +9,24 @@ import yaml
 
 _CONFIG_PATH = Path.home() / ".claude" / "council.yaml"
 
+# Chief of the council — leads every panel and casts the deciding synthesis.
+_DEFAULT_CHIEF = "claude-fable-5"
+
 _DEFAULT_REVIEWERS: dict[str, list[dict]] = {
     "plan": [
+        {"id": "claude-fable-5", "enabled": True},
         {"id": "deepseek-pro", "enabled": True},
         {"id": "codex", "enabled": True},
         {"id": "gemini-pro", "enabled": True},
     ],
     "review": [
+        {"id": "claude-fable-5", "enabled": True},
         {"id": "deepseek-pro", "enabled": True},
         {"id": "kimi", "enabled": True},
         {"id": "codex", "enabled": False},
     ],
     "architecture": [
+        {"id": "claude-fable-5", "enabled": True},
         {"id": "deepseek-pro", "enabled": True},
         {"id": "gemini-pro", "enabled": True},
         {"id": "grok", "enabled": True},
@@ -41,6 +47,8 @@ _DEFAULT_MODELS: list[dict] = [
     {"id": "codex", "cmd": "codex exec", "tier": 10, "label": "Codex"},
     {"id": "claude-sonnet", "cmd": None, "tier": 11, "label": "Claude Sonnet"},
     {"id": "claude-opus", "cmd": None, "tier": 12, "label": "Claude Opus"},
+    {"id": "claude-fable-5", "cmd": "~/bin/claude-fable-5", "tier": 13,
+     "label": "Claude Fable 5 (chief)"},
 ]
 
 
@@ -80,6 +88,7 @@ class CouncilConfig:
     auto_validate_plans: bool = True
     auto_review_architecture: bool = True
     auto_review_prs: bool = True
+    chief: str = _DEFAULT_CHIEF
     reviewers: dict[str, list[ReviewerDef]] = field(default_factory=dict)
     models: list[ModelDef] = field(default_factory=list)
 
@@ -88,6 +97,10 @@ class CouncilConfig:
 
     def get_reviewers(self, context: str) -> list[ReviewerDef]:
         return self.reviewers.get(context, [])
+
+    def get_chief(self) -> ModelDef | None:
+        """The council chief — leads panels and casts the deciding synthesis."""
+        return self.get_model(self.chief) if self.chief else None
 
     def get_model(self, model_id: str) -> ModelDef | None:
         for m in self.models:
@@ -102,6 +115,7 @@ class CouncilConfig:
             "auto_validate_plans": self.auto_validate_plans,
             "auto_review_architecture": self.auto_review_architecture,
             "auto_review_prs": self.auto_review_prs,
+            "chief": self.chief,
             "reviewers": {
                 ctx: [r.to_dict() for r in rs]
                 for ctx, rs in self.reviewers.items()
@@ -143,6 +157,7 @@ def load_council_config(path: Path | None = None) -> CouncilConfig:
                 auto_validate_plans=data.get("auto_validate_plans", True),
                 auto_review_architecture=data.get("auto_review_architecture", True),
                 auto_review_prs=data.get("auto_review_prs", True),
+                chief=data.get("chief", _DEFAULT_CHIEF),
                 reviewers=_parse_reviewers(data.get("reviewers", _DEFAULT_REVIEWERS)),
                 models=_parse_models(data.get("models", _DEFAULT_MODELS)),
             )

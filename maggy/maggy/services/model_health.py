@@ -14,6 +14,7 @@ _ALLOWED_PREFIXES = {
     "echo", "printf",
     "qwen3", "deepseek", "kimi", "grok", "codex",
     "gemini-api", "gemini-cli", "agy-delegate",
+    "minimax", "claude-fable-5",
 }
 
 _BLOCKED_COMMANDS = {"rm", "bash", "sh", "zsh", "curl", "wget", "nc", "python", "python3", "perl", "ruby", "node"}

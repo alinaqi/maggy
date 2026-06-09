@@ -4,6 +4,20 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.46.0] - 2026-06-09
+
+### Council of Experts: Claude Fable 5 as Chief
+
+#### Added
+- **`chief` role on the council** — `CouncilConfig.chief` (default `claude-fable-5`,
+  Anthropic's most capable widely-released model, GA today). The chief leads every
+  panel (plan/review/architecture) as first reviewer and is exposed via
+  `get_chief()` for deciding-synthesis logic.
+- `claude-fable-5` added to the council model registry, `adapters/pi.py`
+  (model_id `claude-fable-5`, ~/bin/claude-fable-5 wrapper, 1M context), and the
+  model-health allowlist.
+- Tests for chief default, lead-reviewer ordering, resolution, and round-trip.
+
 ## [6.45.0] - 2026-06-08
 
 ### Reddit Agent: Voice Rules + Reply Monitoring

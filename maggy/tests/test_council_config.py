@@ -1,9 +1,5 @@
 """Tests for council config loading and validation."""
 
-from pathlib import Path
-import pytest
-import yaml
-
 
 class TestCouncilConfigLoad:
     def test_load_default_config(self):
@@ -61,3 +57,35 @@ class TestCouncilConfigLoad:
         assert "threshold" in d
         assert "models" in d
         assert "reviewers" in d
+
+
+class TestCouncilChief:
+    def test_default_chief_is_fable5(self, tmp_path):
+        from maggy.services.council_config import load_council_config
+        cfg = load_council_config(tmp_path / "nope.yaml")  # missing -> defaults
+        assert cfg.chief == "claude-fable-5"
+
+    def test_chief_is_lead_reviewer_in_every_context(self, tmp_path):
+        from maggy.services.council_config import load_council_config
+        cfg = load_council_config(tmp_path / "nope.yaml")
+        for ctx in ("plan", "review", "architecture"):
+            assert cfg.get_reviewers(ctx)[0].id == "claude-fable-5"
+
+    def test_get_chief_resolves_to_model(self, tmp_path):
+        from maggy.services.council_config import load_council_config
+        cfg = load_council_config(tmp_path / "nope.yaml")
+        chief = cfg.get_chief()
+        assert chief is not None
+        assert chief.id == "claude-fable-5"
+        assert chief.cmd_argv()[0].endswith("/claude-fable-5")
+
+    def test_chief_round_trips(self, tmp_path):
+        from maggy.services.council_config import (
+            load_council_config,
+            save_council_config,
+        )
+        p = tmp_path / "council.yaml"
+        cfg = load_council_config(tmp_path / "nope.yaml")
+        cfg.chief = "claude-opus"
+        save_council_config(cfg, p)
+        assert load_council_config(p).chief == "claude-opus"
