@@ -18,6 +18,8 @@ All notable changes to Maggy will be documented in this file.
   model-health allowlist.
 - Tests for chief default, lead-reviewer ordering, resolution, and round-trip.
 
+---
+
 ## [6.45.0] - 2026-06-08
 
 ### Reddit Agent: Voice Rules + Reply Monitoring
