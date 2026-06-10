@@ -200,10 +200,17 @@ class PiAdapter:
     def _build_command(
         self, model: ModelEntry, prompt: str, max_turns: int, wd: str,
     ) -> list[str]:
+        # Pinned manifest first — deterministic, golden-tested. Known CLIs
+        # never rely on parsing unstable --help text to build their command.
+        from maggy.adapters.cli_manifests import pinned_command
+        pinned = pinned_command(model, prompt, wd, max_turns)
+        if pinned is not None:
+            return pinned
+        # Discovered (--help) profile only for CLIs without a pinned manifest.
         profile = self._profiles.get(model.cli_command)
         if profile and profile.installed:
             return profile.build_command(prompt, wd, max_turns)
-        # Delegation script conventions (~/bin/)
+        # Delegation script conventions (~/bin/) — legacy fallback.
         if model.name == "gemini-flash-lite":
             return [model.cli_command, "--flash-lite", prompt]
         if model.name == "gemini-flash":
