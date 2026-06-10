@@ -2,7 +2,10 @@
 # UserPromptSubmit hook — classifies each prompt via qwen3 and
 # injects routing instructions into Claude's context.
 #
-# 6-tier routing: QWEN → DS_FLASH → DS_PRO → KIMI → CODEX → CLAUDE
+# Routing: QWEN → FLASH_TIER → PRO_TIER → KIMI → CODEX → CLAUDE
+# Flash/Pro providers are resolved from ~/.maggy/routing.yaml
+# Sovereignty modes: us (default) | local | any
+#
 # Exit 0 + additionalContext: Claude sees the routing tier.
 # Falls back to cached tier when Ollama is unreachable (post-compact safety).
 # No set -euo pipefail: hook scripts must be defensive, not strict.
@@ -10,6 +13,85 @@
 INPUT=$(cat 2>/dev/null || true)
 PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null || echo "")
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo ".")
+
+# ── Load provider config from ~/.maggy/routing.yaml ─────────────────────────
+ROUTING_CFG="$HOME/.maggy/routing.yaml"
+SOVEREIGNTY="us"
+FLASH_PROVIDER="groq"
+PRO_PROVIDER="together"
+
+if [ -f "$ROUTING_CFG" ]; then
+  _yaml_val() { grep -m1 "^[[:space:]]*${1}:" "$ROUTING_CFG" 2>/dev/null | awk -F': ' '{print $2}' | tr -d ' \r\n' || true; }
+  _SOVER=$(_yaml_val "sovereignty")
+  _FLASH=$(_yaml_val "flash")
+  _PRO=$(_yaml_val "pro")
+  [ -n "$_SOVER" ] && SOVEREIGNTY="$_SOVER"
+  [ -n "$_FLASH" ] && FLASH_PROVIDER="$_FLASH"
+  [ -n "$_PRO" ]   && PRO_PROVIDER="$_PRO"
+fi
+
+# Sovereignty enforcement — override provider if blocked
+_BLOCKED_US="deepseek kimi moonshot"
+_BLOCKED_LOCAL="deepseek kimi moonshot groq together openai google anthropic"
+
+_is_blocked() {
+  local provider="$1"
+  case "$SOVEREIGNTY" in
+    us)    echo "$_BLOCKED_US" | grep -qw "$provider" && return 0 ;;
+    local) echo "$_BLOCKED_LOCAL" | grep -qw "$provider" && return 0 ;;
+  esac
+  return 1
+}
+
+if _is_blocked "$FLASH_PROVIDER"; then
+  FLASH_PROVIDER="ollama"
+fi
+if _is_blocked "$PRO_PROVIDER"; then
+  PRO_PROVIDER=$( [ "$SOVEREIGNTY" = "local" ] && echo "ollama" || echo "groq" )
+fi
+
+# Resolve bin paths
+_flash_bin() {
+  case "$FLASH_PROVIDER" in
+    groq)     echo "$HOME/bin/groq" ;;
+    together) echo "$HOME/bin/together" ;;
+    ollama)   echo "$HOME/bin/ollama-coder" ;;
+    deepseek) echo "$HOME/bin/deepseek --flash" ;;
+    *)        echo "$HOME/bin/groq" ;;
+  esac
+}
+_pro_bin() {
+  case "$PRO_PROVIDER" in
+    together) echo "$HOME/bin/together" ;;
+    groq)     echo "$HOME/bin/groq" ;;
+    ollama)   echo "$HOME/bin/ollama-coder" ;;
+    deepseek) echo "$HOME/bin/deepseek --pro" ;;
+    *)        echo "$HOME/bin/together" ;;
+  esac
+}
+
+FLASH_BIN=$(_flash_bin)
+PRO_BIN=$(_pro_bin)
+
+# Cost labels for context messages
+_flash_cost() {
+  case "$FLASH_PROVIDER" in
+    groq)     echo "\$0.05/M" ;;
+    together) echo "\$3.50/M" ;;
+    ollama)   echo "free/local" ;;
+    deepseek) echo "\$0.14/M" ;;
+    *)        echo "" ;;
+  esac
+}
+_pro_cost() {
+  case "$PRO_PROVIDER" in
+    together) echo "\$3.50/M" ;;
+    groq)     echo "\$0.59/M" ;;
+    ollama)   echo "free/local" ;;
+    deepseek) echo "\$0.44/M" ;;
+    *)        echo "" ;;
+  esac
+}
 
 CACHE_FILE="$HOME/.claude/routing-cache.json"
 LOG_FILE="$HOME/.claude/routing-log.jsonl"
@@ -84,12 +166,12 @@ if [ -z "$TIER" ] && [ -x "$HOME/bin/kimi" ]; then
   fi
 fi
 
-# Level 3: deepseek-flash (cheap API, ~$0.0001 per classification)
-if [ -z "$TIER" ] && [ -x "$HOME/bin/deepseek" ] && [ -n "$DEEPSEEK_API_KEY" ]; then
-  RAW=$("$HOME/bin/deepseek" --flash "$CLASSIFY_PROMPT" 2>/dev/null || true)
+# Level 3: flash provider (cheap API, ~$0.0001 per classification)
+if [ -z "$TIER" ] && [ -x "$(echo $FLASH_BIN | awk '{print $1}')" ]; then
+  RAW=$(eval "$FLASH_BIN" "$CLASSIFY_PROMPT" 2>/dev/null || true)
   RAW=$(echo "$RAW" | tail -1)
   if _classify_parse "$RAW"; then
-    CLASSIFIER_USED="deepseek-flash"
+    CLASSIFIER_USED="$FLASH_PROVIDER-flash"
   fi
 fi
 
@@ -145,7 +227,7 @@ if [ -f "$ESCALATION_FLAG" ]; then
   if [ "$ESCALATION_COUNT" -gt 0 ] 2>/dev/null; then
     # Force premium tier — escalate from current tier
     case "$TIER" in
-      QWEN|DEEPSEEK_FLASH|GEMINI_FLASH_LITE) TIER="DEEPSEEK_PRO" ;;
+      QWEN|DEEPSEEK_FLASH|GEMINI_FLASH_LITE) TIER="DEEPSEEK_PRO" ;;  # escalate flash→pro
       DEEPSEEK_PRO|GEMINI_FLASH) TIER="CLAUDE" ;;
       KIMI) TIER="CLAUDE" ;;
     esac
@@ -164,13 +246,13 @@ case "$TIER" in
     CTX="ROUTING DECISION: QWEN (local, free). Reason: ${REASON}. You MUST delegate this task — run ~/bin/qwen3 \"<prompt>\", return its output exactly as-is. Do NOT process, think about, or execute this prompt yourself. Your only job is to run the delegation command and relay the result.${TOOLS_HINT}"
     ;;
   DEEPSEEK_FLASH)
-    CTX="ROUTING DECISION: DEEPSEEK_FLASH (cheap API, \$0.14/M in). Reason: ${REASON}. You MUST delegate this task — run ~/bin/deepseek --flash \"<prompt>\", return its output exactly as-is. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: FLASH_TIER (provider=${FLASH_PROVIDER}, $(_flash_cost)). Reason: ${REASON}. You MUST delegate this task — run ${FLASH_BIN} \"<prompt>\", return its output exactly as-is. Do NOT process this yourself — delegate to ${FLASH_PROVIDER}.${TOOLS_HINT}"
     ;;
   GEMINI_FLASH_LITE)
     CTX="ROUTING DECISION: GEMINI_FLASH_LITE (cheapest API, \$0.10/M in). Reason: ${REASON}. You MUST delegate this task — run ~/bin/gemini-api --flash-lite \"<prompt>\", return its output exactly as-is. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"
     ;;
   DEEPSEEK_PRO)
-    CTX="ROUTING DECISION: DEEPSEEK_PRO (workhorse, \$0.44/M in). Reason: ${REASON}. EXECUTE DIRECTLY — this complexity tier does not need planning. Run: ~/bin/deepseek --pro \"<prompt>\" and return the result. Do NOT process this yourself — delegate to deepseek.${TOOLS_HINT}"
+    CTX="ROUTING DECISION: PRO_TIER (provider=${PRO_PROVIDER}, $(_pro_cost)). Reason: ${REASON}. EXECUTE DIRECTLY — this complexity tier does not need planning. Run: ${PRO_BIN} \"<prompt>\" and return the result. Do NOT process this yourself — delegate to ${PRO_PROVIDER}.${TOOLS_HINT}"
     ;;
   GEMINI_FLASH)
     CTX="ROUTING DECISION: GEMINI_FLASH (multimodal, \$0.15/M in). Reason: ${REASON}. Run: ~/bin/gemini-api --flash \"<prompt>\" and return the result. Do NOT process this yourself — delegate to gemini.${TOOLS_HINT}"

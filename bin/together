@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Together AI CLI — calls Together AI API (OpenAI-compatible).
+
+Usage:
+  together "prompt"                              # default (405B)
+  together --model meta-llama/Llama-3.3-70B-Instruct-Turbo "prompt"
+  echo "prompt" | together                       # stdin mode
+  cat file.txt | together                        # pipe mode
+"""
+
+import os
+import sys
+
+import httpx
+
+API_KEY = os.environ.get("TOGETHER_API_KEY", "")
+BASE_URL = "https://api.together.xyz/v1"
+DEFAULT_MODEL = os.environ.get(
+    "TOGETHER_MODEL",
+    "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+)
+
+
+def main():
+    model = DEFAULT_MODEL
+    prompt = None
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--model" and i + 1 < len(args):
+            i += 1
+            model = args[i]
+        elif not args[i].startswith("-"):
+            prompt = args[i]
+        i += 1
+
+    if not API_KEY:
+        print("[together] ERROR: TOGETHER_API_KEY not set", file=sys.stderr)
+        sys.exit(1)
+
+    if not prompt and not sys.stdin.isatty():
+        prompt = sys.stdin.read().strip()
+
+    if not prompt:
+        print("Usage: together [--model <model>] <prompt>", file=sys.stderr)
+        sys.exit(1)
+
+    print(call_together(prompt, model))
+
+
+def call_together(prompt: str, model: str) -> str:
+    try:
+        with httpx.Client(timeout=300) as client:
+            resp = client.post(
+                f"{BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 16000,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+    except httpx.HTTPError as e:
+        return f"[Together API error: {e}]"
+    except Exception as e:
+        return f"[Together error: {e}]"
+
+
+if __name__ == "__main__":
+    main()
