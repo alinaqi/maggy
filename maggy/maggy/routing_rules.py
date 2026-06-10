@@ -7,11 +7,17 @@ better routing decisions. Manual edits are preserved.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 MIN_CONFIDENCE = 0.6
+# A learned override must be backed by at least this many outcomes for the
+# model+task_type, at or above MIN_SUCCESS_RATE, before it can be promoted
+# from shadow to active. Guards the self-tuning feedback loop.
+MIN_SAMPLES = 5
+MIN_SUCCESS_RATE = 0.6
 
 
 @dataclass
@@ -22,6 +28,9 @@ class ModelOverride:
     reason: str = ""
     confidence: float = 1.0
     source: str = "rule"
+    # active = applied; shadow = learned but NOT applied until promoted via
+    # outcome-validity + approval. Manual/default rules default to active.
+    status: str = "active"
 
 
 @dataclass
@@ -106,11 +115,11 @@ def apply_override(
     """Return model name if rules override routing."""
     if phase and phase in rules.pipeline_phases:
         override = rules.pipeline_phases[phase]
-        if override.model != "auto" and _trusted(override):
+        if override.model != "auto" and _applies(override):
             return override.model
     if task_type in rules.task_type_overrides:
         override = rules.task_type_overrides[task_type]
-        if _trusted(override):
+        if _applies(override):
             return override.model
     return None
 
@@ -137,16 +146,77 @@ def learn_override(
     model: str, reason: str,
     confidence: float = 0.7,
     path: Path | None = None,
-) -> None:
-    """Maggy learns a new routing override from data."""
+) -> ModelOverride:
+    """Propose a learned override in SHADOW mode — NOT applied.
+
+    The proposal is recorded but never affects routing until `promote_override`
+    accepts it (outcome-validity + approval). This breaks the unguarded
+    self-tuning feedback loop. Returns the shadow override.
+    """
     from maggy.routing_rules_io import save
 
-    rules.task_type_overrides[task_type] = ModelOverride(
+    override = ModelOverride(
         model=model, reason=reason,
-        confidence=confidence, source="learned",
+        confidence=confidence, source="learned", status="shadow",
     )
+    rules.task_type_overrides[task_type] = override
     rules.updated_at = _now_iso()
+    _audit("propose", task_type, model, reason, path)
     save(rules, path)
+    return override
+
+
+def promote_override(
+    rules: RoutingRules, task_type: str,
+    min_samples: int = MIN_SAMPLES,
+    min_success: float = MIN_SUCCESS_RATE,
+    path: Path | None = None,
+) -> bool:
+    """Promote a shadow override to active — gated on outcome-validity.
+
+    Intended to be called by the inbox approval flow. Refuses unless the
+    model has enough valid outcomes for the task type (min_samples at or
+    above min_success), so a bad week or gamed metric can't become policy.
+    Returns True if promoted.
+    """
+    from maggy.routing_rules_io import save
+
+    override = rules.task_type_overrides.get(task_type)
+    if not override or override.status != "shadow":
+        return False
+    perf = rules.model_performance.get(override.model)
+    if perf is None or perf.tasks_completed < min_samples:
+        return False
+    if perf.success_rate < min_success or task_type not in perf.strengths:
+        return False
+    override.status = "active"
+    rules.updated_at = _now_iso()
+    _audit("promote", task_type, override.model, override.reason, path)
+    save(rules, path)
+    return True
+
+
+def revert_override(
+    rules: RoutingRules, task_type: str, path: Path | None = None,
+) -> bool:
+    """Remove an override (audit-logged, revertible)."""
+    from maggy.routing_rules_io import save
+
+    override = rules.task_type_overrides.pop(task_type, None)
+    if override is None:
+        return False
+    rules.updated_at = _now_iso()
+    _audit("revert", task_type, override.model, override.reason, path)
+    save(rules, path)
+    return True
+
+
+def pending_overrides(rules: RoutingRules) -> dict[str, ModelOverride]:
+    """Shadow overrides awaiting promotion (for the inbox/approval UI)."""
+    return {
+        tt: ov for tt, ov in rules.task_type_overrides.items()
+        if ov.status == "shadow"
+    }
 
 
 def conventions_for(
@@ -168,6 +238,34 @@ def conventions_for(
 
 def _trusted(override: ModelOverride) -> bool:
     return override.confidence >= MIN_CONFIDENCE
+
+
+def _applies(override: ModelOverride) -> bool:
+    """A rule only routes traffic if it's active AND trusted."""
+    return override.status == "active" and _trusted(override)
+
+
+def _audit_path(path: Path | None) -> Path:
+    base = path or (Path.home() / ".maggy" / "routing-rules.yaml")
+    return base.parent / "routing-rules-audit.jsonl"
+
+
+def _audit(
+    action: str, task_type: str, model: str, reason: str,
+    path: Path | None = None,
+) -> None:
+    """Append a revertible audit record for every rule change."""
+    rec = {
+        "ts": _now_iso(), "action": action, "task_type": task_type,
+        "model": model, "reason": reason,
+    }
+    try:
+        ap = _audit_path(path)
+        ap.parent.mkdir(parents=True, exist_ok=True)
+        with ap.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except OSError:
+        pass
 
 
 def _update_perf(

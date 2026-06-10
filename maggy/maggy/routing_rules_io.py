@@ -151,6 +151,7 @@ def _override_to_dict(v: ModelOverride) -> dict:
     return {
         "model": v.model, "reason": v.reason,
         "confidence": v.confidence, "source": v.source,
+        "status": v.status,
     }
 
 

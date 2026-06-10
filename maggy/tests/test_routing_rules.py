@@ -97,9 +97,10 @@ class TestApplyOverride:
 class TestRecordOutcome:
     def test_updates_success_rate(self, rules_path: Path):
         rules = default_rules()
+        before = rules.model_performance["claude"].tasks_completed
         record_outcome(rules, "claude", "feature", True, rules_path)
         perf = rules.model_performance["claude"]
-        assert perf.tasks_completed == 7
+        assert perf.tasks_completed == before + 1
         assert perf.success_rate > 0.9
 
     def test_creates_new_model(self, rules_path: Path):
@@ -122,15 +123,19 @@ class TestRecordOutcome:
 
 
 class TestLearnOverride:
-    def test_adds_new_override(self, rules_path: Path):
+    def test_proposes_in_shadow_not_applied(self, rules_path: Path):
+        """Learned overrides are shadow (proposed), not live."""
         rules = default_rules()
         learn_override(
             rules, "frontend", "claude",
             "Codex too slow for frontend (280s vs 122s)",
             0.8, rules_path,
         )
-        assert rules.task_type_overrides["frontend"].model == "claude"
-        assert rules.task_type_overrides["frontend"].source == "learned"
+        ov = rules.task_type_overrides["frontend"]
+        assert ov.model == "claude" and ov.source == "learned"
+        assert ov.status == "shadow"
+        # shadow override does NOT affect routing
+        assert apply_override(rules, "frontend") is None
 
     def test_persists_to_disk(self, rules_path: Path):
         rules = default_rules()
@@ -139,4 +144,61 @@ class TestLearnOverride:
             rules, "frontend", "claude", "test", 0.9, rules_path,
         )
         reloaded = load(rules_path)
-        assert "frontend" in reloaded.task_type_overrides
+        assert reloaded.task_type_overrides["frontend"].status == "shadow"
+
+
+class TestPromoteGate:
+    def _seed(self, rules, model, task_type, n, successes, path):
+        for i in range(n):
+            record_outcome(rules, model, task_type, i < successes, path)
+
+    def test_promote_refuses_without_min_samples(self, rules_path: Path):
+        from maggy.routing_rules import promote_override
+        rules = default_rules()
+        learn_override(rules, "frontend", "fastcli", "x", 0.9, rules_path)
+        self._seed(rules, "fastcli", "frontend", 3, 3, rules_path)  # <5
+        assert promote_override(rules, "frontend", path=rules_path) is False
+        assert apply_override(rules, "frontend") is None
+
+    def test_promote_refuses_low_success_rate(self, rules_path: Path):
+        from maggy.routing_rules import promote_override
+        rules = default_rules()
+        learn_override(rules, "frontend", "fastcli", "x", 0.9, rules_path)
+        self._seed(rules, "fastcli", "frontend", 6, 2, rules_path)  # 33%
+        assert promote_override(rules, "frontend", path=rules_path) is False
+
+    def test_promote_succeeds_with_valid_outcomes(self, rules_path: Path):
+        from maggy.routing_rules import promote_override
+        rules = default_rules()
+        learn_override(rules, "frontend", "fastcli", "x", 0.9, rules_path)
+        self._seed(rules, "fastcli", "frontend", 6, 5, rules_path)  # 83%
+        assert promote_override(rules, "frontend", path=rules_path) is True
+        assert rules.task_type_overrides["frontend"].status == "active"
+        assert apply_override(rules, "frontend") == "fastcli"
+
+    def test_revert_removes_override(self, rules_path: Path):
+        from maggy.routing_rules import promote_override, revert_override
+        rules = default_rules()
+        learn_override(rules, "frontend", "fastcli", "x", 0.9, rules_path)
+        self._seed(rules, "fastcli", "frontend", 6, 6, rules_path)
+        promote_override(rules, "frontend", path=rules_path)
+        assert revert_override(rules, "frontend", rules_path) is True
+        assert apply_override(rules, "frontend") is None
+
+    def test_pending_lists_shadow_only(self, rules_path: Path):
+        from maggy.routing_rules import pending_overrides
+        rules = default_rules()
+        learn_override(rules, "frontend", "fastcli", "x", 0.9, rules_path)
+        pend = pending_overrides(rules)
+        assert "frontend" in pend and "security" not in pend
+
+    def test_audit_log_records_changes(self, rules_path: Path):
+        import json
+        from maggy.routing_rules import promote_override
+        rules = default_rules()
+        learn_override(rules, "frontend", "fastcli", "x", 0.9, rules_path)
+        self._seed(rules, "fastcli", "frontend", 6, 6, rules_path)
+        promote_override(rules, "frontend", path=rules_path)
+        audit = rules_path.parent / "routing-rules-audit.jsonl"
+        actions = [json.loads(ln)["action"] for ln in audit.read_text().splitlines()]
+        assert "propose" in actions and "promote" in actions
