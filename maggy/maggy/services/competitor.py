@@ -173,9 +173,7 @@ class CompetitorService:
 
         categories = self.cfg.competitors.categories
         seed = self.cfg.competitors.seed
-        org_name = self.cfg.org.name
-
-        prompt = f"""Identify competitors for {org_name}, operating in these categories: {', '.join(categories)}.
+        prompt = f"""Identify competitors operating in these categories: {', '.join(categories)}.
 {f"User already mentioned: {', '.join(seed)}. Include these and add more." if seed else ""}
 
 Return 12-18 competitors as JSON. Include a mix of:
@@ -341,7 +339,7 @@ Format (STRICT JSON):
 
         # Use domain + category for better relevance — e.g. "Sprinklr CX" not "Sprinklr software"
         category = (comp.get("category") or "").replace("_", " ").split("/")[0]
-        search_term = f"{name} {category}" if category else f"{name} {self.cfg.org.domain}"
+        search_term = f"{name} {category}" if category else name
         url = f"https://news.google.com/rss/search?q={quote(search_term)}&hl=en-US&gl=US&ceid=US:en"
 
         try:
@@ -401,15 +399,13 @@ Format (STRICT JSON):
         if not news:
             return {"date": today, "summary": "No competitor news yet. Run a scan first.", "total_signals": 0}
         digest = [f"[{n['event_type']}] {n['competitor_name']}: {n['title']}" for n in news[:50]]
-        domain = self.cfg.org.domain or "our domain"
-
-        prompt = f"""You are the competitive intelligence analyst for {self.cfg.org.name} in the {domain} space.
+        prompt = f"""You are a competitive intelligence analyst.
 
 Write a daily competitive landscape briefing for {today}. Structure:
 
 1. **Top Signals Today** — 3-5 most important moves (acquisitions, launches, partnerships) with specific competitor names
 2. **Market Trends** — patterns across multiple signals (AI adoption, consolidation, pricing shifts)
-3. **Implications for {self.cfg.org.name}** — 2-3 specific, actionable takeaways
+3. **Implications** — 2-3 specific, actionable takeaways
 
 Be specific with competitor names and facts. No generic advice. Under 250 words.
 

@@ -25,7 +25,7 @@ MODELS = {
     "flash-lite": "gemini-2.5-flash-lite",
     "flash": "gemini-2.5-flash",
     "pro": "gemini-2.5-pro",
-    "pro-search": "gemini-3.1-pro",
+    "pro-search": "gemini-3.5-flash",
 }
 COSTS = {
     "flash-lite": "$0.10/$0.40 per M",
@@ -70,8 +70,41 @@ def main():
         sys.exit(1)
 
     model = MODELS.get(model_key, model_key)
-    result = call_gemini(prompt, model, model_key)
+    if model_key == "pro-search":
+        # Search grounding is only valid on the native generateContent endpoint;
+        # the OpenAI-compat layer rejects the google_search tool (400).
+        result = call_gemini_search(prompt, model)
+    else:
+        result = call_gemini(prompt, model, model_key)
     print(result)
+
+
+def call_gemini_search(prompt: str, model: str) -> str:
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "tools": [{"google_search": {}}],
+    }
+    try:
+        with httpx.Client(timeout=300) as client:
+            resp = client.post(
+                url, headers={"Content-Type": "application/json"}, json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            cands = data.get("candidates", [])
+            if not cands:
+                return "[no candidates in response]"
+            parts = cands[0].get("content", {}).get("parts", [])
+            text = "\n".join(p.get("text", "") for p in parts if "text" in p)
+            return text or "[no content in response]"
+    except httpx.HTTPStatusError as e:
+        return f"[Gemini API error: {e.response.status_code} — {e.response.text[:200]}]"
+    except Exception as e:
+        return f"[Gemini error: {e}]"
 
 
 def call_gemini(prompt: str, model: str, model_key: str) -> str:
@@ -84,9 +117,6 @@ def call_gemini(prompt: str, model: str, model_key: str) -> str:
                 ],
                 "max_tokens": 16000,
             }
-            # Gemini 3.1 Pro Search — add grounding if available
-            if model_key == "pro-search":
-                payload["tools"] = [{"google_search": {}}]
 
             resp = client.post(
                 f"{BASE_URL}/chat/completions",

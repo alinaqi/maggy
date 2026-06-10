@@ -55,7 +55,8 @@ SERIES_TEMPLATE = [
 
 class ScheduledPost:
     def __init__(self, channel="", text="", scheduled_at="", format="single",
-                 thread_index=0, thread_total=1, media=None):
+                 thread_index=0, thread_total=1, media=None,
+                 thread_replies=None, title=""):
         self.channel = channel
         self.text = text
         self.scheduled_at = scheduled_at
@@ -63,6 +64,8 @@ class ScheduledPost:
         self.thread_index = thread_index
         self.thread_total = thread_total
         self.media = media or []
+        self.thread_replies = thread_replies or []
+        self.title = title  # Reddit self-post title (max 300)
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +94,13 @@ class ContentStrategy:
             elif fmt == "series":
                 posts += self._build_series(channel, context, cfg)
             else:
+                # Reddit self-posts need a title (the body is the narrative).
+                title = (context.get("what", "") or text.split("\n")[0])[:300] \
+                    if channel == "reddit" else ""
                 posts.append(ScheduledPost(
                     channel=channel, text=text[:cfg.get("max_chars", 3000)],
                     scheduled_at=self._best_time(channel, content_type), format="single",
+                    title=title,
                 ))
         return self._space_out(posts)
 
@@ -130,15 +137,20 @@ class ContentStrategy:
         if len(tweets) <= 1:
             return [ScheduledPost(channel=channel, text=text[:max_chars],
                     scheduled_at=self._best_time(channel, content_type), format="single")]
-        base = self._next_slot(channel, content_type)
-        posts = []
-        for i, t in enumerate(tweets):
-            label = f"{t} ({i+1}/{len(tweets)})" if len(tweets) > 1 else t
-            posts.append(ScheduledPost(channel=channel, text=label,
-                scheduled_at=base.isoformat(), format="thread_tweet",
-                thread_index=i+1, thread_total=len(tweets)))
-            base += timedelta(minutes=2)
-        return posts
+        scheduled_at = self._next_slot(channel, content_type).isoformat()
+        replies = [{"text": t, "assets": []} for t in tweets[1:]]
+        media = context.get("media", [])
+        if media and isinstance(media, list):
+            for i, m in enumerate(media):
+                if i == 0:
+                    pass
+                elif i - 1 < len(replies) and m:
+                    replies[i - 1]["assets"] = [{"image": {"url": m}}]
+        return [ScheduledPost(
+            channel=channel, text=tweets[0], scheduled_at=scheduled_at,
+            format="thread", thread_total=len(tweets),
+            thread_replies=replies,
+        )]
 
     def _split_tweets(self, text, max_chars):
         tweets, current = [], ""
@@ -233,16 +245,29 @@ class ContentStrategy:
         qf.write_text(json.dumps(self._queue[-50:], indent=2))
 
 
+_plugin: "BuildInPublic | None" = None
+
+
 def register(bus: HookBus, manifest: PluginManifest):
     """Called by PluginManager on load. Registers hook handlers."""
-    plugin = BuildInPublic(manifest)
+    global _plugin
+    _plugin = BuildInPublic(manifest)
     for hook in manifest.hooks:
         event = hook["event"]
         handler_name = hook["handler"]
-        handler = getattr(plugin, handler_name, None)
+        handler = getattr(_plugin, handler_name, None)
         if handler:
             bus.subscribe(event, manifest.id, handler)
             logger.info("build-in-public: registered %s → %s", event, handler_name)
+
+
+async def monitor_reddit_replies():
+    """Heartbeat: reply to new comments on our recent Reddit posts."""
+    if _plugin:
+        try:
+            await _plugin.check_reddit_replies()
+        except Exception as e:
+            logger.warning("build-in-public: reply monitor failed: %s", e)
 
 
 class BuildInPublic:
@@ -250,7 +275,7 @@ class BuildInPublic:
 
     def __init__(self, manifest):
         self._manifest = manifest
-        self._config = getattr(manifest, 'config', manifest.get('config', {}))
+        self._config = getattr(manifest, 'config', {}) or {}
         self._anonymize = self._load_anonymize()
         self._customization = self._load_customization()
         self._tags = self._load_tags()
@@ -346,7 +371,7 @@ class BuildInPublic:
         path.write_text(json.dumps(self._project_state, indent=2))
 
     def _load_anonymize(self) -> dict:
-        manifest_path = getattr(self._manifest, 'path', self._manifest.get('_path', ''))
+        manifest_path = getattr(self._manifest, 'path', '')
         rules_path = Path(manifest_path) / "anonymize.yaml" if manifest_path else Path(__file__).parent / "anonymize.yaml"
         try:
             return yaml.safe_load(rules_path.read_text())
@@ -438,6 +463,64 @@ class BuildInPublic:
             payload["plan_summary"] = "architected a solution"
         await self._handle_event("on_review_passed", payload)
 
+    async def handle_thread_requested(self, payload: dict):
+        """Schedule a pre-written X thread via Buffer.
+
+        Blueprint-compatible: content creation by deepseek_pro/gemini,
+        scheduling by qwen3.
+
+        Payload:
+            tweets: list[dict] — [{text, image?}, ...]
+            scheduled_at: str — ISO timestamp (optional)
+            channel: str — "x" (default)
+        """
+        tweets = payload.get("tweets", [])
+        if not tweets:
+            logger.warning("build-in-public: on_thread_requested with no tweets")
+            return
+
+        channel = payload.get("channel", "x")
+        head = tweets[0]
+        head_text = head if isinstance(head, str) else head.get("text", "")
+        head_image = "" if isinstance(head, str) else head.get("image", "")
+
+        replies = []
+        for t in tweets[1:]:
+            if isinstance(t, str):
+                replies.append({"text": t, "assets": []})
+            else:
+                assets = []
+                if t.get("image"):
+                    assets = [{"image": {"url": t["image"]}}]
+                replies.append({"text": t.get("text", ""), "assets": assets})
+
+        scheduled_at = payload.get("scheduled_at", "")
+        if not scheduled_at:
+            scheduled_at = self._strategy._best_time(channel, "thread")
+
+        post = {
+            "channel": channel,
+            "text": head_text,
+            "scheduled_at": scheduled_at,
+            "thread_replies": replies,
+            "format": "thread",
+        }
+
+        media = head_image if head_image else ""
+        await self._schedule_posts([post], media)
+
+        scheduled = [ScheduledPost(
+            channel=channel, text=head_text,
+            scheduled_at=scheduled_at, format="thread",
+            thread_total=len(tweets), thread_replies=replies,
+        )]
+        self._strategy.commit(scheduled)
+        self._log_plan(scheduled)
+        logger.info(
+            "build-in-public: thread scheduled (%d tweets) at %s",
+            len(tweets), scheduled_at,
+        )
+
     def _build_narrative(self, event_type: str, context: dict) -> dict:
         """Synthesize narrative arcs per channel. Returns {channel: text}."""
         what = context.get("what", "")
@@ -523,6 +606,144 @@ class BuildInPublic:
         ))
 
     async def _schedule_posts(self, posts: list[dict], media_path: str = ""):
+        """Route posts: Reddit via its API, the rest via Buffer."""
+        reddit_posts = [p for p in posts if p.get("channel") == "reddit"]
+        buffer_posts = [p for p in posts if p.get("channel") != "reddit"]
+        for rp in reddit_posts:
+            await self._submit_reddit(rp)
+        if buffer_posts:
+            await self._schedule_buffer_posts(buffer_posts, media_path)
+
+    def _resolve_reddit_subreddit(self) -> str:
+        """Pick the publish subreddit. Maggy chooses autonomously if unset."""
+        cfg = self._config.get("channels", {}).get("reddit", {})
+        explicit = (cfg.get("subreddit") or "").strip().lstrip("r/").strip("/")
+        if explicit:
+            return explicit
+        # Autonomous default for build-in-public content.
+        topics = getattr(self, "_topics", {}) or {}
+        candidates = topics.get("reddit_publish") or []
+        return (candidates[0] if candidates else "buildinpublic")
+
+    async def _submit_reddit(self, post: dict):
+        """Submit a build-in-public self-post (subreddit chosen autonomously).
+
+        Applies the configured voice (no em-dash, Markdown-stripped,
+        human typos) and records the post id so replies can be monitored.
+        """
+        from maggy.plugins.build_in_public.social_api import SocialMonitor
+        from maggy.plugins.build_in_public.voice import apply_voice, resolve_voice
+        subreddit = self._resolve_reddit_subreddit()
+        rules = resolve_voice(self._config, "reddit")
+        body = apply_voice(post.get("text", ""), rules)
+        raw_title = post.get("title") or body.split("\n")[0]
+        # Titles get the clean-up rules but never typos.
+        title = apply_voice(raw_title, {**rules, "typos": {"enabled": False}})[:300]
+        try:
+            monitor = SocialMonitor()
+            post_id = await monitor.reddit_post(subreddit, title, body)
+            if post_id:
+                self._posts_today += 1
+                self._track_reddit_post(post_id, subreddit)
+                logger.info("build-in-public: submitted to r/%s (%s)", subreddit, post_id)
+            else:
+                logger.info(
+                    "build-in-public: reddit post skipped/failed "
+                    "(needs Reddit write creds — refresh token or username/password)"
+                )
+                self._log_post(post)
+        except Exception as e:
+            logger.warning("build-in-public: reddit submit error: %s", e)
+            self._log_post(post)
+
+    # ── Reply agent ─────────────────────────────────────────────────────
+
+    def _reddit_posts_path(self) -> Path:
+        return Path.home() / ".maggy" / "build-in-public" / "reddit-posts.json"
+
+    def _load_reddit_posts(self) -> list[dict]:
+        try:
+            return json.loads(self._reddit_posts_path().read_text())
+        except (OSError, ValueError):
+            return []
+
+    def _save_reddit_posts(self, posts: list[dict]) -> None:
+        p = self._reddit_posts_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(posts, indent=2))
+
+    def _track_reddit_post(self, post_id: str, subreddit: str) -> None:
+        posts = self._load_reddit_posts()
+        posts.append({
+            "id": post_id, "subreddit": subreddit,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "replied": [],
+        })
+        self._save_reddit_posts(posts[-50:])  # keep last 50
+
+    async def check_reddit_replies(self, max_replies: int = 5) -> int:
+        """Monitor our recent posts and reply to new comments. Returns count."""
+        from maggy.plugins.build_in_public.social_api import (
+            SocialMonitor,
+            reddit_cred,
+        )
+        from maggy.plugins.build_in_public.voice import apply_voice, resolve_voice
+        posts = self._load_reddit_posts()
+        if not posts:
+            return 0
+        monitor = SocialMonitor()
+        me = (reddit_cred("REDDIT_USERNAME") or "").lower()
+        rules = resolve_voice(self._config, "reddit")
+        replied = 0
+        for entry in posts:
+            if replied >= max_replies:
+                break
+            done = set(entry.get("replied", []))
+            comments = await monitor.reddit_post_comments(entry["id"])
+            for c in comments:
+                if replied >= max_replies:
+                    break
+                if c["id"] in done or not c["body"]:
+                    continue
+                if me and c["author"].lower() == me:
+                    continue  # never reply to ourselves
+                reply = self._generate_reply(c["body"], entry["subreddit"])
+                if not reply:
+                    continue
+                reply = apply_voice(reply, rules)
+                ok = await monitor.reddit_comment(c["fullname"], reply)
+                if ok:
+                    done.add(c["id"])
+                    replied += 1
+                    logger.info("build-in-public: replied to %s on %s",
+                                c["id"], entry["id"])
+            entry["replied"] = sorted(done)
+        self._save_reddit_posts(posts)
+        return replied
+
+    def _generate_reply(self, comment_body: str, subreddit: str) -> str:
+        """Draft a short, human reply to a comment (pre-voice)."""
+        prompt = (
+            "You are the maker replying to a comment on your Reddit post in "
+            f"r/{subreddit}. Reply in 1-3 sentences, warm and concrete, no "
+            "marketing, no markdown, answer or thank genuinely. If it's hostile "
+            "or spam, reply 'SKIP'.\n\n"
+            f"Comment: {comment_body[:600]}\n\nReply:"
+        )
+        try:
+            deepseek = os.path.expanduser("~/bin/deepseek")
+            result = subprocess.run(
+                [deepseek, "--flash", prompt],
+                capture_output=True, text=True, timeout=30,
+            )
+            out = result.stdout.strip()
+            if result.returncode == 0 and out and "SKIP" not in out[:10].upper():
+                return self._redact(out[:1500])
+        except Exception:
+            pass
+        return ""
+
+    async def _schedule_buffer_posts(self, posts: list[dict], media_path: str = ""):
         """Schedule posts via Buffer GraphQL API."""
         token = os.environ.get("BUFFER_ACCESS_TOKEN", "")
         if not token:
@@ -571,11 +792,25 @@ class BuildInPublic:
                             "schedulingType": "automatic",
                             "dueAt": post.get("scheduled_at", ""),
                             "mode": "customScheduled",
+                            "assets": [],
                         }
                     }
-                    # Attach image to LinkedIn posts
-                    if media_path and post["channel"] == "linkedin" and media_path.startswith("http"):
+                    # Attach image to head tweet or LinkedIn
+                    if media_path and media_path.startswith("http"):
                         variables["input"]["assets"] = [{"image": {"url": media_path}}]
+
+                    # X threads: use metadata.twitter.thread for linked replies
+                    thread_replies = post.get("thread_replies", [])
+                    if service == "twitter" and thread_replies:
+                        variables["input"]["metadata"] = {
+                            "twitter": {
+                                "thread": thread_replies,
+                            }
+                        }
+                        fmt = f"thread (1 + {len(thread_replies)} replies)"
+                    else:
+                        fmt = "single"
+
                     resp = await client.post(
                         BUFFER_API,
                         headers={
@@ -585,9 +820,15 @@ class BuildInPublic:
                         json={"query": mutation, "variables": variables},
                     )
                     if resp.status_code == 200 and "errors" not in resp.json():
-                        self._posts_today += 1
-                        logger.info("build-in-public: scheduled on %s via GraphQL",
-                                    post["channel"])
+                        result = resp.json().get("data", {}).get("createPost", {})
+                        if result.get("__typename") == "PostActionSuccess":
+                            self._posts_today += 1
+                            logger.info("build-in-public: scheduled %s on %s",
+                                        fmt, post["channel"])
+                        else:
+                            logger.warning("build-in-public: Buffer returned %s",
+                                           result.get("__typename"))
+                            self._log_post(post)
                     else:
                         error = resp.json().get("errors", [{}])[0].get("message", resp.text[:200])
                         logger.warning("build-in-public: GraphQL error: %s", error)
@@ -669,7 +910,7 @@ class BuildInPublic:
         return path  # Fallback: local path
 
     async def _capture_screenshot(self, url: str) -> str:
-        """Capture hero screenshot via Peekaboo (preferred) or Playwright (fallback)."""
+        """Capture hero screenshot via Playwright."""
         if not url:
             return ""
         screenshot_dir = Path.home() / ".maggy" / "build-in-public" / "screenshots"
@@ -677,21 +918,6 @@ class BuildInPublic:
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         out_path = screenshot_dir / f"hero-{ts}.png"
 
-        # Try Peekaboo first (native macOS, pixel-perfect)
-        import shutil
-        if shutil.which("peekaboo"):
-            try:
-                result = subprocess.run(
-                    ["peekaboo", "image", "--mode", "screen", "--path", str(out_path)],
-                    capture_output=True, text=True, timeout=15,
-                )
-                if result.returncode == 0 and out_path.exists():
-                    logger.info("build-in-public: Peekaboo screenshot captured")
-                    return str(out_path)
-            except Exception:
-                pass
-
-        # Fallback to Playwright
         try:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:

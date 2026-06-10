@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,7 @@ SUPPORTED_EXTENSIONS = {
     '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
     '.go',
     '.rs',
+    '.ex', '.exs',
     '.sql',
 }
 
@@ -27,6 +29,9 @@ IGNORED_DIRS = {
     '.cortex', '.icpg', '.mnemos', 'venv', '.venv', '.tox',
     'build', 'target', '.mypy_cache', '.ruff_cache',
 }
+
+_CAMEL_RE = re.compile(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])')
+_IDENT_RE = re.compile(r'\b[a-zA-Z_]\w{2,}\b')
 
 
 async def index_project(
@@ -55,7 +60,11 @@ async def index_project(
         abs_path = str(file_path)
         current_files.add(abs_path)
 
-        stat = file_path.stat()
+        try:
+            stat = file_path.stat()
+        except OSError:
+            skipped_count += 1
+            continue
         mtime_ns = stat.st_mtime_ns
         size = stat.st_size
 
@@ -99,6 +108,12 @@ async def index_project(
         symbols = parse_file(file_path, content, language)
         line_count = content.count('\n') + 1
 
+        from .complexity import compute_complexity
+        complexities = compute_complexity(file_path, content, language)
+        for sym in symbols:
+            if sym.name in complexities:
+                sym.complexity = complexities[sym.name]
+
         await _delete_edges_for_file(db, abs_path)
         await db.write(
             'DELETE FROM symbols WHERE file_path = ?', (abs_path,)
@@ -108,12 +123,13 @@ async def index_project(
             batch.append((
                 'INSERT OR REPLACE INTO symbols '
                 '(id, name, file_path, symbol_type, language, signature, checksum, '
-                'line_start, line_end, docstring, created_at) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'line_start, line_end, docstring, complexity, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (
                     sym.id, sym.name, str(sym.file_path), sym.symbol_type,
                     sym.language, sym.signature, sym.checksum,
-                    sym.line_start, sym.line_end, sym.docstring, sym.created_at,
+                    sym.line_start, sym.line_end, sym.docstring,
+                    sym.complexity, sym.created_at,
                 ),
             ))
 
@@ -129,7 +145,7 @@ async def index_project(
         batch.append((
             'INSERT OR REPLACE INTO source_fts (file_path, content, language) '
             'VALUES (?, ?, ?)',
-            (abs_path, content, language),
+            (abs_path, _augment_for_fts(content), language),
         ))
 
         await db.write_batch(batch)
@@ -184,6 +200,11 @@ def _extract_raw_edges(
     return []
 
 
+_PHANTOM_EDGE_TYPES = frozenset({
+    'RAISES', 'HANDLES', 'DECORATES', 'WRITES', 'HTTP_CALLS',
+})
+
+
 async def _resolve_edges(
     db: CortexDB,
     raw_edges: list[Any],
@@ -210,6 +231,7 @@ async def _resolve_edges(
                 global_map[name] = rows[0][0]
 
     batch: list[tuple[str, tuple[Any, ...]]] = []
+    phantoms_created: set[str] = set()
     for raw in raw_edges:
         if raw.from_name == '__module__':
             from_id = local_map.get(
@@ -218,7 +240,22 @@ async def _resolve_edges(
         else:
             from_id = local_map.get(raw.from_name)
         to_id = global_map.get(raw.to_name)
-        if not from_id or not to_id:
+        if not from_id:
+            continue
+        if not to_id and raw.edge_type in _PHANTOM_EDGE_TYPES:
+            phantom_id = _phantom_id(raw.to_name)
+            if phantom_id not in phantoms_created:
+                phantoms_created.add(phantom_id)
+                batch.append((
+                    'INSERT OR IGNORE INTO symbols '
+                    '(id, name, file_path, symbol_type, language, '
+                    'checksum, created_at) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (phantom_id, raw.to_name, '__external__',
+                     'external', 'any', '', now),
+                ))
+            to_id = phantom_id
+        if not to_id:
             continue
         edge_id = str(uuid.uuid4())[:8]
         batch.append((
@@ -232,6 +269,11 @@ async def _resolve_edges(
     return batch
 
 
+def _phantom_id(name: str) -> str:
+    import hashlib
+    return hashlib.sha256(f'phantom:{name}'.encode()).hexdigest()[:16]
+
+
 async def _delete_edges_for_file(
     db: CortexDB,
     file_path: str,
@@ -241,6 +283,22 @@ async def _delete_edges_for_file(
         '(SELECT id FROM symbols WHERE file_path = ?)',
         (file_path,),
     )
+
+
+def _augment_for_fts(content: str) -> str:
+    identifiers = set(_IDENT_RE.findall(content))
+    extra: set[str] = set()
+    for ident in identifiers:
+        parts = _CAMEL_RE.split(ident)
+        if len(parts) > 1:
+            extra.update(p.lower() for p in parts if len(p) > 1)
+        if '_' in ident:
+            extra.update(
+                p.lower() for p in ident.split('_') if len(p) > 1
+            )
+    if extra:
+        return content + '\n' + ' '.join(extra)
+    return content
 
 
 def _collect_files(project_dir: Path) -> list[Path]:

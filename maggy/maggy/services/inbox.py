@@ -156,7 +156,7 @@ class InboxService:
         for i, t in enumerate(tasks):
             snippet = (t.description or "")[:200].replace("\n", " ")
             task_lines.append(f"[{i}] id={t.id} board={t.board} labels={','.join(t.labels[:3])}\n    {t.title}\n    {snippet}")
-        return f"""You are the AI triage assistant for {self.cfg.org.name}.
+        return f"""You are the AI triage assistant.
 
 {okr_block}
 Rank the following {len(tasks)} open tasks by priority. Consider:

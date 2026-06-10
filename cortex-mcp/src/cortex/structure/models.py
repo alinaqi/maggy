@@ -43,6 +43,7 @@ class Symbol:
     line_start: int | None = None
     line_end: int | None = None
     docstring: str | None = None
+    complexity: int | None = None
     is_pinned: bool = False
     created_at: str = field(default_factory=_now)
 

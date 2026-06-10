@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
-echo "Installing Maggy v4.0.0..."
+echo "Installing Claude Bootstrap v6.35.0..."
 echo ""
 
 # Save bootstrap directory location for other scripts
@@ -89,10 +89,9 @@ echo ""
 echo "Installing templates..."
 mkdir -p "$CLAUDE_DIR/templates"
 cp "$SCRIPT_DIR/templates/"* "$CLAUDE_DIR/templates/" 2>/dev/null || true
-chmod +x "$CLAUDE_DIR/templates/tdd-loop-check.sh" 2>/dev/null || true
-chmod +x "$CLAUDE_DIR/templates/pre-compact.sh" 2>/dev/null || true
-chmod +x "$CLAUDE_DIR/templates/codex-auto-review.sh" 2>/dev/null || true
-echo "✓ Installed templates (CLAUDE.md, AGENTS.md, CLAUDE.local.md, settings.json, config.toml)"
+# Make every hook script executable (mnemos-*, icpg-*, tdd-loop-check, codex-auto-review, etc.)
+chmod +x "$CLAUDE_DIR/templates/"*.sh 2>/dev/null || true
+echo "✓ Installed templates (CLAUDE.md, AGENTS.md, CLAUDE.local.md, settings.json, config.toml, and all hook scripts)"
 
 # Cross-tool config installation
 if echo "$DETECTED_AGENTS" | grep -q "kimi"; then
@@ -117,6 +116,10 @@ chmod +x "$CLAUDE_DIR/install-hooks.sh" 2>/dev/null || true
 # Copy graph tools installer
 cp "$SCRIPT_DIR/scripts/install-graph-tools.sh" "$CLAUDE_DIR/" 2>/dev/null || true
 chmod +x "$CLAUDE_DIR/install-graph-tools.sh" 2>/dev/null || true
+
+# Copy session-hooks installer (wires mnemos/icpg hooks into a project's
+# .claude/settings.json — used by /initialize-project)
+cp "$SCRIPT_DIR/scripts/install_session_hooks.py" "$CLAUDE_DIR/" 2>/dev/null || true
 
 # Install Polyphony CLI shim
 POLYPHONY_SRC="$SCRIPT_DIR/scripts/polyphony"
@@ -167,16 +170,19 @@ fi
 
 echo ""
 echo "================================================================"
-echo "  Installation complete! (v4.0.0)"
+echo "  Claude Bootstrap installed! (v6.35.0)"
 echo "================================================================"
 echo ""
-echo "What's new in v4.1.0:"
-echo "  - ADR enforcement: every review requires linked ADRs + specs"
-echo "  - PR template with ADR compliance checklist"
-echo "  - CodeRabbit config: reviews against documented decisions"
-echo "  - ADR reverse-engineering from git history when missing"
-echo "  - Polyphony: container-isolated parallel agents (Docker/OrbStack)"
-echo "  - Cross-tool support: Claude Code + Kimi CLI + Codex CLI"
+echo "What's included:"
+echo "  - 67 skills (Python, TS, React, Flutter, Supabase, Stripe, and more)"
+echo "  - TDD enforcement via stop hooks"
+echo "  - Quality gates and security rules"
+echo "  - 13-tier model routing (qwen3, deepseek, gemini, kimi, grok, codex, claude)"
+echo "  - Cross-tool support: Claude Code + Kimi CLI + Codex CLI + Gemini CLI"
+echo ""
+echo "For the full engineering harness (Maggy), also run:"
+echo "  cd maggy && pip install -e ."
+echo "  maggy serve   # dashboard at localhost:8080"
 echo ""
 echo "Usage:"
 echo "  1. Open any project folder"

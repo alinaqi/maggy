@@ -165,9 +165,16 @@ class RoutedChat:
         )
         decision = self._routing.route(ctx)
         model_name = self._model_name(decision.primary)
+        reason = decision.reason
+        # Smart mode: honor the user's followed model for real work, but leave
+        # trivial/local routing alone so cheap asks stay cheap.
+        from maggy.process.model_preference import followed_model
+        fm = followed_model()
+        if fm and model_name != "local":
+            model_name, reason = fm, f"followed model ({fm})"
         return RouteDecision(
             model=model_name,
-            reason=decision.reason,
+            reason=reason,
             blast=blast,
             task_type=task_type,
         )

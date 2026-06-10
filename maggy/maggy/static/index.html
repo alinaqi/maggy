@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="light">
+<script>if(localStorage.getItem('maggy-theme')==='dark'){document.documentElement.classList.replace('light','dark')}</script>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,22 +20,23 @@
         href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css"
         crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
-    :root { --bg: #060912; --surface: rgba(15,19,26,0.85); --border: rgba(255,255,255,0.06); --text: #c9cdd4; --text-muted: #5e6570; --accent: #f97316; --accent-glow: rgba(249,115,22,0.12); --green: #22c55e; --red: #ef4444; --yellow: #eab308; }
+    :root { --bg: #060912; --surface: rgba(15,19,26,0.85); --border: rgba(255,255,255,0.06); --text: #c9cdd4; --text-muted: #5e6570; --accent: #f97316; --accent-glow: rgba(249,115,22,0.12); --green: #22c55e; --red: #ef4444; --yellow: #eab308; --sidebar-bg: rgba(6,9,18,0.95); --glass-bg: rgba(15,19,26,0.7); --glass-card-bg: rgba(15,19,26,0.6); --input-bg: rgba(255,255,255,0.03); --scrollbar: rgba(255,255,255,0.08); --code-bg: rgba(255,255,255,0.05); --code-color: #fbbf24; --pre-bg: rgba(255,255,255,0.04); --hover-bg: rgba(249,115,22,0.05); --hover-text: #d1d5db; --pill-bg: rgba(255,255,255,0.03); --switcher-bg: rgba(255,255,255,0.03); --switcher-border: rgba(255,255,255,0.06); }
+    html.light { --bg: #f5f5f7; --surface: rgba(255,255,255,0.85); --border: rgba(0,0,0,0.08); --text: #1d1d1f; --text-muted: #86868b; --accent: #f97316; --accent-glow: rgba(249,115,22,0.10); --green: #16a34a; --red: #dc2626; --yellow: #ca8a04; --sidebar-bg: rgba(245,245,247,0.97); --glass-bg: rgba(255,255,255,0.8); --glass-card-bg: rgba(255,255,255,0.7); --input-bg: rgba(0,0,0,0.03); --scrollbar: rgba(0,0,0,0.1); --code-bg: rgba(0,0,0,0.05); --code-color: #c2410c; --pre-bg: rgba(0,0,0,0.03); --hover-bg: rgba(249,115,22,0.06); --hover-text: #374151; --pill-bg: rgba(0,0,0,0.04); --switcher-bg: rgba(0,0,0,0.03); --switcher-border: rgba(0,0,0,0.08); }
     * { box-sizing: border-box; }
     body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, monospace; overflow: hidden; }
     /* Glassmorphism */
-    .glass { background: rgba(15,19,26,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.05); border-radius: 0.5rem; }
-    .glass-sidebar { background: rgba(6,9,18,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-    .glass-card { background: rgba(15,19,26,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.04); border-radius: 0.5rem; }
-    .glass-input { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 0.375rem; color: var(--text); padding: 0.5rem 0.75rem; outline: none; transition: border-color 0.2s; }
+    .glass { background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 0.5rem; }
+    .glass-sidebar { background: var(--sidebar-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+    .glass-card { background: var(--glass-card-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 0.5rem; }
+    .glass-input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 0.375rem; color: var(--text); padding: 0.5rem 0.75rem; outline: none; transition: border-color 0.2s; }
     .glass-input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow); }
     .sidebar-link { transition: all 0.15s ease; border-left: 2px solid transparent; color: var(--text-muted); }
-    .sidebar-link:hover { background: rgba(249,115,22,0.05); color: #d1d5db; border-left-color: rgba(249,115,22,0.3); }
+    .sidebar-link:hover { background: var(--hover-bg); color: var(--hover-text); border-left-color: rgba(249,115,22,0.3); }
     .sidebar-link.active { background: var(--accent-glow); border-left-color: var(--accent); color: var(--accent); }
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; }
     .btn { transition: all 0.15s ease; border-radius: 0.375rem; padding: 0.375rem 0.75rem; font-size: 0.8125rem; cursor: pointer; }
     .btn-primary { background: var(--accent); color: white; border: none; } .btn-primary:hover { background: #ea580c; }
-    .btn-ghost { color: var(--text-muted); background: transparent; border: 1px solid transparent; } .btn-ghost:hover { background: rgba(255,255,255,0.04); color: #d1d5db; border-color: rgba(255,255,255,0.06); }
+    .btn-ghost { color: var(--text-muted); background: transparent; border: 1px solid transparent; } .btn-ghost:hover { background: var(--input-bg); color: var(--hover-text); border-color: var(--border); }
     #chat-ghost { pointer-events: none; } pre { white-space: pre-wrap; word-break: break-word; }
     @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
     .shimmer-bar, .progress-shimmer { background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:shimmer 1.5s infinite; }
@@ -43,94 +45,130 @@
     .editor-tab { transition: all 0.12s ease; cursor: pointer; user-select: none; }
     .editor-tab.active { color: #e5e7eb; border-bottom: 2px solid #f97316; background: rgba(249,115,22,0.05); }
     .editor-tab:not(.active) { border-bottom: 2px solid transparent; color: #6b7280; }
-    .editor-tab:not(.active):hover { background: rgba(255,255,255,0.02); color: #d1d5db; }
+    .editor-tab:not(.active):hover { background: var(--input-bg); color: var(--hover-text); }
     @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
     .dirty-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-    .editor-textarea { caret-color: #f97316; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
+    .editor-textarea { caret-color: var(--accent); scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
     .editor-textarea::-webkit-scrollbar { width: 6px; }
-    .editor-textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    .editor-textarea::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
     .editor-textarea::selection { background: rgba(249,115,22,0.25); }
+    html.light .text-white { color: #1d1d1f !important; }
+    html.light .text-gray-300 { color: #374151 !important; }
+    html.light .text-gray-400 { color: #6b7280 !important; }
+    html.light .text-gray-500 { color: #9ca3af !important; }
+    html.light .text-gray-600 { color: #9ca3af !important; }
+    html.light .text-gray-700 { color: #d1d5db !important; }
+    html.light .bg-gray-900, html.light .bg-gray-900\/50 { background: #f0f0f2 !important; }
+    html.light .bg-gray-800, html.light .bg-gray-800\/30, html.light .bg-gray-800\/50, html.light .bg-gray-800\/60 { background: #e5e5e7 !important; }
+    html.light .bg-gray-700 { background: #d1d1d6 !important; }
+    html.light .border-gray-800 { border-color: rgba(0,0,0,0.06) !important; }
+    html.light .border-gray-700, html.light .border-gray-700\/50, html.light .border-gray-700\/40, html.light .border-gray-700\/30 { border-color: rgba(0,0,0,0.08) !important; }
+    html.light .border-white\/5 { border-color: rgba(0,0,0,0.06) !important; }
+    html.light .hover\:bg-gray-900:hover { background: #e8e8ea !important; }
+    html.light .hover\:bg-gray-700:hover { background: #d9d9de !important; }
+    html.light .hover\:bg-gray-800\/30:hover { background: rgba(0,0,0,0.04) !important; }
+    html.light .hover\:bg-white\/5:hover { background: rgba(0,0,0,0.04) !important; }
+    html.light .placeholder-gray-600::placeholder { color: var(--text-muted) !important; }
+    html.light .editor-textarea { caret-color: var(--accent); color: #1d1d1f; background: var(--bg); }
+    html.light select, html.light input[type="text"], html.light textarea { color: var(--text) !important; }
+    html.light ::placeholder { color: var(--text-muted) !important; }
     .chat-md h1,.chat-md h2,.chat-md h3 { font-weight:600; margin:0.5em 0 0.25em; }
-    .chat-md h1 { font-size:1.1em; color:var(--accent); } .chat-md h2 { font-size:1em; color:#fff; }
-    .chat-md code { background:rgba(255,255,255,0.05); padding:1px 4px; border-radius:3px; font-size:0.9em; color:#fbbf24; }
-    .chat-md pre { background:rgba(255,255,255,0.04); padding:8px; border-radius:6px; overflow-x:auto; margin:0.5em 0; border: 1px solid var(--border); }
+    .chat-md h1 { font-size:1.1em; color:var(--accent); } .chat-md h2 { font-size:1em; color:var(--text); }
+    .chat-md code { background:var(--code-bg); padding:1px 4px; border-radius:3px; font-size:0.9em; color:var(--code-color); word-break:break-all; }
+    .chat-md pre { background:var(--pre-bg); padding:8px; border-radius:6px; overflow-x:auto; margin:0.5em 0; border: 1px solid var(--border); max-width:100%; }
+    .chat-md { overflow-wrap:break-word; word-break:break-word; min-width:0; }
     .chat-md pre code { background:none; padding:0; }
     .chat-md ul,.chat-md ol { padding-left:1.5em; margin:0.25em 0; }
     .chat-md li { margin:2px 0; }
     .chat-md a { color:var(--accent); text-decoration:underline; }
     .chat-md p { margin:0.25em 0; }
     .chat-md blockquote { border-left:3px solid var(--accent); padding-left:0.75em; color:#9ca3af; }
-    .chat-md table { border-collapse:collapse; margin:0.5em 0; }
-    .chat-md th,.chat-md td { border:1px solid rgba(255,255,255,0.08); padding:4px 8px; font-size:0.85em; }
+    .chat-md table { border-collapse:collapse; margin:0.5em 0; max-width:100%; display:block; overflow-x:auto; }
+    .chat-md th,.chat-md td { border:1px solid var(--border); padding:4px 8px; font-size:0.85em; }
     .scroll-thin::-webkit-scrollbar { width: 4px; }
-    .scroll-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+    .scroll-thin::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
     .badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 9999px; font-size: 0.6875rem; font-weight: 500; }
     .model-badge { background: rgba(249,115,22,0.15); color: var(--accent); border: 1px solid rgba(249,115,22,0.3); }
+    .cli-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+    .cli-dot.ok { background: var(--green); } .cli-dot.missing { background: var(--text-muted); opacity: 0.3; }
+    .cli-pill { display: inline-flex; align-items: center; gap: 3px; font-size: 9px; color: var(--text-muted); padding: 1px 5px; border-radius: 9999px; background: var(--pill-bg); cursor: default; }
     .status-ok { color: var(--green); } .status-warn { color: var(--yellow); } .status-err { color: var(--red); }
     #project-search-results { max-height: 350px; overflow-y: auto; }
     #project-search-results::-webkit-scrollbar { width: 3px; }
-    #project-search-results::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
+    #project-search-results::-webkit-scrollbar-thumb { background: var(--scrollbar); }
     .pane-content { padding: 1rem; height: 100%; overflow-y: auto; }
     .pane-content::-webkit-scrollbar { width: 3px; }
-    .pane-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+    .pane-content::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
     #maggy-sidebar { transition: width 0.25s ease; overflow: visible; z-index: 30; position: relative; }
-    #maggy-sidebar > nav { overflow-y: auto; overflow-x: visible; }
-    /* Sidebar is always icons-only */
-    .sidebar-link { display: flex; justify-content: center; padding: 8px 0 !important; position: relative; border-left: 2px solid transparent; }
-    .sidebar-link i { margin: 0 !important; font-size: 16px !important; opacity: 0.7; }
+    #maggy-sidebar > nav { overflow-y: auto; overflow-x: hidden; }
+    .sidebar-link { display: flex; align-items: center; gap: 10px; padding: 6px 14px !important; position: relative; border-left: 2px solid transparent; font-size: 12px; white-space: nowrap; }
+    .sidebar-link i { width: 16px; text-align: center; font-size: 13px !important; opacity: 0.6; flex-shrink: 0; }
     .sidebar-link:hover i { opacity: 1; }
     .sidebar-link.active i { opacity: 1; }
-    /* Tooltip — JS-positioned fixed element, see sidebar tooltip script */
-    #sidebar-tooltip {
-      position: fixed; z-index: 9999; pointer-events: none;
-      background: rgba(10,13,20,0.97); color: #e5e7eb; font-size: 11px;
-      padding: 5px 12px; border-radius: 5px; white-space: nowrap;
-      border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-      opacity: 0; transition: opacity 0.12s ease;
-    }
-    #sidebar-tooltip.visible { opacity: 1; }
-    .sidebar-section-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); margin: 12px auto 4px; }
+    .sidebar-section { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 14px 14px 4px; font-weight: 600; }
+    .sidebar-section:first-of-type { padding-top: 8px; }
+    .project-switcher { margin: 0 10px 4px; padding: 6px 10px; border-radius: 6px; background: var(--switcher-bg); border: 1px solid var(--switcher-border); cursor: pointer; transition: all 0.15s; font-size: 11px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .project-switcher:hover { background: var(--hover-bg); border-color: rgba(249,115,22,0.2); }
+    .project-switcher .org-tag { font-size: 9px; color: var(--accent); opacity: 0.7; }
+    .sidebar-link.disabled { opacity: 0.3; pointer-events: none; }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden">
   <!-- Sidebar -->
-  <aside id="maggy-sidebar" class="w-[52px] flex-shrink-0 border-r flex flex-col glass-sidebar" style="border-color:var(--border)">
+  <aside id="maggy-sidebar" class="w-[200px] flex-shrink-0 border-r flex flex-col glass-sidebar" style="border-color:var(--border)">
     <!-- Logo -->
-    <div class="flex items-center justify-center py-3 border-b" style="border-color:var(--border)">
-      <i class="fas fa-robot text-orange-500 text-lg"></i>
+    <div class="flex items-center gap-2.5 px-4 py-3 border-b" style="border-color:var(--border)">
+      <i class="fas fa-robot text-orange-500 text-base"></i>
+      <span class="text-sm font-semibold text-white tracking-tight">Maggy</span>
     </div>
-    <!-- Quick actions -->
-    <div class="flex flex-col items-center py-2 gap-1 border-b" style="border-color:var(--border)">
-      <a href="#" onclick="openProjectSearch()" class="sidebar-link" data-tooltip="Search projects (⌘K)"><i class="fas fa-search"></i></a>
-      <a href="#" onclick="newChatSession()" class="sidebar-link" data-tooltip="New session"><i class="fas fa-plus"></i></a>
-    </div>
-    <div id="sidebar-active-projects" class="hidden"></div>
-    <span id="current-project-label" class="hidden">Select project...</span>
-    <!-- Nav -->
-    <nav class="flex-1 flex flex-col items-center py-2 gap-0.5 overflow-y-auto scroll-thin">
-      <div class="sidebar-section-dot" title="Work"></div>
-      <a href="#" onclick="switchTab('chat')" data-tab="chat" data-tooltip="Chat" class="sidebar-link active"><i class="fas fa-terminal"></i></a>
-      <a href="#" onclick="switchTab('inbox')" data-tab="inbox" data-tooltip="Inbox" class="sidebar-link"><i class="fas fa-list-check"></i></a>
-      <a href="#" onclick="switchTab('followed')" data-tab="followed" data-tooltip="Watching" class="sidebar-link"><i class="fas fa-eye"></i></a>
-      <a href="#" onclick="switchTab('progress')" data-tab="progress" data-tooltip="Progress" class="sidebar-link"><i class="fas fa-bars-progress"></i></a>
-      <div class="sidebar-section-dot" title="Project"></div>
-      <a href="#" onclick="switchTab('icpg')" data-tab="icpg" data-tooltip="iCPG" class="sidebar-link"><i class="fas fa-project-diagram"></i></a>
-      <a href="#" onclick="switchTab('competitors')" data-tab="competitors" data-tooltip="Competitors" class="sidebar-link"><i class="fas fa-chess"></i></a>
-      <div class="sidebar-section-dot" title="Intel"></div>
-      <a href="#" onclick="switchTab('process')" data-tab="process" data-tooltip="Insights" class="sidebar-link"><i class="fas fa-chart-line"></i></a>
-      <div class="sidebar-section-dot" title="System"></div>
-      <a href="#" onclick="switchTab('memory')" data-tab="memory" data-tooltip="Memory" class="sidebar-link"><i class="fas fa-brain"></i></a>
-      <a href="#" onclick="switchTab('routing')" data-tab="routing" data-tooltip="Models" class="sidebar-link"><i class="fas fa-route"></i></a>
-      <a href="#" onclick="switchTab('budget')" data-tab="budget" data-tooltip="Budget" class="sidebar-link"><i class="fas fa-wallet"></i></a>
-      <a href="#" onclick="switchTab('forge')" data-tab="forge" data-tooltip="Forge" class="sidebar-link"><i class="fas fa-hammer"></i></a>
-      <a href="#" onclick="switchTab('settings')" data-tab="settings" data-tooltip="Settings" class="sidebar-link"><i class="fas fa-sliders"></i></a>
+
+    <!-- Quick Actions — always available verbs -->
+    <div class="sidebar-section">Quick Actions</div>
+    <nav class="flex flex-col gap-0.5">
+      <a href="#" onclick="openProjectSearch()" class="sidebar-link"><i class="fas fa-search"></i><span>Search</span><kbd class="ml-auto text-[9px] text-gray-600 font-mono">⌘K</kbd></a>
+      <a href="#" onclick="newChatSession()" class="sidebar-link"><i class="fas fa-plus"></i><span>New Session</span></a>
     </nav>
-    <!-- Footer — memory indicator dot -->
-    <div class="flex flex-col items-center py-2 border-t gap-1" style="border-color:var(--border)">
-      <div id="sidebar-fatigue" title="Memory health">
-        <span id="fatigue-badge" class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-      </div>
+
+    <!-- Project — everything scoped to selected project -->
+    <div class="sidebar-section">Project</div>
+    <div id="project-switcher" class="project-switcher" onclick="openProjectSearch()">
+      <i class="fas fa-folder text-[10px] opacity-50"></i>
+      <span id="current-project-label" class="truncate flex-1">Select project...</span>
+      <i class="fas fa-chevron-down text-[8px] opacity-30"></i>
+    </div>
+    <nav class="flex flex-col gap-0.5">
+      <a href="#" onclick="switchTab('chat')" data-tab="chat" class="sidebar-link project-scoped disabled active"><i class="fas fa-terminal"></i><span>Chat</span></a>
+      <a href="#" onclick="switchTab('inbox')" data-tab="inbox" class="sidebar-link project-scoped disabled"><i class="fas fa-list-check"></i><span>Inbox</span></a>
+      <a href="#" onclick="switchTab('issues')" data-tab="issues" class="sidebar-link project-scoped disabled"><i class="fas fa-ticket"></i><span id="sidebar-issues-label">Issues</span></a>
+      <a href="#" onclick="switchTab('team')" data-tab="team" class="sidebar-link project-scoped disabled"><i class="fas fa-users"></i><span>Team</span></a>
+      <a href="#" onclick="switchTab('cortex')" data-tab="cortex" class="sidebar-link project-scoped disabled"><i class="fas fa-project-diagram"></i><span>Cortex</span></a>
+      <div class="my-1 border-t" style="border-color:var(--border); opacity:0.4;"></div>
+      <a href="#" onclick="switchTab('project-settings')" data-tab="project-settings" class="sidebar-link project-scoped disabled"><i class="fas fa-sliders"></i><span>Project Settings</span></a>
+    </nav>
+
+    <!-- Command Center — global intelligence -->
+    <div class="sidebar-section">Command Center</div>
+    <nav class="flex flex-col gap-0.5">
+      <a href="#" onclick="switchTab('skills')" data-tab="skills" class="sidebar-link"><i class="fas fa-book-open"></i><span>Skills</span></a>
+      <a href="#" onclick="switchTab('plugins')" data-tab="plugins" class="sidebar-link"><i class="fas fa-puzzle-piece"></i><span>Plugins</span></a>
+      <a href="#" onclick="switchTab('insights')" data-tab="insights" class="sidebar-link"><i class="fas fa-chart-line"></i><span>Insights</span></a>
+      <a href="#" onclick="switchTab('memory')" data-tab="memory" class="sidebar-link"><i class="fas fa-brain"></i><span>Memory</span></a>
+      <a href="#" onclick="switchTab('routing')" data-tab="routing" class="sidebar-link"><i class="fas fa-route"></i><span>Models</span></a>
+      <a href="#" onclick="switchTab('budget')" data-tab="budget" class="sidebar-link"><i class="fas fa-wallet"></i><span>Budget</span></a>
+    </nav>
+
+    <!-- System — global infrastructure -->
+    <div class="sidebar-section">System</div>
+    <nav class="flex-1 flex flex-col gap-0.5 overflow-y-auto scroll-thin">
+      <a href="#" onclick="switchTab('forge')" data-tab="forge" class="sidebar-link"><i class="fas fa-hammer"></i><span>Forge</span></a>
+      <a href="#" onclick="switchTab('logs')" data-tab="logs" class="sidebar-link"><i class="fas fa-scroll"></i><span>Logs</span></a>
+      <a href="#" onclick="switchTab('settings')" data-tab="settings" class="sidebar-link"><i class="fas fa-gear"></i><span>Settings</span></a>
+    </nav>
+
+    <!-- Footer -->
+    <div class="flex items-center gap-2 px-4 py-2.5 border-t text-[10px] text-gray-600" style="border-color:var(--border)">
+      <span id="fatigue-badge" class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+      <span id="sidebar-fatigue-label">Healthy</span>
     </div>
     <span id="sidebar-project-label" class="hidden">-</span>
     <select id="sidebar-tracker" class="hidden"><option value="">native</option></select>
@@ -139,8 +177,14 @@
   <div class="flex-1 flex flex-col overflow-hidden">
     <header class="border-b px-5 py-2 flex items-center gap-3 glass" style="border-color:var(--border)">
       <div id="header-context" class="flex items-center gap-2 text-xs text-gray-400 flex-1">
+        <span id="header-project-ctx" class="text-[11px] text-gray-500 flex items-center gap-1.5">
+          <i class="fas fa-folder text-[9px] opacity-40"></i>
+          <span id="header-project-name">No project</span>
+        </span>
+        <span class="text-gray-700">·</span>
         <span id="header-model" class="badge model-badge hidden"></span>
         <span id="header-blast" class="hidden text-gray-500"></span>
+        <span id="header-clis" class="hidden"></span>
         <span class="flex-1"></span>
       </div>
       <div class="flex items-center gap-2">
@@ -148,22 +192,127 @@
           <span class="w-1.5 h-1.5 rounded-full bg-green-500 pulse-glow"></span>
           <span>live</span>
         </div>
+        <button onclick="toggleTheme()" class="btn btn-ghost text-[10px]" title="Toggle light/dark mode" id="btn-theme"><i class="fas fa-sun" style="font-size:10px"></i></button>
         <button onclick="loadAll()" class="btn btn-ghost text-[10px]" title="Refresh all"><i class="fas fa-sync-alt"></i></button>
       </div>
     </header>
     <main class="flex-1 overflow-hidden">
       <div id="pane-chat" class="h-full"><div class="flex items-center justify-center h-full text-gray-600 text-xs">Loading chat...</div></div>
-      <div id="pane-inbox" class="h-full p-4 hidden"></div>
-      <div id="pane-followed" class="h-full p-4 hidden"></div>
-      <div id="pane-progress" class="h-full p-4 hidden"></div>
-      <div id="pane-competitors" class="h-full p-4 hidden"></div>
-      <div id="pane-process" class="h-full p-4 hidden"></div>
-      <div id="pane-icpg" class="h-full p-4 hidden"></div>
+      <div id="pane-inbox" class="h-full p-4 hidden overflow-y-auto"></div>
+      <div id="pane-team" class="h-full p-4 hidden"></div>
+      <div id="pane-cortex" class="h-full p-4 hidden"></div>
+      <div id="pane-plugins" class="h-full p-4 hidden"></div>
+      <div id="pane-skills" class="h-full hidden">
+        <div class="pane-content">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-book-open text-orange-500"></i>
+            <h2 class="text-sm font-bold text-white">Skills</h2>
+            <span id="skills-count" class="badge model-badge ml-2">0</span>
+            <span class="flex-1"></span>
+            <button onclick="validateAllSkills()" class="btn btn-ghost text-[10px]"><i class="fas fa-check-circle"></i> Validate All</button>
+            <button onclick="reloadSkills()" class="btn btn-ghost text-[10px]"><i class="fas fa-sync-alt"></i></button>
+          </div>
+          <div id="skills-validation-banner" class="hidden card p-3 mb-3 text-xs"></div>
+          <div id="skills-list" class="space-y-1"></div>
+        </div>
+      </div>
+      <div id="pane-insights" class="h-full p-4 hidden"></div>
       <div id="pane-memory" class="h-full p-4 hidden"></div>
       <div id="pane-routing" class="h-full p-4 hidden"></div>
       <div id="pane-budget" class="h-full p-4 hidden"></div>
       <div id="pane-forge" class="h-full p-4 hidden"></div>
-      <div id="pane-settings" class="h-full p-4 hidden"></div>
+      <div id="pane-logs" class="h-full hidden">
+        <div class="pane-content">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-scroll text-orange-500"></i>
+            <h2 class="text-sm font-bold" style="color:var(--text)">Pipeline Logs</h2>
+            <span id="logs-total" class="badge model-badge ml-2">0</span>
+            <span class="flex-1"></span>
+            <select id="logs-period" onchange="loadLogs()" class="glass-input text-[10px] px-2 py-1 rounded">
+              <option value="today">Today</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="all">All</option>
+            </select>
+            <button onclick="loadLogs()" class="btn btn-ghost text-[10px]"><i class="fas fa-sync-alt"></i></button>
+          </div>
+          <div class="grid grid-cols-4 gap-3 mb-4" id="logs-stats-cards">
+            <div class="card p-3 text-center"><div class="text-[10px] text-gray-500">Calls</div><div id="logs-stat-calls" class="text-lg font-bold" style="color:var(--text)">0</div></div>
+            <div class="card p-3 text-center"><div class="text-[10px] text-gray-500">Success</div><div id="logs-stat-success" class="text-lg font-bold text-green-400">0%</div></div>
+            <div class="card p-3 text-center"><div class="text-[10px] text-gray-500">Avg Latency</div><div id="logs-stat-latency" class="text-lg font-bold text-blue-400">0ms</div></div>
+            <div class="card p-3 text-center"><div class="text-[10px] text-gray-500">Cost</div><div id="logs-stat-cost" class="text-lg font-bold text-yellow-400">$0</div></div>
+          </div>
+          <div class="overflow-auto scroll-thin" style="max-height:calc(100vh - 220px)">
+            <table class="w-full text-[11px]" style="color:var(--text)">
+              <thead><tr class="text-left text-gray-500 border-b" style="border-color:var(--border)">
+                <th class="pb-2 pr-3">Time</th><th class="pb-2 pr-3">Model</th><th class="pb-2 pr-3">Backend</th>
+                <th class="pb-2 pr-3">Blast</th><th class="pb-2 pr-3">Type</th><th class="pb-2 pr-3">Latency</th>
+                <th class="pb-2 pr-3">Cost</th><th class="pb-2">Status</th>
+              </tr></thead>
+              <tbody id="logs-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="pane-settings" class="h-full p-4 hidden overflow-y-auto"></div>
+      <div id="pane-issues" class="h-full p-4 hidden"></div>
+      <div id="pane-project-settings" class="h-full hidden">
+        <div class="pane-content">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-sliders text-orange-500"></i>
+            <h2 class="text-sm font-bold text-white">Project Settings</h2>
+            <span id="ps-project-name" class="badge model-badge ml-2"></span>
+          </div>
+          <div class="space-y-4">
+            <div class="card p-4">
+              <h3 class="text-xs font-semibold text-gray-300 mb-3">Issue Tracker</h3>
+              <select id="ps-tracker" onchange="setProjectTracker(this.value)" class="glass-input text-xs w-full">
+                <option value="">Native (built-in)</option>
+                <option value="github">GitHub Issues</option>
+                <option value="asana">Asana</option>
+                <option value="linear">Linear</option>
+              </select>
+              <p class="text-[11px] text-gray-500 mt-2">Where tasks for this project are stored and synced.</p>
+            </div>
+            <div class="card p-4">
+              <h3 class="text-xs font-semibold text-gray-300 mb-3">Indexing</h3>
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-400">Auto-index on change</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input id="ps-autoindex" type="checkbox" checked class="sr-only peer" />
+                  <div class="w-8 h-4 bg-gray-700 peer-checked:bg-orange-500 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
+                </label>
+              </div>
+              <p class="text-[11px] text-gray-500 mt-2">Automatically update iCPG when files change.</p>
+            </div>
+            <div class="card p-4">
+              <h3 class="text-xs font-semibold text-gray-300 mb-3">Features</h3>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-xs text-gray-400">Competitor tracking</div>
+                    <div class="text-[11px] text-gray-500">Daily briefings and news monitoring</div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input id="ps-feature-competitors" type="checkbox" class="sr-only peer" onchange="setProjectFeature('competitors', this.checked)" />
+                    <div class="w-8 h-4 bg-gray-700 peer-checked:bg-orange-500 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
+                  </label>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-xs text-gray-400">Build in Public</div>
+                    <div class="text-[11px] text-gray-500">Social scheduling plugin</div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input id="ps-feature-build-in-public" type="checkbox" class="sr-only peer" onchange="setProjectFeature('build-in-public', this.checked)" />
+                    <div class="w-8 h-4 bg-gray-700 peer-checked:bg-orange-500 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
   <!-- Project Search Modal -->
@@ -172,11 +321,26 @@
       <div class="flex items-center gap-2.5 mb-3">
         <i class="fas fa-search text-gray-500 text-xs"></i>
         <input id="project-search-input" type="text" placeholder="Search projects, tasks, or jump to..."
-               class="flex-1 bg-transparent text-sm outline-none py-2 text-white placeholder-gray-600"
+               class="flex-1 bg-transparent text-sm outline-none py-2" style="color:var(--text)"
                oninput="filterProjects()" onkeydown="handleProjectSearchKey(event)" autofocus />
         <kbd class="text-[10px] text-gray-600 font-mono">esc</kbd>
       </div>
       <div id="project-search-results" class="text-xs space-y-0.5"></div>
+      <div class="border-t border-white/5 mt-2 pt-2">
+        <div id="open-folder-row" class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors text-xs text-gray-400" onclick="showOpenFolderInput()">
+          <i class="fas fa-folder-open text-orange-500/70 text-[10px]"></i>
+          <span>Open folder...</span>
+          <span class="ml-auto text-[9px] text-gray-600">any path</span>
+        </div>
+        <div id="open-folder-input-row" class="hidden px-3 py-2">
+          <div class="flex items-center gap-2">
+            <input id="open-folder-path" type="text" placeholder="~/Documents/protaige"
+                   class="glass-input flex-1 text-xs py-1.5 px-2.5" onkeydown="if(event.key==='Enter')openFolder()" />
+            <button onclick="openFolder()" class="btn btn-primary text-[10px] px-3 py-1.5">Open</button>
+          </div>
+          <div id="open-folder-status" class="hidden text-[10px] mt-1.5"></div>
+        </div>
+      </div>
     </div>
   </div>
   <!-- New Project Modal -->
@@ -207,6 +371,15 @@
       </div>
     </div>
   </div>
+  <!-- New Session Modal -->
+  <div id="new-session-overlay" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[18vh]" onclick="if(event.target===this)closeNewSession()" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+    <div class="glass-card w-[400px] max-w-[90vw] p-5 shadow-2xl">
+      <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fas fa-plus text-orange-500"></i> New Chat Session</h3>
+      <p class="text-[11px] text-gray-500 mb-3">Select a project for this session:</p>
+      <div id="new-session-list" class="space-y-1 max-h-[250px] overflow-y-auto scroll-thin mb-3"></div>
+      <button onclick="closeNewSession()" class="btn btn-ghost text-xs w-full py-2">Cancel</button>
+    </div>
+  </div>
   <!-- Drawer -->
   <div id="drawer" class="fixed top-0 right-0 h-full w-[40rem] max-w-full glass-card border-l p-4 overflow-y-auto translate-x-full transition-transform z-40" style="border-color:var(--border);border-radius:0">
     <div class="flex items-center justify-between mb-3">
@@ -216,8 +389,24 @@
     <div id="drawer-body" class="text-sm text-gray-300"></div>
   </div>
 
+  <!-- Setup Detection Modal -->
+  <div id="setup-modal-overlay" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" onclick="if(event.target===this)closeSetupModal()" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+    <div class="glass-card p-5 w-[480px] max-w-[90vw] max-h-[70vh] overflow-y-auto scroll-thin" style="border-color:var(--border)">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-satellite-dish text-orange-500"></i>
+          <h3 class="text-sm font-bold text-white">Setup Detection</h3>
+        </div>
+        <button onclick="closeSetupModal()" class="text-gray-400 hover:text-white"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div id="setup-modal-body" class="text-xs text-gray-400">
+        <div class="flex items-center justify-center py-8"><i class="fas fa-spinner fa-spin text-orange-400 mr-2"></i>Detecting setup...</div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/app.js?v=15"></script>
+  <script src="/static/app.js?v=22"></script>
   <script>
     document.addEventListener('keydown', function(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -226,7 +415,7 @@
       if ((e.metaKey || e.ctrlKey) && e.key === 's' && typeof _activeEditorTab !== 'undefined' && _activeEditorTab !== '__chat__') {
         e.preventDefault(); saveEditorTab(_activeEditorTab);
       }
-      if (e.key === 'Escape') { closeProjectSearch(); closeDrawer(); }
+      if (e.key === 'Escape') { closeProjectSearch(); closeNewSession(); closeDrawer(); closeSetupModal(); }
     });
 
     function openProjectSearch() {
@@ -234,6 +423,10 @@
       ov.classList.remove('hidden');
       var inp = document.getElementById('project-search-input');
       inp.value = ''; inp.focus();
+      document.getElementById('open-folder-row').classList.remove('hidden');
+      document.getElementById('open-folder-input-row').classList.add('hidden');
+      var st = document.getElementById('open-folder-status');
+      if (st) { st.classList.add('hidden'); st.textContent = ''; }
       filterProjects();
     }
     function closeProjectSearch() {
@@ -245,7 +438,7 @@
       var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
       var html = '';
       function itemRow(name, icon) {
-        return '<div class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors" data-project="' + name + '" onclick="jumpToProject(this.getAttribute('data-project'))">' + icon + '<span>' + name + '</span></div>';
+        return '<div class="px-3 py-2 hover:bg-white/5 rounded cursor-pointer flex items-center gap-2.5 transition-colors" data-project="' + name + '" onclick="jumpToProject(this.dataset.project)">' + icon + '<span>' + name + '</span></div>';
       }
 
       if (!all.length) {
@@ -292,6 +485,43 @@
       document.getElementById('current-project-label').textContent = name;
       if (typeof switchProject === 'function') switchProject(name);
     }
+    function showOpenFolderInput() {
+      document.getElementById('open-folder-row').classList.add('hidden');
+      var row = document.getElementById('open-folder-input-row');
+      row.classList.remove('hidden');
+      document.getElementById('open-folder-path').focus();
+    }
+    function openFolder() {
+      var pathInput = document.getElementById('open-folder-path');
+      var path = (pathInput.value || '').trim();
+      if (!path) return;
+      var status = document.getElementById('open-folder-status');
+      status.classList.remove('hidden');
+      status.className = 'text-[10px] mt-1.5 text-gray-400';
+      status.textContent = 'Opening...';
+      fetch('/api/projects/open-folder', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: path})
+      }).then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+      .then(function(res) {
+        if (!res.ok) {
+          status.className = 'text-[10px] mt-1.5 text-red-400';
+          status.textContent = res.data.detail || 'Failed to open folder';
+          return;
+        }
+        var name = res.data.name;
+        if (window._projectList && window._projectList.indexOf(name) < 0) {
+          window._projectList.push(name);
+        }
+        status.className = 'text-[10px] mt-1.5 text-green-400';
+        status.textContent = res.data.status === 'already_registered' ? name + ' already registered' : name + ' added';
+        setTimeout(function() { jumpToProject(name); }, 500);
+      }).catch(function(e) {
+        status.className = 'text-[10px] mt-1.5 text-red-400';
+        status.textContent = 'Network error';
+      });
+    }
     function getTrackerStatus() {
       // Check which trackers have credentials available
       var status = {native: true};
@@ -317,19 +547,45 @@
     function setProjectTracker(type) {
       var proj = document.getElementById('current-project-label').textContent;
       if (!proj || proj === 'Select project...') return;
-      fetch('/api/projects/' + proj + '/config', {
+      fetch('/api/projects/' + encodeURIComponent(proj) + '/config', {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({tracker: type})
       }).then(function() {
-        document.getElementById('sidebar-tracker').style.borderColor = 'rgba(34,197,94,0.4)';
-        setTimeout(function() { document.getElementById('sidebar-tracker').style.borderColor = ''; }, 1500);
+        // Update sidebar label to reflect tracker change
+        var label = !type || type === 'native' ? 'Issues' : 'Issues · ' + type.charAt(0).toUpperCase() + type.slice(1);
+        var il = document.getElementById('sidebar-issues-label');
+        if (il) il.textContent = label;
+        // Flash visual feedback on tracker select
+        var sel = document.getElementById('ps-tracker');
+        if (sel) { sel.style.borderColor = 'rgba(34,197,94,0.4)'; setTimeout(function(){sel.style.borderColor='';}, 1500); }
       });
+    }
+    function setProjectFeature(feature, enabled) {
+      var proj = document.getElementById('current-project-label').textContent;
+      if (!proj || proj === 'Select project...') return;
+      // Read current enabled_plugins
+      fetch('/api/projects/' + encodeURIComponent(proj) + '/config').then(function(r){return r.json();}).then(function(cfg){
+        var plugins = cfg.enabled_plugins || [];
+        var idx = plugins.indexOf(feature);
+        if (enabled && idx < 0) plugins.push(feature);
+        if (!enabled && idx >= 0) plugins.splice(idx, 1);
+        return fetch('/api/projects/' + encodeURIComponent(proj) + '/config', {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({enabled_plugins: plugins})
+        });
+      }).then(function(){
+        // Refresh sidebar visibility
+        updateProjectScope(proj);
+      }).catch(function(){});
     }
     function updateCurrentProject(name) {
       document.getElementById('current-project-label').textContent = name || 'Select project...';
       var sl = document.getElementById('sidebar-project-label');
       if (sl) sl.textContent = name ? '· ' + name : '—';
+      if (typeof updateProjectScope === 'function') updateProjectScope(name);
+      if (typeof syncProjectSettingsUI === 'function') syncProjectSettingsUI(name);
       // Track as recently active
       if (name) {
         var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
@@ -337,6 +593,24 @@
         recent.unshift(name);
         localStorage.setItem('maggy-recent-projects', JSON.stringify(recent.slice(0, 10)));
       }
+    }
+    async function syncProjectSettingsUI(projectName) {
+      if (!projectName || projectName === 'Select project...') {
+        document.getElementById('ps-tracker').value = '';
+        document.getElementById('ps-feature-competitors').checked = false;
+        document.getElementById('ps-feature-build-in-public').checked = false;
+        return;
+      }
+      try {
+        var resp = await fetch('/api/projects/' + encodeURIComponent(projectName) + '/config');
+        if (!resp.ok) return;
+        var cfg = await resp.json();
+        var tracker = cfg.tracker || '';
+        document.getElementById('ps-tracker').value = tracker;
+        var plugins = cfg.enabled_plugins || [];
+        document.getElementById('ps-feature-competitors').checked = plugins.indexOf('competitors') >= 0;
+        document.getElementById('ps-feature-build-in-public').checked = plugins.indexOf('build-in-public') >= 0;
+      } catch(e) {}
     }
 
     function openNewProject() {
@@ -387,78 +661,141 @@
       }
     }
 
-    function renderActiveProjects() {
-      var recent = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
-      var all = window._projectList || [];
-      var active = recent.filter(function(p) { return all.indexOf(p) >= 0; }).slice(0, 5);
-      var el = document.getElementById('sidebar-active-projects');
-      if (!el || !active.length) return;
-      var html = '';
-      for (var i = 0; i < active.length; i++) {
-        var p = active[i];
-        html += '<div class="flex items-center gap-2 px-2 py-1 rounded text-[10px] text-gray-500 hover:text-gray-300 hover:bg-white/[0.03] cursor-pointer transition-colors" onclick="jumpToProject(\'' + p.replace(/'/g, "\\'") + '\')"><i class="fas fa-circle text-[5px] text-green-500/50"></i><span class="truncate">' + p + '</span></div>';
-      }
-      el.innerHTML = html;
-    }
-
     window.addEventListener('load', function() {
       setTimeout(loadChat, 300);
       getTrackerStatus();
-      getTrackerStatus();
       fetch('/api/projects').then(function(r){return r.json()}).then(function(data){
-        var projects = (data.projects||[]).map(function(p){return typeof p === 'string' ? p : (p.name || p.key || '')}).filter(Boolean);
+        var raw = Array.isArray(data) ? data : (data.projects || []);
+        var projects = raw.map(function(p){return typeof p === 'string' ? p : (p.name || p.key || '')}).filter(Boolean);
         window._projectList = projects;
+        window._projectRaw = raw;
         if (projects.length) {
-          updateCurrentProject(projects[0]);
-          // Seed current project as active so it shows in recent
-          if (!localStorage.getItem('maggy-recent-projects')) {
-            localStorage.setItem('maggy-recent-projects', JSON.stringify([projects[0]]));
+          var saved = JSON.parse(localStorage.getItem('maggy-recent-projects') || '[]');
+          var pathSlug = decodeURIComponent(window.location.pathname.replace(/^\//, '').split('/')[0]);
+          var startProject = '';
+          if (pathSlug) {
+            // Match by project name/key first
+            if (projects.indexOf(pathSlug) >= 0) {
+              startProject = pathSlug;
+            } else {
+              // Match by directory name from path
+              for (var i = 0; i < raw.length; i++) {
+                var p = raw[i];
+                var pPath = (typeof p === 'object' && p.path) || '';
+                var dirName = pPath.split('/').pop();
+                if (dirName === pathSlug) {
+                  startProject = typeof p === 'string' ? p : (p.name || p.key || '');
+                  break;
+                }
+              }
+            }
           }
+          if (!startProject && saved.length && projects.indexOf(saved[0]) >= 0) {
+            startProject = saved[0];
+          }
+          if (!startProject) {
+            startProject = projects[0];
+          }
+          updateCurrentProject(startProject);
+          if (typeof switchProject === 'function') switchProject(startProject);
         }
-        renderActiveProjects();
       }).catch(function(){
         window._projectList = [];
       });
     });
   </script>
 
-  <div id="sidebar-tooltip"></div>
   <script>
-    // Sidebar is always icons-only, no collapse toggle needed
     window.toggleSidebarCollapse = function() {};
-    // JS-positioned tooltip for sidebar icons
-    (function() {
-      var tip = document.getElementById('sidebar-tooltip');
-      var sidebar = document.getElementById('maggy-sidebar');
-      if (!tip || !sidebar) return;
-      sidebar.addEventListener('mouseenter', function(e) {
-        var link = e.target.closest('[data-tooltip]');
-        if (!link) return;
-        var text = link.getAttribute('data-tooltip');
-        if (!text) return;
-        tip.textContent = text;
-        var rect = link.getBoundingClientRect();
-        tip.style.left = (rect.right + 8) + 'px';
-        tip.style.top = (rect.top + rect.height / 2) + 'px';
-        tip.style.transform = 'translateY(-50%)';
-        tip.classList.add('visible');
-      }, true);
-      sidebar.addEventListener('mouseover', function(e) {
-        var link = e.target.closest('[data-tooltip]');
-        if (!link) { tip.classList.remove('visible'); return; }
-        var text = link.getAttribute('data-tooltip');
-        if (!text) { tip.classList.remove('visible'); return; }
-        tip.textContent = text;
-        var rect = link.getBoundingClientRect();
-        tip.style.left = (rect.right + 8) + 'px';
-        tip.style.top = (rect.top + rect.height / 2) + 'px';
-        tip.style.transform = 'translateY(-50%)';
-        tip.classList.add('visible');
-      });
-      sidebar.addEventListener('mouseleave', function() {
-        tip.classList.remove('visible');
-      });
-    })();
+    // Project scoping: enable/disable project-scoped links, toggle plugin visibility
+    async function updateProjectScope(name) {
+      var hasProject = !!(name && name !== 'Select project...');
+      // Enable/disable all project-scoped links
+      var links = document.querySelectorAll('.sidebar-link.project-scoped');
+      for (var i = 0; i < links.length; i++) {
+        links[i].classList.toggle('disabled', !hasProject);
+      }
+      // Update header
+      var hdr = document.getElementById('header-project-name');
+      if (hdr) hdr.textContent = hasProject ? name : 'No project';
+      var ps = document.getElementById('ps-project-name');
+      if (ps) ps.textContent = name || '';
+      // Update sidebar issues label with tracker type
+      if (hasProject) {
+        try {
+          var resp = await fetch('/api/projects/' + encodeURIComponent(name));
+          if (resp.ok) {
+            var proj = await resp.json();
+            var tracker = (proj.tracker || 'native');
+            var label = tracker === 'native' ? 'Issues' : 'Issues · ' + tracker.charAt(0).toUpperCase() + tracker.slice(1);
+            var il = document.getElementById('sidebar-issues-label');
+            if (il) il.textContent = label;
+          }
+        } catch(e) {}
+        // Toggle plugin visibility based on project config
+        try {
+          var cfgResp = await fetch('/api/projects/' + encodeURIComponent(name) + '/config');
+          if (cfgResp.ok) {
+            var cfg = await cfgResp.json();
+            var enabled = cfg.enabled_plugins || [];
+            var pluginItems = document.querySelectorAll('.sidebar-link.plugin-item');
+            var anyVisible = false;
+            for (var j = 0; j < pluginItems.length; j++) {
+              var feature = pluginItems[j].dataset.feature;
+              var show = enabled.indexOf(feature) >= 0;
+              pluginItems[j].style.display = show ? '' : 'none';
+              if (show) anyVisible = true;
+            }
+            var sec = document.getElementById('plugins-section-label');
+            if (sec) sec.style.display = anyVisible ? '' : 'none';
+          }
+        } catch(e) {}
+      } else {
+        // Hide all plugin items when no project
+        var pluginItems = document.querySelectorAll('.sidebar-link.plugin-item');
+        for (var k = 0; k < pluginItems.length; k++) {
+          pluginItems[k].style.display = 'none';
+        }
+        var sec = document.getElementById('plugins-section-label');
+        if (sec) sec.style.display = 'none';
+        var il = document.getElementById('sidebar-issues-label');
+        if (il) il.textContent = 'Issues';
+      }
+    }
+
+    // New Session — creates chat for current project
+    function closeNewSession() {
+      document.getElementById('new-session-overlay').classList.add('hidden');
+    }
+    window.newChatSession = async function() {
+      var current = document.getElementById('current-project-label').textContent;
+      if (!current || current === 'Select project...') {
+        // No project selected — open project search so user can pick one
+        openProjectSearch();
+        return;
+      }
+      // Create session for current project immediately
+      try {
+        var path = '';
+        var cfg = await fetch('/api/config').then(function(r){return r.json()}).catch(function(){return {codebases:[]}});
+        var found = (cfg.codebases || []).find(function(c){return c.key === current;});
+        if (found) path = found.path || '';
+      } catch(e) {}
+      startSessionFor(current, path);
+    };
+    async function startSessionFor(key, path) {
+      closeNewSession();
+      try {
+        var data = await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({project_key: key, project_path: path})
+        }).then(function(r){return r.json()});
+        if (typeof CHAT_SESSION_ID !== 'undefined') CHAT_SESSION_ID = data.id;
+        if (typeof loadChat === 'function') loadChat();
+        jumpToProject(key);
+      } catch(e) {}
+    }
   </script>
 </body>
 </html>

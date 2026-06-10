@@ -1,6 +1,8 @@
 """Chat session CRUD + auto-connect endpoints."""
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import asdict
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -10,6 +12,24 @@ from maggy.api.auth import check_auth
 from maggy.api.routes_chat import _require_chat
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+logger = logging.getLogger(__name__)
+
+
+async def _emit_project_connected(
+    pm, project_key: str, working_dir: str, session_id: str,
+) -> None:
+    """Emit project.connected event for plugin hooks."""
+    if not pm:
+        return
+    try:
+        await pm.emit("project.connected", {
+            "project_key": project_key,
+            "working_dir": working_dir,
+            "session_id": session_id,
+        })
+    except Exception:
+        logger.debug("project.connected emit failed", exc_info=True)
 
 
 class CreateSessionRequest(BaseModel):
@@ -33,18 +53,25 @@ async def auto_connect(
     sessions = chat.auto_connect(data.get("sessions", []))
     history = getattr(request.app.state, "history", None)
     recent = data.get("recent", [])
-    return {"sessions": [_enrich_and_format(s, history, recent) for s in sessions]}
+    pm = getattr(request.app.state, "plugins", None)
+    for s in sessions:
+        asyncio.create_task(
+            _emit_project_connected(pm, s.project_key, s.working_dir, s.id),
+        )
+    refresh_svc = getattr(request.app.state, "refresh", None)
+    return {"sessions": [_enrich_and_format(s, history, recent, refresh_svc) for s in sessions]}
 
 
-def _enrich_and_format(s, history, recent: list[dict]) -> dict:
-    """Build context, resolve session ID, format response."""
-    from maggy.services.chat_context import build_project_context, resolve_claude_session_id
+def _enrich_and_format(
+    s, history, recent: list[dict], refresh_svc=None,
+) -> dict:
+    """Build context and format response. Never auto-resolve stale session IDs."""
+    from maggy.services.chat_context import build_project_context
     ctx = build_project_context(history, s.working_dir, s.project_key, recent)
+    cli_ctx = _build_cli_context(refresh_svc, s.working_dir)
+    if cli_ctx:
+        ctx = f"{ctx}\n\n{cli_ctx}" if ctx else cli_ctx
     s.history_context = ctx
-    if not s.claude_session_id:
-        sid = resolve_claude_session_id(s.working_dir)
-        if sid:
-            s.claude_session_id = sid
     return {
         "id": s.id, "project_key": s.project_key, "working_dir": s.working_dir,
         "repo_dir": getattr(s, "repo_dir", ""),
@@ -52,6 +79,24 @@ def _enrich_and_format(s, history, recent: list[dict]) -> dict:
         "status": s.status, "messages": len(s.messages),
         "history_context": ctx, "has_resume_id": bool(s.claude_session_id),
     }
+
+
+def _build_cli_context(refresh_svc, working_dir: str) -> str:
+    if not refresh_svc or not working_dir:
+        return ""
+    try:
+        digests = refresh_svc.refresh(limit=1, project_path=working_dir)
+        if not digests:
+            return ""
+        d = digests[0]
+        lines = [f"[Recent CLI session ({d.cli}) — {d.project}]"]
+        for turn in d.turns[-10:]:
+            label = "User" if turn["role"] == "user" else "Assistant"
+            lines.append(f"{label}: {turn['text']}")
+        lines.append("[/Recent CLI session]")
+        return "\n".join(lines)
+    except Exception:
+        return ""
 
 
 @router.post("/preload")
@@ -76,6 +121,11 @@ async def preload_sessions(
         except (ValueError, OSError):
             continue
     _resolve_all_sessions(chat)
+    pm = getattr(request.app.state, "plugins", None)
+    for s in created:
+        asyncio.create_task(
+            _emit_project_connected(pm, s.project_key, s.working_dir, s.id),
+        )
     all_sessions = [
         _format_session(s) for s in chat.list_sessions()
     ]
@@ -138,6 +188,10 @@ async def create_session(
         raise HTTPException(status_code=400, detail=str(e))
     if body.history_context:
         session.history_context = body.history_context
+    pm = getattr(request.app.state, "plugins", None)
+    asyncio.create_task(
+        _emit_project_connected(pm, session.project_key, session.working_dir, session.id),
+    )
     return {"id": session.id, "project_key": session.project_key, "working_dir": session.working_dir, "repo_dir": session.repo_dir, "isolation": session.isolation, "label": session.label, "status": session.status}
 
 

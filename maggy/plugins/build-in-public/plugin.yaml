@@ -1,7 +1,7 @@
 id: build-in-public
 version: 1
 entrypoint: plugin.py
-permissions: [github.read, buffer.write, screenshots.capture, ai.generate]
+permissions: [github.read, buffer.write, reddit.write, screenshots.capture, ai.generate]
 hooks:
   - event: on_pr_merged
     handler: handle_pr_merged
@@ -9,8 +9,22 @@ hooks:
     handler: handle_feature_shipped
   - event: on_review_passed
     handler: handle_review_passed
+  - event: on_thread_requested
+    handler: handle_thread_requested
+heartbeat:
+  - name: reddit_reply_monitor
+    interval_seconds: 1800
+    fn: monitor_reddit_replies
 config:
-  tone: "confident, sharp, no hype sludge — sounds like the builder, not a bot"
+  tone: "confident, sharp, no hype sludge, sounds like the builder, not a bot"
+  # Voice rules (per-install, user-definable). Channels can override under
+  # channels.<ch>.voice. Reddit posts/replies are run through this.
+  voice:
+    no_em_dash: true        # readers/Reddit dislike em-dashes
+    strip_markdown: true    # Reddit fancy-editor renders stray Markdown literally
+    typos:
+      enabled: true         # occasional human typos so it doesn't read like a bot
+      rate: 0.02
   channels:
     linkedin:
       profile: "personal"
@@ -22,6 +36,17 @@ config:
       max_chars: 280
       tone: "sharp, punchy, no threads unless the insight is too good. Developers who ship read this."
       schedule: "10:30 UTC weekdays"
+    reddit:
+      # Where build-in-public posts go. Blank = autonomous (topics.yaml
+      # `reddit_publish`, else r/buildinpublic).
+      subreddit: "ClaudeCode"
+      max_chars: 8000
+      tone: "authentic, story-first, no marketing speak. Redditors downvote hype. Lead with the problem and what you learned."
+      schedule: "11:00 UTC weekdays"
+      voice:
+        # Reddit inherits the global voice; override here if desired.
+        no_em_dash: true
+        strip_markdown: true
   approval_mode: "auto_if_safe"
   screenshot:
     mode: "playwright"

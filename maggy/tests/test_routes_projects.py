@@ -74,3 +74,26 @@ def test_delete_project(mock_cfg):
 
     resp = client.get("/api/projects/to-delete")
     assert resp.status_code == 404
+
+
+def test_get_project_status(mock_cfg, tmp_path):
+    client = TestClient(_app(mock_cfg))
+    body = {
+        "name": "status-proj",
+        "repo": "acme/sp",
+        "path": str(tmp_path),
+    }
+    client.post("/api/projects", json=body)
+    resp = client.get("/api/projects/status-proj/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "clis" in data
+    assert "git" in data
+    assert "cortex" in data
+    assert isinstance(data["clis"], list)
+
+
+def test_get_project_status_not_found(mock_cfg):
+    client = TestClient(_app(mock_cfg))
+    resp = client.get("/api/projects/ghost/status")
+    assert resp.status_code == 404

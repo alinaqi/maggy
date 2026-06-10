@@ -4,6 +4,33 @@
 const API = '/api';
 let CURRENT_TAB = 'chat';
 
+// ── Theme ──────────────────────────────────────────────────────────────
+function getTheme() {
+  return localStorage.getItem('maggy-theme') || 'light';
+}
+function applyTheme(theme) {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  document.documentElement.classList.toggle('light', theme === 'light');
+  const icon = document.querySelector('#btn-theme i');
+  if (icon) icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+}
+function toggleTheme() {
+  const next = getTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('maggy-theme', next);
+  applyTheme(next);
+}
+applyTheme(getTheme());
+
+// ── URL-driven tab state ───────────────────────────────────────────────
+function tabFromHash() {
+  const h = location.hash.replace('#', '');
+  return h || null;
+}
+window.addEventListener('hashchange', function() {
+  const tab = tabFromHash();
+  if (tab && tab !== CURRENT_TAB) switchTab(tab, true);
+});
+
 // ── Fetch helper ────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
   const apiKey = localStorage.getItem('maggy-api-key') || '';
@@ -35,10 +62,42 @@ function safeHref(url) {
 }
 
 // ── Markdown renderer (uses marked.js CDN, falls back to pre) ─────────
+function _mergeBashDetails(blocks) {
+  let inner = '';
+  for (const block of blocks) {
+    const m = block.match(/<summary\b[^>]*>[\s\S]*?<\/summary>([\s\S]*?)<\/details>/i);
+    if (m) inner += m[1];
+  }
+  return '<details class="bash-group"><summary class="bash-group-summary">Bash (' + blocks.length + ')</summary>' + inner + '</details>';
+}
+
+function groupBashBlocks(html) {
+  const re = /<details\b[^>]*>([\s\S]*?)<\/details>/gi;
+  const matches = Array.from(html.matchAll(re));
+  if (!matches.length) return html;
+  const bashRe = /<summary\b[^>]*>\s*Bash\s*<\/summary>/i;
+  const bashMatches = matches.filter(m => bashRe.test(m[1]));
+  if (bashMatches.length <= 1) return html;
+  // Collapse every Bash <details> in the message into a single grouped card
+  // placed at the position of the first Bash block. Non-Bash content keeps
+  // its original location.
+  const merged = _mergeBashDetails(bashMatches.map(m => m[0]));
+  let out = '';
+  let idx = 0;
+  let placed = false;
+  for (const m of bashMatches) {
+    out += html.slice(idx, m.index);
+    if (!placed) { out += merged; placed = true; }
+    idx = m.index + m[0].length;
+  }
+  out += html.slice(idx);
+  return out;
+}
+
 function renderMd(raw) {
   if (!raw) return '';
   if (typeof marked !== 'undefined') {
-    return '<div class="chat-md text-xs text-gray-300">' + marked.parse(raw) + '</div>';
+    return '<div class="chat-md text-xs text-gray-300">' + groupBashBlocks(marked.parse(raw)) + '</div>';
   }
   return '<pre class="text-xs text-gray-300 whitespace-pre-wrap">' + esc(raw) + '</pre>';
 }
@@ -72,9 +131,20 @@ function relDate(iso) {
   return d.toLocaleDateString();
 }
 
+// ── Project helper ─────────────────────────────────────────────────────
+function getProjectKey() {
+  const el = document.getElementById('current-project-label');
+  const v = el ? el.textContent.trim() : '';
+  return (v && v !== 'Select project...') ? v : '';
+}
+
 // ── Tabs ────────────────────────────────────────────────────────────────
-function switchTab(tab) {
+function switchTab(tab, fromHash) {
+  // Backward-compat hash redirects
+  var redirects = { 'followed': 'team', 'icpg': 'cortex', 'progress': 'insights', 'process': 'insights', 'competitors': 'cortex', 'build-in-public': 'plugins' };
+  if (redirects[tab]) tab = redirects[tab];
   CURRENT_TAB = tab;
+  if (!fromHash) location.hash = tab;
   // Highlight active sidebar link
   for (const b of document.querySelectorAll('.sidebar-link')) {
     b.classList.toggle('active', b.dataset.tab === tab);
@@ -86,30 +156,77 @@ function switchTab(tab) {
   }
   if (tab === 'chat') loadChat();
   else if (tab === 'inbox') loadInbox();
-  else if (tab === 'followed') loadFollowed();
-  else if (tab === 'progress') loadProgress();
-  else if (tab === 'competitors') loadCompetitors();
-  else if (tab === 'process') loadProcess();
-  else if (tab === 'icpg') loadICPG();
+  else if (tab === 'issues') loadIssues();
+  else if (tab === 'team') loadTeam();
+  else if (tab === 'cortex') loadCortex();
+  else if (tab === 'plugins') loadPlugins();
+  else if (tab === 'insights') loadInsights();
   else if (tab === 'memory') loadMemory();
   else if (tab === 'routing') loadRouting();
   else if (tab === 'budget') loadBudget();
   else if (tab === 'forge') loadForge();
+  else if (tab === 'logs') loadLogs();
+  else if (tab === 'skills') loadSkills();
   else if (tab === 'settings') loadSettings();
+  else if (tab === 'project-settings') loadProjectSettings();
 }
 
 // Project switching
 function switchProject(name) {
   if (!name) return;
   updateCurrentProject(name);
+  history.replaceState(null, '', '/' + encodeURIComponent(name));
+  // Reset chat and cortex to pick up new project's session
+  CHAT_SESSION_ID = null;
+  ICPG_PROJECT = null;
   // Preload chat sessions for this project
   fetch('/api/chat/preload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ project_key: name })
-  }).then(function() { loadChat(); }).catch(function() {});
+  }).then(function() { loadChat(name); _showRefreshBubble(); }).catch(function() {});
+  // Load project bootstrap status (CLIs, git, cortex)
+  loadProjectStatus(name);
   // Refresh heartbeat for project context
   fetch('/api/heartbeat/trigger/collect_signals', { method: 'POST' }).catch(function(){});
+}
+
+function _showRefreshBubble() {
+  _loadQuickActions();
+}
+
+function dismissRefreshBubble() {
+  var el = document.getElementById('refresh-suggest');
+  if (el) el.classList.add('hidden');
+}
+
+function runQuickAction(cmd) {
+  var input = document.getElementById('chat-input');
+  if (input) { input.value = cmd; sendChatMessage(); }
+}
+
+async function _loadQuickActions() {
+  var s = (CHAT_SESSIONS_CACHE || []).find(function(x) { return x.id === CHAT_SESSION_ID; });
+  var projPath = (s && (s.repo_dir || s.working_dir)) || '';
+  var url = '/quick-actions';
+  if (projPath) url += '?project_path=' + encodeURIComponent(projPath);
+  var data = await api(url).catch(function() { return { actions: [] }; });
+  var actions = data.actions || [];
+  var el = document.getElementById('refresh-suggest');
+  if (!el || !actions.length) return;
+  var btns = '';
+  for (var i = 0; i < actions.length; i++) {
+    var a = actions[i];
+    btns += '<button onclick="runQuickAction(\'' + a.cmd.replace(/'/g, "\\'") + '\')" class="px-2 py-0.5 rounded text-[10px] shrink-0" style="background:var(--surface);color:var(--text);border:1px solid var(--border)" title="' + esc(a.hint || '') + '"><i class="fas ' + esc(a.icon) + ' mr-1"></i>' + esc(a.label) + '</button>';
+  }
+  var inner = el.querySelector('.quick-actions-inner');
+  if (inner) {
+    inner.innerHTML = '<i class="fas fa-bolt text-orange-400 text-[10px]"></i>'
+      + '<span style="color:var(--text-muted)" class="mr-1 shrink-0">Quick actions</span>'
+      + btns
+      + '<button onclick="dismissRefreshBubble()" class="ml-auto text-gray-600 hover:text-gray-400 text-[10px] shrink-0" title="Dismiss"><i class="fas fa-xmark"></i></button>';
+  }
+  el.classList.remove('hidden');
 }
 
 function updateProjectList(projects) {
@@ -131,8 +248,10 @@ function closeDrawer() {
 async function loadInbox(refresh = false) {
   const pane = document.getElementById('pane-inbox');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading…</div>`;
+  const proj = getProjectKey();
+  const activityUrl = proj ? '/activity?project=' + encodeURIComponent(proj) : '/activity';
   const [activity, inbox] = await Promise.all([
-    api('/activity').catch(() => ({ sessions: [], recent: [] })),
+    api(activityUrl).catch(() => ({ sessions: [], recent: [] })),
     api(`/inbox${refresh ? '?refresh=true' : ''}`).catch(() => ({ items: [] })),
   ]);
   const sessions = activity.sessions || [];
@@ -197,33 +316,202 @@ async function loadInbox(refresh = false) {
     }
     html += `</div></div>`;
   }
-  if (!sessions.length && !recent.length && !items.length) {
-    html = `<div class="card p-4 text-sm text-gray-400">No activity detected. Start a Claude, Codex, or Kimi session to see it here.</div>`;
+  const [pendingApprovals, approvalHistory] = await Promise.all([
+    api('/approval/pending').catch(() => ({ items: [] })),
+    api('/approval/history?limit=20').catch(() => ({ items: [] })),
+  ]);
+  const pending = pendingApprovals.items || [];
+  const resolved = approvalHistory.items || [];
+  if (pending.length) {
+    html += `<div class="mb-4"><div class="flex items-center gap-3 mb-2">
+      <h2 class="text-sm font-bold text-white"><i class="fas fa-shield-halved mr-1 text-yellow-400"></i>Pending Approvals (${pending.length})</h2>
+    </div><div class="space-y-2">`;
+    for (const a of pending) {
+      html += `<div class="card p-3 border border-yellow-900/50">
+        <div class="flex items-start gap-3">
+          <div class="text-xs font-mono text-yellow-400 mt-0.5">${esc(a.action)}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white">${esc(a.context || '').substring(0, 120)}</div>
+            <div class="text-[10px] text-gray-500 mt-1">${esc(relDate(a.created_at))}</div>
+          </div>
+          <div class="flex gap-1 shrink-0">
+            <button onclick="approvalAction('${jsStr(a.id)}','approve')" class="text-[10px] px-2 py-1 rounded bg-green-700 hover:bg-green-600 text-white">Approve</button>
+            <button onclick="approvalAction('${jsStr(a.id)}','reject')" class="text-[10px] px-2 py-1 rounded bg-red-700 hover:bg-red-600 text-white">Reject</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  if (resolved.length) {
+    html += `<div class="mb-4"><div class="flex items-center gap-3 mb-2">
+      <h2 class="text-sm font-bold text-white"><i class="fas fa-clock-rotate-left mr-1 text-gray-400"></i>Approval History</h2>
+    </div><div class="space-y-1">`;
+    for (const a of resolved) {
+      const badge = a.status === 'approved'
+        ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-green-900 text-green-300">approved</span>'
+        : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">rejected</span>';
+      html += `<div class="card p-2 flex items-center gap-2">
+        <span class="text-[10px] font-mono text-gray-400 w-16">${esc(a.action)}</span>
+        ${badge}
+        <span class="text-[11px] text-gray-300 flex-1 truncate">${esc(a.context || '').substring(0, 80)}</span>
+        <span class="text-[10px] text-gray-500 shrink-0">${a.resolved_by ? esc(a.resolved_by) + ' · ' : ''}${esc(relDate(a.resolved_at || a.created_at))}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  if (!sessions.length && !recent.length && !items.length && !pending.length && !resolved.length) {
+    html = `<div class="card p-4 text-sm text-gray-400">
+      <div class="mb-2"><i class="fas fa-inbox mr-1 text-orange-400"></i>Inbox is empty</div>
+      <div class="text-[11px] text-gray-500 space-y-1">
+        <div>• Connect an issue tracker (Asana, GitHub, Linear) in Settings to see assigned tasks</div>
+        <div>• AI tool executions and approval requests will appear here</div>
+        <div>• Active CLI sessions show when Claude, Codex, or Kimi are running</div>
+      </div>
+    </div>`;
   }
   pane.innerHTML = html;
 }
 
-// ── Followed ────────────────────────────────────────────────────────────
-async function loadFollowed() {
-  const pane = document.getElementById('pane-followed');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading followed tasks…</div>`;
+async function approvalAction(id, action) {
   try {
-    const data = await api('/followed');
-    const items = data.items || [];
-    if (!items.length) {
-      pane.innerHTML = `<div class="card p-4 text-sm text-gray-400">Nothing you're following right now.</div>`;
-      return;
+    await api(`/approval/${id}/${action}`, { method: 'POST' });
+    loadInbox();
+  } catch (e) {
+    console.error('Approval action failed:', e);
+  }
+}
+
+// ── Issues (raw tracker view) ───────────────────────────────────────────
+async function loadIssues() {
+  const pane = document.getElementById('pane-issues');
+  const project = document.getElementById('current-project-label')?.textContent;
+  if (!project || project === 'Select project...') {
+    pane.innerHTML = `<div class="flex items-center justify-center h-full text-gray-600 text-xs">Select a project to view issues.</div>`;
+    return;
+  }
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading issues…</div>`;
+  try {
+    const data = await api('/projects/' + encodeURIComponent(project) + '/tasks');
+    const tasks = data.tasks || [];
+    const tracker = data.tracker || 'native';
+    let html = `<div class="flex items-center gap-2 mb-3">
+      <h2 class="text-sm font-bold text-white"><i class="fas fa-ticket text-orange-400 mr-2"></i>Issues</h2>
+      <span class="badge model-badge">${esc(tracker)}</span>
+      <span class="text-[10px] text-gray-500 ml-auto">${tasks.length} open</span>
+    </div>`;
+    if (!tasks.length) {
+      html += `<div class="card p-4 text-sm text-gray-400">No open issues in ${esc(project)}.</div>`;
+    } else {
+      html += `<div class="space-y-2">`;
+      for (const t of tasks) {
+        const labels = (t.labels || []).slice(0, 4).map(l => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">${esc(l)}</span>`).join(' ');
+        html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(t.id)}')">
+          <div class="flex items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm text-white">${esc(t.title)}</div>
+              <div class="text-[11px] text-gray-500 mt-0.5">
+                <span class="text-blue-400">${esc(t.board || '')}</span>
+                ${t.assignee ? `· ${esc(t.assignee)}` : ''}
+                · ${esc(relDate(t.updated_at))}
+                ${labels ? '· ' + labels : ''}
+              </div>
+            </div>
+            <div class="flex gap-1 shrink-0" onclick="event.stopPropagation()">
+              <button onclick="executeTask('${jsStr(t.id)}', 'plan')" class="text-[10px] px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Plan</button>
+              <button onclick="executeTask('${jsStr(t.id)}', 'tdd')" class="text-[10px] px-2 py-1 rounded bg-orange-600 hover:bg-orange-700 text-white">Execute</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
     }
-    let html = `<h2 class="text-sm font-bold text-white mb-3">Following (${items.length})</h2><div class="space-y-2">`;
-    for (const i of items) {
-      html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(i.id)}')">
-        <div class="text-sm text-white">${esc(i.title)}</div>
-        <div class="text-[11px] text-gray-500 mt-0.5">
-          <span class="text-blue-400">${esc(i.board || '')}</span>
-          ${i.assignee ? `· ${esc(i.assignee)}` : ''}
-          · ${esc(relDate(i.updated_at))}
-        </div>
+    pane.innerHTML = html;
+  } catch (e) {
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Build in Public (plugin) ────────────────────────────────────────────
+async function loadPlugins() {
+  const pane = document.getElementById('pane-plugins');
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading plugins…</div>`;
+  try {
+    const data = await api('/plugins').catch(() => ({ plugins: [] }));
+    const plugins = data.plugins || [];
+    let html = `<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">`;
+    html += `<div class="flex items-center gap-2 mb-2">
+      <i class="fas fa-puzzle-piece text-orange-500"></i>
+      <h2 class="text-sm font-bold" style="color:var(--text)">Plugins</h2>
+      <span class="badge model-badge ml-1">${plugins.length}</span>
+      <span class="flex-1"></span>
+      <button onclick="api('/plugins/reload',{method:'POST'}).then(()=>loadPlugins())" class="btn btn-ghost text-[10px]"><i class="fas fa-sync-alt mr-1"></i>Reload</button>
+    </div>`;
+    if (!plugins.length) {
+      html += `<div class="card p-6 text-center">
+        <i class="fas fa-puzzle-piece text-3xl text-gray-700 mb-3"></i>
+        <div class="text-sm" style="color:var(--text)">No Plugins Loaded</div>
+        <div class="text-xs text-gray-500 mt-1">Drop a folder with <code class="text-orange-400">plugin.yaml</code> + <code class="text-orange-400">plugin.py</code> into <code>plugins/</code>.</div>
       </div>`;
+    } else {
+      html += `<div class="space-y-2">`;
+      for (const p of plugins) {
+        const active = p.status === 'active' || p.enabled !== false;
+        html += `<div class="card p-3 flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${active ? 'var(--green)' : 'var(--text-muted)'}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-medium" style="color:var(--text)">${esc(p.name || p.id)}</div>
+            <div class="text-[10px] text-gray-500">${esc(p.description || '')} ${p.version ? '· v' + esc(p.version) : ''}</div>
+          </div>
+          <span class="text-[9px] px-2 py-0.5 rounded-full" style="background:var(--pill-bg);color:var(--text-muted)">${esc(p.id)}</span>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    pane.innerHTML = html;
+  } catch (e) {
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Followed ────────────────────────────────────────────────────────────
+async function loadTeam() {
+  const pane = document.getElementById('pane-team');
+  const proj = getProjectKey();
+  if (!proj) {
+    pane.innerHTML = `<div class="flex items-center justify-center h-full text-gray-600 text-xs">Select a project to view team activity.</div>`;
+    return;
+  }
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading team…</div>`;
+  try {
+    const data = await api('/projects/' + encodeURIComponent(proj) + '/tasks').catch(() => ({ tasks: [] }));
+    const items = data.tasks || [];
+    let html = `<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">`;
+    html += `<div class="flex items-center gap-2 mb-2">
+      <i class="fas fa-users text-orange-500"></i>
+      <h2 class="text-sm font-bold" style="color:var(--text)">Team</h2>
+      <span class="badge model-badge ml-1">${items.length}</span>
+    </div>`;
+    if (!items.length) {
+      html += `<div class="card p-6 text-center">
+        <i class="fas fa-users text-3xl text-gray-700 mb-3"></i>
+        <div class="text-sm" style="color:var(--text)">No Team Activity</div>
+        <div class="text-xs text-gray-500 mt-1">Configure a project tracker in Project Settings to see team items.</div>
+      </div>`;
+    } else {
+      html += `<div class="space-y-2">`;
+      for (const i of items) {
+        html += `<div class="card p-3 hover:bg-gray-900 cursor-pointer" onclick="openTaskDetail('${jsStr(i.id)}')">
+          <div class="text-sm" style="color:var(--text)">${esc(i.title)}</div>
+          <div class="text-[11px] text-gray-500 mt-0.5">
+            <span class="text-blue-400">${esc(i.board || '')}</span>
+            ${i.assignee ? `· ${esc(i.assignee)}` : ''}
+            · ${esc(relDate(i.updated_at))}
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
     }
     html += `</div>`;
     pane.innerHTML = html;
@@ -270,7 +558,7 @@ async function openTaskDetail(taskId) {
     }
     html += `<div class="card p-3">
       <div class="text-[10px] text-gray-500 uppercase mb-1">Reply</div>
-      <textarea id="reply-box" rows="3" class="w-full bg-gray-900 text-xs text-white rounded px-2 py-1.5 border border-gray-700"></textarea>
+      <textarea id="reply-box" rows="3" class="w-full text-xs rounded px-2 py-1.5" style="background:var(--surface);color:var(--text);border:1px solid var(--border)"></textarea>
       <button onclick="postReply('${jsStr(t.id)}')" class="mt-2 text-xs px-3 py-1 rounded bg-blue-600 text-white">Post</button>
     </div>`;
     html += `</div>`;
@@ -305,7 +593,7 @@ async function executeTask(taskId, mode) {
 let COMP_VIEW = 'news';  // 'news' | 'list'
 
 async function loadCompetitors() {
-  const pane = document.getElementById('pane-competitors');
+  const pane = document.getElementById('pane-cortex');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading competitors…</div>`;
   try {
     const [comps, news] = await Promise.all([
@@ -457,14 +745,19 @@ function toggleCollapse(key) {
   if (pane) renderChatUI(pane);
 }
 
-async function loadChat() {
+async function loadChat(forProject) {
   const pane = document.getElementById('pane-chat');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading projects…</div>`;
   try {
     const result = await api('/chat/preload', { method: 'POST' });
     CHAT_SESSIONS_CACHE = result.sessions || [];
     if (!CHAT_SESSION_ID && CHAT_SESSIONS_CACHE.length) {
-      CHAT_SESSION_ID = CHAT_SESSIONS_CACHE[0].id;
+      if (forProject) {
+        const match = CHAT_SESSIONS_CACHE.find(s => s.project_key === forProject);
+        CHAT_SESSION_ID = match ? match.id : CHAT_SESSIONS_CACHE[0].id;
+      } else {
+        CHAT_SESSION_ID = CHAT_SESSIONS_CACHE[0].id;
+      }
     }
     renderChatUI(pane);
   } catch (e) {
@@ -475,9 +768,7 @@ async function loadChat() {
 function renderChatUI(pane) {
   // Don't rebuild DOM while streaming — tab switch just shows/hides pane
   if (_streamingActive && pane.querySelector('#chat-messages')) return;
-  const sessions = CHAT_SESSIONS_CACHE;
   let html = `<div class="flex h-full">`;
-  html += renderChatSidebar(sessions);
   html += renderChatMain();
   html += `</div>`;
   pane.innerHTML = html;
@@ -560,7 +851,7 @@ function renderChatMain() {
     html += `<div id="editor-tab-bar" class="hidden shrink-0 flex items-center gap-0 border-b overflow-x-auto scroll-thin" style="border-color:var(--border);background:rgba(10,13,20,0.6);min-height:28px;"></div>`;
     // Messages scroll area (wrapped for show/hide)
     html += `<div id="chat-content-area" class="flex-1 overflow-hidden min-h-0 flex flex-col">`;
-    html += `<div id="chat-messages" class="flex-1 overflow-y-auto min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3"></div></div>`;
+    html += `<div id="chat-messages" class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 px-5 py-3"><div id="chat-messages-inner" class="flex flex-col justify-end min-h-full space-y-3 pb-4 min-w-0"></div></div>`;
     html += `</div>`;
     // Editor panes container (hidden by default)
     html += `<div id="editor-panes-container" class="hidden flex-1 overflow-hidden min-h-0"></div>`;
@@ -571,18 +862,23 @@ function renderChatMain() {
       <span class="text-[10px] text-gray-700">·</span>
       <span id="joke-text" class="text-[10px] text-gray-600 truncate flex-1"></span>
     </div>`;
+    // Quick-action suggestion bubble (contextual, always loaded)
+    html += `<div id="refresh-suggest" class="hidden shrink-0 px-5 py-1.5">
+      <div class="quick-actions-inner flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] overflow-x-auto" style="background:var(--input-bg);border:1px solid var(--border)">
+      </div>
+    </div>`;
     // Divider + input bar + divider
     html += `<div class="border-t border-gray-700/50"></div>`;
-    html += `<div class="shrink-0 px-5 pt-3 pb-2 bg-[#0b0e14]">
+    html += `<div class="shrink-0 px-5 pt-3 pb-2" style="background:var(--bg)">
       <div id="chat-attachments" class="hidden mb-1.5 flex flex-wrap gap-1"></div>
       <div class="flex gap-2">
         <input id="chat-file" type="file" class="hidden" onchange="handleFileSelect(event)" multiple />
-        <button onclick="document.getElementById('chat-file').click()" class="px-3 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm" title="Attach file"><i class="fas fa-paperclip"></i></button>
+        <button onclick="document.getElementById('chat-file').click()" class="px-3 py-2.5 rounded-lg text-sm" style="background:var(--input-bg);color:var(--text-muted);border:1px solid var(--border)" title="Attach file"><i class="fas fa-paperclip"></i></button>
         <div class="flex-1 relative">
           <div id="chat-ghost" class="absolute inset-x-0 top-0 px-3 py-2 text-sm text-gray-600 pointer-events-none whitespace-nowrap overflow-hidden"></div>
-          <textarea id="chat-input" rows="1" placeholder="Type a message..."
-            class="w-full text-sm text-white rounded-lg px-3 py-2 border border-gray-700 focus:border-orange-500 outline-none resize-none overflow-hidden"
-            style="background: #151922; max-height: 120px;"
+          <textarea id="chat-input" rows="1" placeholder="Ask anything... (! for shell, / for commands)"
+            class="w-full text-sm rounded-lg px-3 py-2 focus:border-orange-500 outline-none resize-none overflow-hidden"
+            style="background: var(--surface); color: var(--text); border: 1px solid var(--border); max-height: 120px;"
             onkeydown="handleChatKeydown(event)" oninput="autoResizeInput(); updateGhostText()"></textarea>
         </div>
         <button onclick="sendChatMessage()" class="self-end px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm"><i class="fas fa-paper-plane"></i></button>
@@ -604,31 +900,22 @@ function renderChatMain() {
 }
 
 async function newChatSession() {
-  let projects;
-  try {
-    const [cfg, activity] = await Promise.all([
-      api('/config').catch(() => ({ codebases: [] })),
-      api('/activity').catch(() => ({ sessions: [] })),
-    ]);
-    const configProjects = (cfg.codebases || []).map(c => ({ key: c.key, path: c.path }));
-    const activeProjects = (activity.sessions || []).map(s => ({ key: s.project, path: s.project_path }));
-    const seen = new Set();
-    projects = [];
-    for (const p of [...activeProjects, ...configProjects]) {
-      if (p.key && !seen.has(p.key)) { seen.add(p.key); projects.push(p); }
-    }
-  } catch { projects = []; }
-  if (!projects.length) { alert('No codebases found.'); return; }
-  let chosen = projects[0];
-  if (projects.length > 1) {
-    const name = prompt('Select project:\n' + projects.map((p, i) => `${i+1}. ${p.key}`).join('\n') + '\n\nEnter name:', projects[0].key);
-    if (!name) return;
-    chosen = projects.find(p => p.key === name) || { key: name, path: '' };
+  const currentProject = document.getElementById('current-project-label')?.textContent;
+  if (!currentProject || currentProject === 'Select project...') {
+    alert('Select a project first.');
+    return;
   }
+  let path = '';
   try {
-    const data = await api('/chat/sessions', { method: 'POST', body: JSON.stringify({ project_key: chosen.key, project_path: chosen.path }) });
+    const cfg = await api('/config').catch(() => ({ codebases: [] }));
+    const found = (cfg.codebases || []).find(c => c.key === currentProject);
+    if (found) path = found.path || '';
+  } catch {}
+  try {
+    const data = await api('/chat/sessions', { method: 'POST', body: JSON.stringify({ project_key: currentProject, project_path: path }) });
     CHAT_SESSION_ID = data.id;
     loadChat();
+    switchTab('chat');
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
@@ -659,7 +946,8 @@ function renameSession(sessionId) {
   const input = document.createElement('input');
   input.type = 'text';
   input.value = current;
-  input.className = 'text-[10px] text-white bg-gray-900 border border-orange-500 rounded px-1 w-full outline-none';
+  input.className = 'text-[10px] rounded px-1 w-full outline-none';
+  input.style.cssText = 'background:var(--surface);color:var(--text);border:1px solid var(--accent)';
   input.onblur = () => commitRename(sessionId, input, el, current);
   input.onkeydown = (e) => {
     if (e.key === 'Enter') input.blur();
@@ -711,6 +999,7 @@ async function loadChatMessages(id) {
       html += renderHistoryContext(data.history_context);
     }
     for (const m of data.messages || []) {
+      if (!m.content || !m.content.trim()) continue;
       html += m.role === 'user' ? renderUserMsg(m) : renderAssistantMsg(m);
     }
     el.innerHTML = html;
@@ -733,14 +1022,14 @@ function renderHistoryContext(ctx) {
 
 function renderUserMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
-  return `<div class="flex justify-end"><div class="max-w-[75%] bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
-    <div class="text-xs text-white whitespace-pre-wrap">${esc(m.content)}</div>${ts}
+  return `<div class="flex justify-end px-2 min-w-0"><div class="max-w-[65%] min-w-0 bg-orange-600/20 border border-orange-600/30 rounded-lg px-3 py-2">
+    <div class="text-xs text-white whitespace-pre-wrap break-words overflow-hidden">${esc(m.content)}</div>${ts}
   </div></div>`;
 }
 
 function renderAssistantMsg(m) {
   const ts = m.timestamp ? `<div class="text-[10px] text-gray-500 mt-1">${esc(relDate(m.timestamp))}</div>` : '';
-  return `<div class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
+  return `<div class="flex justify-start min-w-0"><div class="max-w-[75%] min-w-0 card px-3 py-2 overflow-hidden">
     ${renderMd(m.content)}${ts}
   </div></div>`;
 }
@@ -1016,15 +1305,15 @@ function _setShellCwd(path) {
 var _CLIENT_COMMANDS = {
   'clear': function() { var el = document.getElementById('chat-messages-inner'); if (el) el.innerHTML = ''; return null; },
   'help': function() {
-    return 'Shell commands:\n'
-      + '  ls, ll, la        list files\n'
-      + '  cd <dir>          change directory\n'
-      + '  pwd               working directory\n'
-      + '  cat/head/tail     read files\n'
-      + '  grep/find/tree    search\n'
-      + '  git <cmd>         git operations\n'
+    return 'Input routing:\n'
+      + '  anything          AI chat (LLM-routed via blast-score)\n'
+      + '  ! <command>       shell exec (e.g. !ls, !git status)\n'
+      + '  / <command>       slash command (see below)\n'
       + '  clear             clear chat\n\n'
-      + 'Editor commands:\n'
+      + 'Shell (prefix with !):\n'
+      + '  !ls, !git status, !grep -r foo .\n'
+      + '  !python script.py, !npm test\n\n'
+      + 'Editor:\n'
       + '  vim/edit <file>   open file in editor tab\n'
       + '  Ctrl+S            save current file\n'
       + '  Ctrl+W            close editor tab\n\n'
@@ -1039,8 +1328,7 @@ var _CLIENT_COMMANDS = {
       + '  /forge            tool registry status\n'
       + '  /plan <topic>     draft a build-in-public plan\n'
       + '  /status           system health overview\n\n'
-      + 'Unknown commands auto-suggest similar matches.\n'
-      + 'Anything else is sent to AI chat.';
+      + 'Everything without ! or / goes to AI.';
   },
 };
 
@@ -1208,6 +1496,45 @@ var _SLASH_COMMANDS = {
       + '  "Create a build-in-public content plan for: ' + topic + '"\n\n'
       + 'Or use the plugin directly:\n'
       + '  ~/.maggy/plugins/build-in-public/\n';
+  },
+
+  '/refresh': async function() {
+    var s = (CHAT_SESSIONS_CACHE || []).find(function(x) { return x.id === CHAT_SESSION_ID; });
+    var projPath = (s && (s.repo_dir || s.working_dir)) || '';
+    var url = '/refresh?limit=5';
+    if (projPath) url += '&project=' + encodeURIComponent(projPath);
+    var data = await api(url).catch(function() { return { sessions: [] }; });
+    var sessions = data.sessions || [];
+    if (!sessions.length) return 'No recent CLI sessions found for this project.';
+    var latest = sessions[0];
+    var imported = await api('/refresh/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: latest.session_id,
+        target_session_id: CHAT_SESSION_ID
+      })
+    }).catch(function() { return { imported: 0 }; });
+    if (imported.imported > 0) {
+      await loadChatMessages(CHAT_SESSION_ID);
+      return 'Imported ' + imported.imported + ' turns from ' + (latest.cli || 'CLI').toUpperCase() + ' session (' + latest.session_id.substring(0, 8) + ') into project history.';
+    }
+    var out = 'CLI Sessions (' + sessions.length + ')\n';
+    out += '─'.repeat(30) + '\n\n';
+    for (var i = 0; i < sessions.length; i++) {
+      var sess = sessions[i];
+      out += (sess.cli || 'claude').toUpperCase() + ' — ' + (sess.project || '?') + '\n';
+      out += 'Session: ' + (sess.session_id || '').substring(0, 8) + '\n';
+      var turns = sess.turns || [];
+      var shown = turns.slice(-6);
+      for (var j = 0; j < shown.length; j++) {
+        var t = shown[j];
+        var role = t.role === 'user' ? 'You' : 'AI';
+        var text = (t.text || '').substring(0, 100).replace(/\n/g, ' ');
+        out += '  ' + role + ': ' + text + '\n';
+      }
+      out += '\n';
+    }
+    return out;
   },
 };
 
@@ -1510,12 +1837,10 @@ var _KNOWN_PROGRAMS = [
 
 function _isShellCommand(msg) {
   if (!msg) return false;
-  if (msg.charAt(0) === '/') return true; // slash command
+  if (msg.charAt(0) === '/') return true;
+  if (msg.charAt(0) === '!') return true;
   var first = msg.split(/\s/)[0];
   if (_CLIENT_COMMANDS[first]) return true;
-  if (_SHELL_PREFIXES.indexOf(first) >= 0) return true;
-  if (_KNOWN_PROGRAMS.indexOf(first) >= 0) return true;
-  if (_EDITOR_PROGRAMS.indexOf(first) >= 0) return true;
   return false;
 }
 
@@ -1538,13 +1863,6 @@ function _levenshtein(a, b) {
 }
 
 function _looksLikeCommand(msg) {
-  if (msg.length > 100) return false;
-  var first = msg.split(/\s/)[0];
-  if (first.length > 20) return false;
-  if (/^[a-z][a-z0-9._-]*$/i.test(first)) {
-    if (/\s-/.test(msg) || /\s[.\/~]/.test(msg) || /\s\w+\.\w+/.test(msg)) return true;
-    if (msg === first && /^[a-z][a-z0-9-]*$/.test(first) && first.length <= 12) return true;
-  }
   return false;
 }
 
@@ -1625,6 +1943,12 @@ function _renderSlashOutput(text, isError) {
 }
 
 async function _execShellCommand(cmd) {
+  var directShell = cmd.charAt(0) === '!' && cmd.charAt(1) !== '!';
+  if (directShell) {
+    cmd = cmd.slice(1).trim();
+    if (!cmd) return;
+  }
+
   // Expand aliases
   var expanded = cmd;
   if (expanded === 'll') expanded = 'ls -la';
@@ -1642,7 +1966,6 @@ async function _execShellCommand(cmd) {
     var handler = _SLASH_COMMANDS[slashCmd];
     if (!handler) {
       el.innerHTML += _renderSlashPrompt(cmd);
-      // Fuzzy-match slash commands
       var slashKeys = Object.keys(_SLASH_COMMANDS);
       var slashSuggestions = slashKeys.filter(function(k) {
         return k.indexOf(slashCmd) >= 0 || slashCmd.indexOf(k) >= 0
@@ -1673,15 +1996,15 @@ async function _execShellCommand(cmd) {
   var first = cmd.split(/\s/)[0];
   if (_CLIENT_COMMANDS[first]) {
     var result = _CLIENT_COMMANDS[first]();
-    if (result === null) return; // e.g. 'clear'
+    if (result === null) return;
     el.innerHTML += _renderTerminalPrompt(cmd, cwd);
     el.innerHTML += _renderTerminalOutput(cmd, result, 0, cwd);
     if (outer) outer.scrollTop = outer.scrollHeight;
     return;
   }
 
-  // Editor programs — open in-browser editor tab
-  if (_EDITOR_PROGRAMS.indexOf(first) >= 0) {
+  // Editor programs — open in-browser editor tab (skip for !-prefixed)
+  if (!directShell && _EDITOR_PROGRAMS.indexOf(first) >= 0) {
     var filePath = cmd.split(/\s+/).slice(1).join(' ').trim();
     if (!filePath) {
       el.innerHTML += _renderTerminalPrompt(cmd, cwd);
@@ -1694,17 +2017,6 @@ async function _execShellCommand(cmd) {
     el.innerHTML += _renderTerminalOutput(cmd, 'Opening ' + filePath + ' in editor...', 0, cwd);
     if (outer) outer.scrollTop = outer.scrollHeight;
     await openFileInEditor(filePath);
-    return;
-  }
-
-  // Known but blocked programs — show helpful message
-  if (_KNOWN_PROGRAMS.indexOf(first) >= 0 && _SHELL_PREFIXES.indexOf(first) < 0) {
-    el.innerHTML += _renderTerminalPrompt(cmd, cwd);
-    el.innerHTML += _renderTerminalOutput(cmd,
-      first + ' is not available in web terminal.\n'
-      + 'Interactive and write commands are blocked for safety.\n'
-      + 'Use your local terminal instead.', 126, cwd);
-    if (outer) outer.scrollTop = outer.scrollHeight;
     return;
   }
 
@@ -1782,12 +2094,19 @@ async function sendChatMessage() {
   input.disabled = true;
   const ghost = document.getElementById('chat-ghost');
   if (ghost) ghost.textContent = '';
+  // Finalize any previous streaming response before starting new one
+  const prevStream = document.getElementById('stream-response');
+  if (prevStream) prevStream.removeAttribute('id');
+  const prevText = document.getElementById('stream-text');
+  if (prevText) prevText.removeAttribute('id');
+  const prevTools = document.getElementById('stream-tools');
+  if (prevTools) prevTools.removeAttribute('id');
   const outer = document.getElementById('chat-messages');
   const el = document.getElementById('chat-messages-inner') || outer;
   el.innerHTML += renderUserMsg({ content: message, timestamp: '' });
-  el.innerHTML += `<div id="stream-response" class="flex justify-start"><div class="max-w-[75%] card px-3 py-2">
-    <div id="stream-text" class="text-xs text-gray-300"></div>
-    <div id="stream-tools" class="mt-1"></div>
+  el.innerHTML += `<div id="stream-response" class="flex justify-start min-w-0"><div class="max-w-[75%] min-w-0 card px-3 py-2 overflow-hidden">
+    <div id="stream-text" class="text-xs text-gray-300 chat-md overflow-hidden"></div>
+    <div id="stream-tools" class="mt-1 overflow-hidden"></div>
   </div></div>`;
   if (outer) outer.scrollTop = outer.scrollHeight;
   showWorking();
@@ -1840,12 +2159,66 @@ async function streamChatResponse(message, el) {
         if (data.type === 'tool_use' && toolsEl) {
           var tool = data.tool || data.content || 'tool';
           var toolInput = data.input ? JSON.stringify(data.input).substring(0, 200) : '';
-          toolsEl.innerHTML += '<div class="card p-1.5 my-1 cursor-pointer" onclick="var d=this.querySelector(\'.tool-detail\');if(d)d.classList.toggle(\'hidden\')"><div class="flex items-center gap-1.5 text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50"></i><span class="text-orange-400/60">' + esc(tool) + '</span><i class="fas fa-chevron-down text-[7px] ml-auto text-gray-600"></i></div><div class="tool-detail hidden mt-1 p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div></div>';
+          // Group all same-type tools within this turn into one collapsible
+          // card, even when other event types (agent_status, protocol_step)
+          // arrive between them.
+          var groupSel = '[data-tool-group="' + tool.replace(/"/g, '\\"') + '"]';
+          var existingGroup = toolsEl.querySelector(groupSel);
+          if (existingGroup) {
+            var body = existingGroup.querySelector('.tool-group-body');
+            var countEl = existingGroup.querySelector('.tool-group-count');
+            if (body) {
+              var entry = document.createElement('div');
+              entry.className = 'py-1 border-t border-gray-800/40';
+              entry.innerHTML = '<div class="tool-detail mt-1 p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div>';
+              body.appendChild(entry);
+            }
+            if (countEl) {
+              var n = parseInt(countEl.textContent.replace(/[()]/g, ''), 10) || 1;
+              countEl.textContent = '(' + (n + 1) + ')';
+            }
+          } else {
+            var groupId = 'tool-group-' + tool.replace(/[^a-zA-Z0-9]/g, '_') + '-' + Date.now();
+            var groupHtml = '<div id="' + groupId + '" data-tool-group="' + esc(tool) + '" class="card p-1.5 my-1 cursor-pointer" onclick="var b=this.querySelector(\'.tool-group-body\'),c=this.querySelector(\'.tool-chevron\');if(b){b.classList.toggle(\'hidden\');c.classList.toggle(\'fa-chevron-down\');c.classList.toggle(\'fa-chevron-up\');}"><div class="flex items-center gap-1.5 text-[10px] text-gray-500"><i class="fas fa-wrench text-orange-400/50"></i><span class="text-orange-400/60">' + esc(tool) + '</span><span class="tool-group-count text-[9px] text-gray-600">(1)</span><i class="tool-chevron fas fa-chevron-down text-[7px] ml-auto text-gray-600"></i></div><div class="tool-group-body hidden mt-1"><div class="py-1"><div class="tool-detail p-1 text-[9px] font-mono text-gray-600 truncate">' + esc(toolInput) + '</div></div></div></div>';
+            toolsEl.insertAdjacentHTML('beforeend', groupHtml);
+          }
           el.scrollTop = el.scrollHeight;
           continue;
         }
         if (data.type === 'agent_status' && toolsEl) {
           toolsEl.innerHTML += `<div class="text-[10px] text-blue-400/70"><i class="fas fa-info-circle mr-1"></i>${esc(data.status || data.content || '')}</div>`;
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
+        if (data.type === 'protocol_step' && toolsEl) {
+          var stepId = 'proto-step-' + (data.step || '');
+          var existing = toolsEl.querySelector('#' + stepId);
+          var icon = '⏳', color = 'text-gray-400';
+          if (data.status === 'done') { icon = '✅'; color = 'text-green-400'; }
+          else if (data.status === 'failed') { icon = '❌'; color = 'text-red-400'; }
+          else if (data.status === 'skipped') { icon = '⏭️'; color = 'text-gray-500'; }
+          else if (data.status === 'warning') { icon = '⚠️'; color = 'text-yellow-400'; }
+          var stepHtml = '<div id="' + stepId + '" class="p-1.5 my-1 cursor-pointer" onclick="var d=this.querySelector(\'.step-output\');if(d)d.classList.toggle(\'hidden\')">'
+            + '<div class="flex items-center gap-1.5 text-[11px] ' + color + '">'
+            + '<span>' + icon + '</span>'
+            + '<span class="font-medium">' + esc(data.label || data.step) + '</span>'
+            + '<span class="text-[9px] text-gray-600 ml-auto">' + esc(data.status) + '</span>'
+            + '</div>';
+          if (data.output) {
+            stepHtml += '<pre class="step-output hidden mt-1 p-1.5 text-[9px] font-mono text-gray-500 rounded overflow-x-auto" style="background:rgba(0,0,0,0.3);max-height:150px;overflow-y:auto">' + esc(data.output) + '</pre>';
+          }
+          stepHtml += '</div>';
+          if (existing) { existing.outerHTML = stepHtml; } else { toolsEl.innerHTML += stepHtml; }
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
+        if (data.type === 'protocol_complete' && toolsEl) {
+          toolsEl.innerHTML += '<div class="text-[11px] text-green-400 mt-2 p-1.5 border-t border-gray-700/50"><i class="fas fa-check-circle mr-1"></i>Protocol <strong>' + esc(data.protocol) + '</strong> completed</div>';
+          el.scrollTop = el.scrollHeight;
+          continue;
+        }
+        if (data.type === 'protocol_abort' && toolsEl) {
+          toolsEl.innerHTML += '<div class="text-[11px] text-red-400 mt-2 p-1.5 border-t border-gray-700/50"><i class="fas fa-times-circle mr-1"></i>' + esc(data.reason) + '</div>';
           el.scrollTop = el.scrollHeight;
           continue;
         }
@@ -1873,25 +2246,418 @@ async function streamChatResponse(message, el) {
 // ── Settings ────────────────────────────────────────────────────────────
 async function loadSettings() {
   const pane = document.getElementById('pane-settings');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading settings…</div>`;
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Detecting system…</div>`;
   try {
-    const cfg = await api('/config');
-    pane.innerHTML = `
-      <h2 class="text-sm font-bold text-white mb-3">Settings</h2>
-      <div class="card p-4 space-y-3 text-sm text-gray-300">
-        <div><span class="text-gray-500 text-[10px] uppercase">Org</span> — <b>${esc(cfg.org.name)}</b> ${cfg.org.domain ? `(domain: <span class="text-orange-400">${esc(cfg.org.domain)}</span>)` : ''}</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">Issue Tracker</span> — ${esc(cfg.issue_tracker.provider)}</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">Codebases</span>
-          <ul class="ml-4 text-xs">${cfg.codebases.map(c => `<li>${esc(c.key)} → <code class="text-gray-400">${esc(c.path)}</code></li>`).join('')}</ul>
+    const [sys, cfg] = await Promise.all([
+      api('/system/status'),
+      api('/config').catch(() => null),
+    ]);
+    let html = `<h2 class="text-sm font-bold text-white mb-3">System Setup</h2>`;
+
+    // AI Models section
+    const clis = sys.clis || [];
+    const installed = clis.filter(c => c.installed);
+    const missing = clis.filter(c => !c.installed);
+    html += `<div class="card p-4 mb-3">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-[10px] text-gray-500 uppercase">AI Models (${installed.length}/${clis.length})</div>
+        <span class="flex-1"></span>
+        <button onclick="toggleAddModelForm()" class="btn btn-ghost text-[10px]" id="btn-add-model"><i class="fas fa-plus mr-1"></i>Add Model</button>
+      </div>`;
+    html += `<div class="flex flex-wrap gap-1.5 mb-3">`;
+    for (const c of clis) {
+      const color = c.installed ? 'text-green-400 border-green-900' : 'text-gray-600 border-gray-800';
+      const icon = c.installed ? 'fa-check-circle' : 'fa-times-circle';
+      html += `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${color}" title="${esc(c.path || 'not found')}"><i class="fas ${icon}" style="font-size:8px"></i>${esc(c.name)}</span>`;
+    }
+    html += `</div>`;
+    html += `<div id="add-model-form" class="hidden mb-3 p-3 rounded border" style="border-color:var(--border);background:var(--bg-secondary)">
+        <div class="space-y-2">
+          <input id="am-id" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="Model ID (e.g. my-llama)">
+          <input id="am-label" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="Display name (e.g. Local Llama 3)">
+          <select id="am-type" onchange="toggleAccessFields()" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+            <option value="cli">CLI Command</option>
+            <option value="api">API Key</option>
+          </select>
+          <input id="am-cli" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="CLI command (e.g. ollama run llama3)">
+          <input id="am-apikey" class="w-full px-2 py-1 rounded text-xs hidden" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="API key" type="password">
+          <input id="am-apibase" class="w-full px-2 py-1 rounded text-xs hidden" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="API base URL (optional)">
+          <div class="flex gap-2">
+            <button onclick="submitAddModel()" class="btn btn-primary text-[10px] flex-1">Validate & Add</button>
+            <button onclick="toggleAddModelForm()" class="btn btn-ghost text-[10px]">Cancel</button>
+          </div>
+          <div id="am-status" class="text-[10px] hidden"></div>
         </div>
-        <div><span class="text-gray-500 text-[10px] uppercase">Competitors</span> — categories: ${cfg.competitors.categories.map(esc).join(', ') || '—'}</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">OKRs</span> — source: ${esc(cfg.okrs.source)} (${cfg.okrs.count} items)</div>
-        <div><span class="text-gray-500 text-[10px] uppercase">AI</span> — ${esc(cfg.ai.provider)} / ${esc(cfg.ai.model)} · API key ${cfg.ai.has_key ? '<span class="text-green-400">set</span>' : '<span class="text-red-400">MISSING</span>'}</div>
+      </div>`;
+    html += `<div id="custom-models-list" class="space-y-1"></div>`;
+    html += `</div>`;
+
+    // Dev Tools section
+    const tools = sys.tools || [];
+    const cats = {};
+    for (const t of tools) {
+      const cat = t.category || 'other';
+      if (!cats[cat]) cats[cat] = [];
+      cats[cat].push(t);
+    }
+    const catLabels = {vcs: 'Version Control', pkg: 'Package Managers', lint: 'Linting', type: 'Type Checking', test: 'Testing', infra: 'Infrastructure', deploy: 'Deployment'};
+    html += `<div class="card p-4 mb-3"><div class="text-[10px] text-gray-500 uppercase mb-2">Development Tools</div>`;
+    for (const [cat, items] of Object.entries(cats)) {
+      html += `<div class="mb-2"><div class="text-[9px] text-gray-600 uppercase mb-1">${esc(catLabels[cat] || cat)}</div><div class="flex flex-wrap gap-1.5">`;
+      for (const t of items) {
+        const color = t.installed ? 'text-green-400 border-green-900' : 'text-gray-600 border-gray-800';
+        const icon = t.installed ? 'fa-check-circle' : 'fa-times-circle';
+        html += `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${color}" title="${esc(t.path || 'not found')}"><i class="fas ${icon}" style="font-size:8px"></i>${esc(t.name)}</span>`;
+      }
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+
+    // Model Health section
+    html += `<div class="card p-4 mb-3">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-[10px] text-gray-500 uppercase">Model Health</div>
+        <span class="flex-1"></span>
+        <button onclick="runModelHealthCheck()" class="btn btn-ghost text-[10px]" id="btn-health-check"><i class="fas fa-heartbeat mr-1"></i>Test All</button>
       </div>
-      <p class="text-[11px] text-gray-500 mt-4">Edit <code>~/.maggy/config.yaml</code> and restart Maggy to apply changes.</p>
-    `;
+      <div id="model-health-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div class="text-[10px] text-gray-600">Click "Test All" to check model availability</div>
+      </div>
+    </div>`;
+
+    // Suggested Local Models section
+    html += `<div class="card p-4 mb-3" id="local-models-card">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="text-[10px] text-gray-500 uppercase">Suggested Local Models</div>
+        <span class="flex-1"></span>
+        <button onclick="loadLocalSuggestions()" class="btn btn-ghost text-[10px]" id="btn-scan-hw"><i class="fas fa-microchip mr-1"></i>Scan Hardware</button>
+      </div>
+      <div id="local-hw-summary" class="text-[10px] text-gray-600 mb-2"></div>
+      <div id="local-models-list" class="space-y-1">
+        <div class="text-[10px] text-gray-600">Click "Scan Hardware" to detect your system and get model recommendations</div>
+      </div>
+    </div>`;
+
+    // Council Config section
+    html += `<div class="card p-4 mb-3" id="council-config-card">
+      <div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-users-gear mr-1"></i>Council of Experts</div>
+      <div id="council-config-body" class="text-[10px] text-gray-600">Loading…</div>
+    </div>`;
+
+    // Editable Configuration
+    if (cfg) {
+      html += `<div class="card p-4 mb-3" id="config-card">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="text-[10px] text-gray-500 uppercase"><i class="fas fa-cog mr-1"></i>Configuration</div>
+          <span class="flex-1"></span>
+          <span id="cfg-status" class="text-[10px] text-gray-600 hidden"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-[11px]">
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">AI Provider</label>
+            <input id="cfg-ai-provider" value="${esc(cfg.ai?.provider || '')}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">AI Model</label>
+            <input id="cfg-ai-model" value="${esc(cfg.ai?.model || '')}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Issue Tracker</label>
+            <select id="cfg-tracker" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+              ${['github','asana','linear','monday','none'].map(t => `<option value="${t}" ${cfg.issue_tracker?.provider === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Routing Mode</label>
+            <select id="cfg-routing" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+              ${['dynamic','static','manual'].map(m => `<option value="${m}" ${cfg.routing?.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Daily Budget (USD)</label>
+            <input id="cfg-budget" type="number" step="0.5" value="${cfg.budget?.daily_limit_usd ?? 10}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+          <div>
+            <label class="text-[9px] text-gray-500 uppercase block mb-0.5">Dashboard Port</label>
+            <input id="cfg-port" type="number" value="${cfg.dashboard?.port ?? 8080}" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="saveConfig()" class="btn btn-primary text-[10px]"><i class="fas fa-save mr-1"></i>Save</button>
+          <div class="flex-1"></div>
+          <span class="text-[9px] text-gray-600 self-center">API Key: ${cfg.ai?.has_key ? '<span class="text-green-400">set (env)</span>' : '<span class="text-red-400">missing</span>'}</span>
+        </div>
+      </div>`;
+    }
+
+    pane.innerHTML = html;
+    loadCustomModels();
+    loadCouncilConfig();
   } catch (e) {
-    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
+    pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Detection failed: ${esc(e.message)}</div>`;
+  }
+}
+
+async function runModelHealthCheck() {
+  const grid = document.getElementById('model-health-grid');
+  const btn = document.getElementById('btn-health-check');
+  if (!grid) return;
+  grid.innerHTML = '<div class="col-span-full text-[10px] text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Testing all models…</div>';
+  if (btn) btn.disabled = true;
+  try {
+    const data = await api('/models/health', { method: 'POST' });
+    const results = data.results || [];
+    let html = '';
+    for (const r of results) {
+      const ok = r.success;
+      const border = ok ? 'border-green-900' : 'border-red-900/50';
+      const icon = ok ? 'fa-check-circle text-green-400' : 'fa-times-circle text-red-400';
+      const latency = ok ? `<span class="text-gray-600">${r.latency_ms}ms</span>` : `<span class="text-red-400 truncate">${esc(r.error).slice(0, 30)}</span>`;
+      html += `<div class="flex items-center gap-1.5 px-2 py-1.5 rounded border ${border} text-[11px]">
+        <i class="fas ${icon}" style="font-size:8px"></i>
+        <span style="color:var(--text)" class="flex-1 truncate">${esc(r.model_id)}</span>
+        ${latency}
+      </div>`;
+    }
+    grid.innerHTML = html || '<div class="text-[10px] text-gray-600">No models configured</div>';
+  } catch (e) {
+    grid.innerHTML = `<div class="text-[10px] text-red-400">Failed: ${esc(e.message)}</div>`;
+  }
+  if (btn) btn.disabled = false;
+}
+
+function toggleAddModelForm() {
+  const form = document.getElementById('add-model-form');
+  if (form) form.classList.toggle('hidden');
+}
+
+function toggleAccessFields() {
+  const type = document.getElementById('am-type')?.value;
+  const cli = document.getElementById('am-cli');
+  const key = document.getElementById('am-apikey');
+  const base = document.getElementById('am-apibase');
+  if (type === 'api') {
+    if (cli) cli.classList.add('hidden');
+    if (key) key.classList.remove('hidden');
+    if (base) base.classList.remove('hidden');
+  } else {
+    if (cli) cli.classList.remove('hidden');
+    if (key) key.classList.add('hidden');
+    if (base) base.classList.add('hidden');
+  }
+}
+
+async function submitAddModel() {
+  const status = document.getElementById('am-status');
+  const id = document.getElementById('am-id')?.value?.trim();
+  const label = document.getElementById('am-label')?.value?.trim();
+  const type = document.getElementById('am-type')?.value;
+  const cli = document.getElementById('am-cli')?.value?.trim();
+  const key = document.getElementById('am-apikey')?.value?.trim();
+  const base = document.getElementById('am-apibase')?.value?.trim();
+  if (!id || !label) {
+    if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = 'Model ID and name required'; status.classList.remove('hidden'); }
+    return;
+  }
+  if (status) { status.className = 'text-[10px] text-yellow-400'; status.textContent = 'Validating…'; status.classList.remove('hidden'); }
+  try {
+    const vr = await api('/models/check/validate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ access_type: type, cli_cmd: cli || '', api_key: key || '', api_base: base || '' }) });
+    if (!vr.valid) {
+      if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = vr.error || 'Validation failed'; }
+      return;
+    }
+    const ar = await api('/models', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ model_id: id, label: label, access_type: type, cli_cmd: cli || '', api_key: key || '', api_base: base || '' }) });
+    if (!ar.ok) {
+      if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = ar.error || 'Add failed'; }
+      return;
+    }
+    if (status) { status.className = 'text-[10px] text-green-400'; status.textContent = 'Added!'; }
+    toggleAddModelForm();
+    loadCustomModels();
+  } catch (e) {
+    if (status) { status.className = 'text-[10px] text-red-400'; status.textContent = e.message; }
+  }
+}
+
+async function removeCustomModel(id) {
+  if (!confirm(`Remove model "${id}"?`)) return;
+  try {
+    const r = await api(`/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok) { alert(r.error || 'Remove failed'); return; }
+    loadCustomModels();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadCustomModels() {
+  const list = document.getElementById('custom-models-list');
+  if (!list) return;
+  try {
+    const data = await api('/models');
+    const custom = (data.models || []).filter(m => m.custom);
+    if (!custom.length) {
+      list.innerHTML = '<div class="text-[10px] text-gray-600">No custom models added yet</div>';
+      return;
+    }
+    let html = '';
+    for (const m of custom) {
+      html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded border text-[11px]" style="border-color:var(--border)">
+        <i class="fas fa-robot text-purple-400" style="font-size:9px"></i>
+        <span style="color:var(--text)" class="flex-1 truncate">${esc(m.label || m.id)}</span>
+        <span class="text-gray-600">tier ${m.tier}</span>
+        <button onclick="removeCustomModel('${esc(m.id)}')" class="text-red-400 hover:text-red-300" title="Remove"><i class="fas fa-trash" style="font-size:9px"></i></button>
+      </div>`;
+    }
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = `<div class="text-[10px] text-red-400">${esc(e.message)}</div>`;
+  }
+}
+
+async function saveConfig() {
+  const status = document.getElementById('cfg-status');
+  if (status) { status.textContent = 'Saving…'; status.classList.remove('hidden'); }
+  try {
+    const body = {
+      ai: {
+        provider: document.getElementById('cfg-ai-provider')?.value || '',
+        model: document.getElementById('cfg-ai-model')?.value || ''
+      },
+      issue_tracker: { provider: document.getElementById('cfg-tracker')?.value || 'github' },
+      routing: { mode: document.getElementById('cfg-routing')?.value || 'dynamic' },
+      budget: { daily_limit_usd: parseFloat(document.getElementById('cfg-budget')?.value) || 10 },
+      dashboard: { port: parseInt(document.getElementById('cfg-port')?.value) || 8080 }
+    };
+    await api('/config', { method: 'PATCH', body: JSON.stringify(body) });
+    if (status) { status.textContent = 'Saved ✓'; status.style.color = 'var(--green)'; }
+    setTimeout(() => { if (status) status.classList.add('hidden'); }, 2000);
+  } catch (e) {
+    if (status) { status.textContent = 'Error: ' + e.message; status.style.color = 'var(--red)'; }
+  }
+}
+
+async function loadLocalSuggestions() {
+  const hw = document.getElementById('local-hw-summary');
+  const list = document.getElementById('local-models-list');
+  const btn = document.getElementById('btn-scan-hw');
+  if (btn) btn.disabled = true;
+  if (hw) hw.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Scanning…';
+  if (list) list.innerHTML = '';
+  try {
+    const data = await api('/system/suggest-models');
+    const h = data.hardware || {};
+    const gpu = h.gpu || {};
+    let hwHtml = `<span class="text-gray-400">RAM:</span> ${h.ram_gb}GB`;
+    hwHtml += ` · <span class="text-gray-400">CPU:</span> ${h.cpu_cores} cores`;
+    hwHtml += ` · <span class="text-gray-400">Disk:</span> ${h.disk_free_gb}GB free`;
+    if (gpu.type !== 'none') hwHtml += ` · <span class="text-gray-400">GPU:</span> ${esc(gpu.name)} (${gpu.vram_gb}GB)`;
+    hwHtml += ` · <span class="text-gray-400">Ollama:</span> ${h.ollama_installed ? '<span class="text-green-400">installed</span>' : '<span class="text-red-400">not found</span>'}`;
+    if (hw) hw.innerHTML = hwHtml;
+    const suggestions = data.suggestions || [];
+    if (!suggestions.length) {
+      if (list) list.innerHTML = '<div class="text-[10px] text-yellow-400">No models fit your hardware</div>';
+    } else {
+      let html = '';
+      for (const s of suggestions) {
+        const fitColor = s.fit === 'comfortable' ? 'text-green-400' : 'text-yellow-400';
+        const fitIcon = s.fit === 'comfortable' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        html += `<div class="flex items-center gap-2 px-2 py-1.5 rounded border text-[11px]" style="border-color:var(--border)">
+          <i class="fas ${fitIcon} ${fitColor}" style="font-size:9px"></i>
+          <span style="color:var(--text)" class="truncate">${esc(s.label)}</span>
+          <span class="text-gray-600 flex-shrink-0">${s.min_ram_gb}GB RAM · ${s.disk_gb}GB disk</span>
+          <span class="text-gray-600 flex-shrink-0 truncate ml-auto" title="${esc(s.strengths)}">${esc(s.strengths)}</span>
+        </div>`;
+      }
+      if (list) list.innerHTML = html;
+    }
+  } catch (e) {
+    if (hw) hw.innerHTML = '';
+    if (list) list.innerHTML = `<div class="text-[10px] text-red-400">${esc(e.message)}</div>`;
+  }
+  if (btn) btn.disabled = false;
+}
+
+async function loadCouncilConfig() {
+  const body = document.getElementById('council-config-body');
+  if (!body) return;
+  try {
+    const cfg = await api('/council/config');
+    let html = `<div class="space-y-2">`;
+    html += `<div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">Enabled</span>
+      <span class="text-xs ${cfg.enabled ? 'text-green-400' : 'text-red-400'}">${cfg.enabled ? 'Yes' : 'No'}</span>
+    </div>`;
+    html += `<div class="flex items-center justify-between">
+      <span class="text-xs text-gray-400">Approval threshold</span>
+      <span class="text-xs" style="color:var(--text)">${cfg.threshold} of N reviewers</span>
+    </div>`;
+    const flags = [
+      ['Auto-validate plans', cfg.auto_validate_plans],
+      ['Auto-review architecture', cfg.auto_review_architecture],
+      ['Auto-review PRs', cfg.auto_review_prs],
+    ];
+    for (const [label, val] of flags) {
+      html += `<div class="flex items-center justify-between">
+        <span class="text-xs text-gray-400">${label}</span>
+        <span class="text-xs ${val ? 'text-green-400' : 'text-gray-600'}">${val ? 'on' : 'off'}</span>
+      </div>`;
+    }
+    const contexts = Object.entries(cfg.reviewers || {});
+    if (contexts.length) {
+      html += `<div class="mt-2 border-t pt-2" style="border-color:var(--border)">`;
+      for (const [ctx, reviewers] of contexts) {
+        const enabled = reviewers.filter(r => r.enabled);
+        html += `<div class="text-[10px] text-gray-500 mt-1"><b>${esc(ctx)}</b>: ${enabled.map(r => esc(r.id)).join(', ') || 'none'}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<div class="text-[10px] text-gray-600">Council config not available</div>`;
+  }
+}
+
+async function loadProjectSettings() {
+  const pane = document.getElementById('pane-project-settings');
+  if (!pane) return;
+  const proj = document.getElementById('current-project-label')?.textContent;
+  if (!proj || proj === 'Select project...') {
+    pane.querySelector('#ps-status')?.remove();
+    return;
+  }
+  let target = document.getElementById('ps-status');
+  if (!target) {
+    target = document.createElement('div');
+    target.id = 'ps-status';
+    pane.querySelector('.space-y-4')?.prepend(target);
+  }
+  target.innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Detecting…</div>';
+  try {
+    const ps = await api('/projects/' + encodeURIComponent(proj) + '/status');
+    const g = ps.git || {};
+    const s = ps.stack || {};
+    const cx = ps.cortex || {};
+    let html = `<div class="card p-4"><div class="text-[10px] text-gray-500 uppercase mb-2">Project: ${esc(proj)}</div>`;
+    html += '<div class="space-y-1 text-xs text-gray-300">';
+    if (g.is_repo) {
+      html += `<div><i class="fas fa-code-branch text-gray-500 mr-1" style="font-size:10px"></i>Branch: <b class="text-white">${esc(g.branch)}</b>${g.has_uncommitted ? ' <span class="text-yellow-400">(uncommitted)</span>' : ''}</div>`;
+      if (g.recent_branches && g.recent_branches.length > 1) {
+        html += `<div class="text-gray-500">Recent: ${g.recent_branches.map(esc).join(', ')}</div>`;
+      }
+    } else {
+      html += '<div class="text-gray-500">No git repo detected</div>';
+    }
+    if (s.type && s.type !== 'unknown') {
+      html += `<div><i class="fas fa-layer-group text-gray-500 mr-1" style="font-size:10px"></i>Stack: <b class="text-white">${esc(s.type)}</b>`;
+      if (s.test_runner) html += ` · test: ${esc(s.test_runner)}`;
+      if (s.linter) html += ` · lint: ${esc(s.linter)}`;
+      html += '</div>';
+    }
+    html += `<div><i class="fas fa-brain text-gray-500 mr-1" style="font-size:10px"></i>Cortex: ${cx.exists ? '<span class="text-green-400">indexed</span>' : '<span class="text-gray-500">not indexed</span>'}</div>`;
+    html += '</div></div>';
+    target.innerHTML = html;
+  } catch (e) {
+    target.innerHTML = '';
   }
 }
 
@@ -1961,8 +2727,8 @@ async function loadRouting() {
 }
 
 // ── Process Intelligence ────────────────────────────────────────────────
-async function loadProcess() {
-  const pane = document.getElementById('pane-process');
+async function loadInsights() {
+  const pane = document.getElementById('pane-insights');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading process intelligence…</div>`;
   try {
     const [events, history, improve, landscape, activity] = await Promise.all([
@@ -2089,6 +2855,212 @@ function showToast(msg) {
   el.innerHTML = `<i class="fas fa-check mr-1"></i>${esc(msg)}`;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3000);
+}
+
+// ── Skills ──────────────────────────────────────────────────────────────
+async function loadSkills() {
+  const pane = document.getElementById('pane-skills');
+  const list = document.getElementById('skills-list');
+  list.innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading skills...</div>';
+  try {
+    const pk = document.getElementById('current-project-label')?.textContent || '';
+    const isDefault = !pk || pk === 'Select project...';
+    const data = await api('/skills' + (!isDefault ? '?project_key=' + encodeURIComponent(pk) : ''));
+    document.getElementById('skills-count').textContent = data.total;
+    if (!data.skills.length) {
+      list.innerHTML = '<div class="text-xs text-gray-500">No skills loaded.</div>';
+      return;
+    }
+    let html = '<table class="w-full text-xs"><thead><tr class="text-gray-500 text-left"><th class="pb-1 pr-3">Name</th><th class="pb-1 pr-3">Description</th><th class="pb-1 pr-3">Source</th><th class="pb-1">Effort</th></tr></thead><tbody>';
+    for (const s of data.skills) {
+      const m = s.metadata;
+      const src = s.is_override ? '<span class="text-yellow-400">override</span>' : (s.source === 'project' ? '<span class="text-blue-400">project</span>' : '<span class="text-gray-400">global</span>');
+      html += '<tr class="border-t border-gray-800 hover:bg-gray-800/30"><td class="py-1.5 pr-3 text-white font-mono">' + esc(m.name) + '</td><td class="py-1.5 pr-3 text-gray-400">' + esc(m.description || '-') + '</td><td class="py-1.5 pr-3">' + src + '</td><td class="py-1.5 text-gray-500">' + esc(m.effort || '-') + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = '<div class="text-xs text-red-400">Failed to load skills: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function validateAllSkills() {
+  const banner = document.getElementById('skills-validation-banner');
+  banner.classList.remove('hidden');
+  banner.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Validating...';
+  try {
+    const data = await api('/skills/validate-all', { method: 'POST' });
+    const color = data.invalid === 0 ? 'text-green-400' : 'text-yellow-400';
+    banner.innerHTML = '<span class="' + color + '">' + data.valid + '/' + data.total + ' valid</span>' + (data.invalid ? ' &middot; <span class="text-red-400">' + data.invalid + ' with errors</span>' : '');
+  } catch (e) {
+    banner.innerHTML = '<span class="text-red-400">Validation failed: ' + esc(e.message) + '</span>';
+  }
+}
+
+async function reloadSkills() {
+  try {
+    await api('/skills/reload', { method: 'POST' });
+    loadSkills();
+  } catch (e) {
+    showToast('Failed to reload skills');
+  }
+}
+
+// ── System & Project Status ─────────────────────────────────────────────
+async function refreshSystemStatus() {
+  const container = document.getElementById('header-clis');
+  if (!container) return;
+  container.innerHTML = '<span class="cli-pill"><i class="fas fa-spinner fa-spin" style="font-size:8px"></i></span>';
+  try {
+    const data = await api('/system/status');
+    let html = _renderToolPills(data.clis || [], 'ai');
+    html += _renderToolPills(data.tools || [], 'dev');
+    container.innerHTML = html;
+    _lastSetupData = data;
+    if (!sessionStorage.getItem('setup-seen')) {
+      _showSetupModal(data);
+      sessionStorage.setItem('setup-seen', '1');
+    }
+  } catch (e) {
+    container.innerHTML = '';
+  }
+}
+
+var _lastSetupData = null;
+
+function closeSetupModal() {
+  var ov = document.getElementById('setup-modal-overlay');
+  if (ov) ov.classList.add('hidden');
+}
+
+function _showSetupModal(data) {
+  var ov = document.getElementById('setup-modal-overlay');
+  var body = document.getElementById('setup-modal-body');
+  if (!ov || !body) return;
+  ov.classList.remove('hidden');
+  var cats = {};
+  var all = (data.clis || []).concat(data.tools || []);
+  for (var i = 0; i < all.length; i++) {
+    var t = all[i];
+    var cat = t.category || 'other';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(t);
+  }
+  var catLabels = { ai: 'AI Models', dev: 'Dev Tools', lint: 'Linting', type: 'Type Checking', test: 'Testing', infra: 'Infrastructure', deploy: 'Deployment', scm: 'Source Control', pkg: 'Package Managers', other: 'Other' };
+  var catIcons = { ai: 'fa-robot', dev: 'fa-wrench', lint: 'fa-broom', type: 'fa-spell-check', test: 'fa-vial', infra: 'fa-server', deploy: 'fa-rocket', scm: 'fa-code-branch', pkg: 'fa-box', other: 'fa-ellipsis' };
+  var html = '';
+  var totalOk = 0, totalAll = 0;
+  for (var c in cats) {
+    var items = cats[c];
+    var label = catLabels[c] || c;
+    var icon = catIcons[c] || 'fa-circle';
+    html += '<div class="mb-3"><div class="flex items-center gap-1.5 mb-1.5 text-[11px] text-gray-300 font-semibold"><i class="fas ' + icon + ' text-orange-400/70" style="font-size:10px"></i>' + esc(label) + '</div>';
+    html += '<div class="grid grid-cols-2 gap-1">';
+    for (var j = 0; j < items.length; j++) {
+      var item = items[j];
+      totalAll++;
+      var ok = item.installed;
+      if (ok) totalOk++;
+      var dotCls = ok ? 'text-green-400' : 'text-gray-600';
+      var ico = ok ? 'fa-circle-check' : 'fa-circle-xmark';
+      var nameCls = ok ? 'text-gray-300' : 'text-gray-600';
+      var pathTip = item.path ? ' title="' + esc(item.path) + '"' : '';
+      html += '<div class="flex items-center gap-1.5 py-0.5 px-1.5 rounded" style="background:rgba(255,255,255,0.02)"' + pathTip + '>';
+      html += '<i class="fas ' + ico + ' ' + dotCls + '" style="font-size:9px"></i>';
+      html += '<span class="' + nameCls + '">' + esc(item.name) + '</span>';
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+  var summary = '<div class="flex items-center gap-2 mb-4 py-2 px-3 rounded" style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15)">';
+  summary += '<i class="fas fa-circle-check text-green-400" style="font-size:11px"></i>';
+  summary += '<span class="text-gray-300"><span class="text-white font-bold">' + totalOk + '</span> tools available</span>';
+  var missing = totalAll - totalOk;
+  if (missing > 0) summary += '<span class="ml-auto text-[10px] text-gray-600">' + missing + ' not installed</span>';
+  summary += '</div>';
+  body.innerHTML = summary + html;
+}
+
+function _renderToolPills(tools, group) {
+  let html = '';
+  for (const cli of tools) {
+    if (!cli.installed && group === 'dev') continue;
+    const cls = cli.installed ? 'ok' : 'missing';
+    const tip = cli.installed ? cli.name + ' ready' : cli.name + ' not found';
+    html += '<span class="cli-pill" title="' + esc(tip) + '"><span class="cli-dot ' + cls + '"></span>' + esc(cli.name) + '</span>';
+  }
+  return html;
+}
+
+async function loadProjectStatus(projectName) {
+  const container = document.getElementById('header-clis');
+  if (!container || !projectName) return;
+  try {
+    const data = await api('/projects/' + encodeURIComponent(projectName) + '/status');
+    let html = _renderToolPills(data.clis || [], 'ai');
+    html += _renderToolPills(data.tools || [], 'dev');
+    const git = data.git || {};
+    if (git.is_repo) {
+      html += '<span class="cli-pill" title="branch: ' + esc(git.branch) + '"><i class="fas fa-code-branch" style="font-size:8px"></i>' + esc(git.branch || '?') + (git.has_uncommitted ? ' *' : '') + '</span>';
+    }
+    const cx = data.cortex || {};
+    if (cx.exists) {
+      html += '<span class="cli-pill" title="Cortex indexed"><i class="fas fa-brain" style="font-size:8px;color:var(--green)"></i>cortex</span>';
+    }
+    const stack = data.stack || {};
+    if (stack.type && stack.type !== 'unknown') {
+      html += '<span class="cli-pill" title="' + esc(stack.type) + ' project"><i class="fas fa-layer-group" style="font-size:8px"></i>' + esc(stack.type) + '</span>';
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '';
+  }
+}
+
+// ── Pipeline Logs ───────────────────────────────────────────────────────
+async function loadLogs() {
+  const period = document.getElementById('logs-period')?.value || 'today';
+  try {
+    const [logsRes, statsRes] = await Promise.all([
+      fetch('/api/pipeline/logs?limit=100'),
+      fetch('/api/pipeline/stats?period=' + period),
+    ]);
+    const logs = await logsRes.json();
+    const stats = await statsRes.json();
+    document.getElementById('logs-total').textContent = stats.total_calls;
+    document.getElementById('logs-stat-calls').textContent = stats.total_calls;
+    document.getElementById('logs-stat-success').textContent = Math.round(stats.success_rate * 100) + '%';
+    document.getElementById('logs-stat-latency').textContent = Math.round(stats.avg_latency_ms) + 'ms';
+    document.getElementById('logs-stat-cost').textContent = '$' + (stats.total_cost || 0).toFixed(4);
+    const tbody = document.getElementById('logs-table-body');
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-gray-500">No pipeline logs yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(l => {
+      const ts = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '-';
+      const lat = Math.round(l.latency_ms || 0);
+      const cost = (l.cost_usd || 0).toFixed(4);
+      const ok = l.success;
+      const fb = l.fallback_used;
+      let statusBadge;
+      if (ok && !fb) statusBadge = '<span class="text-green-400">OK</span>';
+      else if (ok && fb) statusBadge = '<span class="text-yellow-400">FB:' + fb + '</span>';
+      else statusBadge = '<span class="text-red-400">ERR</span>';
+      return '<tr class="border-b" style="border-color:var(--border)">'
+        + '<td class="py-1.5 pr-3">' + ts + '</td>'
+        + '<td class="py-1.5 pr-3 font-mono">' + (l.model || '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + (l.backend || '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + (l.blast ?? '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + (l.task_type || '-') + '</td>'
+        + '<td class="py-1.5 pr-3">' + lat + 'ms</td>'
+        + '<td class="py-1.5 pr-3">$' + cost + '</td>'
+        + '<td class="py-1.5">' + statusBadge + '</td></tr>';
+    }).join('');
+  } catch (e) {
+    document.getElementById('logs-table-body').innerHTML =
+      '<tr><td colspan="8" class="py-4 text-center text-red-400">Failed to load logs</td></tr>';
+  }
 }
 
 // ── Forge ───────────────────────────────────────────────────────────────
@@ -2258,22 +3230,28 @@ async function autoConfigureSetup() {
 // ── iCPG ─────────────────────────────────────────────────────────────────
 let ICPG_PROJECT = null;
 
-async function loadICPG() {
-  const pane = document.getElementById('pane-icpg');
-  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading iCPG…</div>`;
+async function loadCortex() {
+  const pane = document.getElementById('pane-cortex');
+  pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading Cortex…</div>`;
   try {
+    const proj = ICPG_PROJECT || getProjectKey();
+    if (proj) {
+      ICPG_PROJECT = proj;
+      await loadICPGProject(proj);
+      return;
+    }
     const data = await api('/icpg/overview');
-    if (ICPG_PROJECT) { await loadICPGProject(ICPG_PROJECT); return; }
     pane.innerHTML = renderICPGOverview(data);
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Failed: ${esc(e.message)}</div>`;
   }
 }
+async function loadICPG() { return loadCortex(); }
 
 function renderICPGOverview(data) {
   const t = data.total || {};
   let html = `<div class="overflow-y-auto h-full">`;
-  html += `<h2 class="text-sm font-bold text-white mb-3"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>iCPG — Intent Graph</h2>`;
+  html += `<h2 class="text-sm font-bold text-white mb-3"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>Cortex — Code Intelligence</h2>`;
   html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
     <div class="card p-3 text-center"><div class="text-xl font-bold text-orange-400">${t.reasons || 0}</div><div class="text-[10px] text-gray-500">ReasonNodes</div></div>
     <div class="card p-3 text-center"><div class="text-xl font-bold text-blue-400">${t.symbols || 0}</div><div class="text-[10px] text-gray-500">Symbols</div></div>
@@ -2311,7 +3289,7 @@ async function openICPGProject(key) {
 }
 
 async function loadICPGProject(key) {
-  const pane = document.getElementById('pane-icpg');
+  const pane = document.getElementById('pane-cortex');
   pane.innerHTML = `<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i>Loading ${esc(key)}…</div>`;
   try {
     const [reasons, drift] = await Promise.all([
@@ -2327,7 +3305,7 @@ async function loadICPGProject(key) {
 function renderICPGProject(key, reasons, drift) {
   let html = `<div class="overflow-y-auto h-full">`;
   html += `<div class="flex items-center gap-2 mb-3">
-    <button onclick="ICPG_PROJECT=null;loadICPG()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
+    <button onclick="ICPG_PROJECT=null;loadCortex()" class="text-xs text-gray-400 hover:text-white"><i class="fas fa-arrow-left mr-1"></i></button>
     <h2 class="text-sm font-bold text-white"><i class="fas fa-project-diagram text-orange-400 mr-2"></i>${esc(key)}</h2>
     <span class="text-[10px] text-gray-500">${(reasons.reasons||[]).length} intents</span>
     <div class="flex-1"></div>
@@ -2400,15 +3378,32 @@ function filterICPGIntents() {
   }
 }
 
-async function loadICPGGraph(key) {
-  const pane = document.getElementById('pane-icpg');
+async function loadICPGGraph(key, autoBuilt = false) {
+  const pane = document.getElementById('pane-cortex');
   try {
     const data = await api(`/icpg/${encodeURIComponent(key)}/graph?limit=150`);
     const nodes = data.nodes || [];
     const edges = data.edges || [];
-    if (!nodes.length) { alert('No graph data'); return; }
+    if (!nodes.length) {
+      if (autoBuilt) { alert('No graph data — build produced no intents'); return; }
+      return buildICPGGraph(key);
+    }
     renderICPGGraphSVG(pane, key, nodes, edges);
   } catch (e) { alert('Graph failed: ' + e.message); }
+}
+
+async function buildICPGGraph(key) {
+  const pane = document.getElementById('pane-cortex');
+  if (!confirm(`No iCPG graph for "${key}" yet. Build it now from git history?`)) return;
+  pane.innerHTML = `<div class="p-8 text-center text-gray-400 text-sm">`
+    + `<i class="fas fa-spinner fa-spin mr-2"></i>Building iCPG for ${esc(key)}… this can take a minute.</div>`;
+  try {
+    const res = await api(`/icpg/${encodeURIComponent(key)}/build`, { method: 'POST' });
+    if (res.error) { pane.innerHTML = `<div class="p-8 text-center text-red-400 text-sm">Build failed: ${esc(res.error)}</div>`; return; }
+    await loadICPGGraph(key, true);
+  } catch (e) {
+    pane.innerHTML = `<div class="p-8 text-center text-red-400 text-sm">Build failed: ${esc(e.message)}</div>`;
+  }
 }
 
 function renderICPGGraphSVG(pane, key, nodes, edges) {
@@ -2464,9 +3459,11 @@ async function loadMemory() {
   const pane = document.getElementById('pane-memory');
   pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i>Loading memory...</div>';
   try {
+    const proj = getProjectKey();
+    const ns = proj ? '?namespace=' + encodeURIComponent(proj) : '';
     const [engramDiag, engramQuery] = await Promise.all([
-      api('/engram/diagnostics').catch(function() { return {}; }),
-      api('/engram/query?limit=5').catch(function() { return { records: [] }; })
+      api('/engram/diagnostics' + ns).catch(function() { return {}; }),
+      api('/engram/query?limit=5' + (proj ? '&namespace=' + encodeURIComponent(proj) : '')).catch(function() { return { records: [] }; })
     ]);
     var html = '<div class="p-4 space-y-4 h-full overflow-y-auto scroll-thin">';
     html += '<div class="card p-4">';
@@ -2476,7 +3473,7 @@ async function loadMemory() {
     var state = fatigue < 0.4 ? 'FLOW' : fatigue < 0.6 ? 'COMPRESS' : fatigue < 0.75 ? 'PRE_SLEEP' : fatigue < 0.9 ? 'REM' : 'EMERGENCY';
     var stateColor = fatigue < 0.4 ? '#22c55e' : fatigue < 0.6 ? '#eab308' : fatigue < 0.75 ? '#f97316' : '#ef4444';
     html += '<div class="col-span-3"><div class="flex justify-between mb-1"><span>Fatigue</span><span style="color:' + stateColor + '">' + (fatigue * 100).toFixed(0) + '% · ' + state + '</span></div>';
-    html += '<div class="w-full h-2 rounded-full" style="background:#1e2636"><div class="h-2 rounded-full" style="width:' + (fatigue * 100) + '%;background:' + stateColor + '"></div></div></div>';
+    html += '<div class="w-full h-2 rounded-full" style="background:var(--input-bg);border:1px solid var(--border)"><div class="h-2 rounded-full" style="width:' + (fatigue * 100) + '%;background:' + stateColor + '"></div></div></div>';
     html += '<div><div class="text-gray-500">Engrams</div><div class="text-white text-lg font-bold">' + (engramDiag.total_engrams || 0) + '</div></div>';
     html += '<div><div class="text-gray-500">Checkpoints</div><div class="text-white text-lg font-bold">' + (engramDiag.checkpoints || 0) + '</div></div>';
     html += '<div><div class="text-gray-500">Expired</div><div class="text-white text-lg font-bold">' + (engramDiag.expired || 0) + '</div></div>';
@@ -2487,7 +3484,7 @@ async function loadMemory() {
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
         html += '<div class="flex items-center gap-2 py-1.5 border-b text-xs" style="border-color:#1e2636">';
-        html += '<span class="badge" style="font-size:9px;background:#1e2636">' + esc(r.memory_type || 'fact') + '</span>';
+        html += '<span class="badge" style="font-size:9px;background:var(--input-bg);border:1px solid var(--border)">' + esc(r.memory_type || 'fact') + '</span>';
         html += '<span class="flex-1 truncate text-gray-300">' + esc((r.content || '').substring(0, 80)) + '</span>';
         html += '<span class="text-gray-600">' + relDate(r.created_at) + '</span></div>';
       }
@@ -2504,7 +3501,7 @@ async function loadMemory() {
 
 // ── Progress Dashboard ──────────────────────────────────────────────────
 async function loadProgress() {
-  var pane = document.getElementById('pane-progress');
+  var pane = document.getElementById('pane-insights');
   pane.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs"><i class="fas fa-spinner fa-spin mr-2"></i>Loading progress...</div>';
   try {
     var [execSessions, signals] = await Promise.all([
@@ -2593,13 +3590,19 @@ async function loadAll() {
     var orgEl = document.getElementById('org-badge');
     if (orgEl) orgEl.textContent = h.org + ' · ' + (h.provider || '') + ' · ' + (h.codebases || 0) + ' codebases';
   } catch (e) {}
+  refreshSystemStatus();
   try {
     var projData = await api('/projects');
     var projects = (projData.projects || []).map(function(p) { return p.name; });
     updateProjectList(projects);
   } catch (e) {}
   var ready = typeof checkSetup === 'function' ? await checkSetup() : true;
-  if (ready) switchTab(CURRENT_TAB);
+  if (ready) {
+    var hashTab = tabFromHash();
+    if (hashTab) CURRENT_TAB = hashTab;
+    switchTab(CURRENT_TAB);
+  }
 }
 
+applyTheme(getTheme());
 loadAll();

@@ -471,6 +471,28 @@ def register(bus, manifest):
     logger.info("e2e-testkit: registered")
 
 
+async def on_project_connected(payload: dict) -> None:
+    """Run regression scan when a project is opened in Maggy."""
+    working_dir = payload.get("working_dir", "")
+    project_key = payload.get("project_key", "")
+    if not working_dir or not Path(working_dir).is_dir():
+        logger.debug("testkit: skip %s — dir not found", project_key)
+        return
+    try:
+        kit = E2ETestKit(working_dir)
+        results = kit.regression_scan()
+        failed = [r for r in results if not r.passed]
+        if failed:
+            logger.warning(
+                "testkit: %s has %d regression(s) on connect",
+                project_key, len(failed),
+            )
+        else:
+            logger.info("testkit: %s — clean on connect", project_key)
+    except Exception as e:
+        logger.debug("testkit: scan failed for %s: %s", project_key, e)
+
+
 async def run_regression_scan():
     """Heartbeat job: periodic regression scan."""
     if not _kit:

@@ -9,8 +9,10 @@ from pathlib import Path
 
 from . import __version__
 from .checkpoint import load_checkpoint, write_checkpoint
+from .claude_log import ingest_all, ingest_session
 from .consolidation import micro_consolidate
 from .fatigue import compute_fatigue, read_fatigue_file
+from .haziness import WEIGHTS, band, compute_haze, dominant_dim
 from .models import FatigueState, MnemoNode, _now, _uuid
 from .signals import get_session_stats
 from .store import MnemosStore
@@ -78,6 +80,48 @@ def main(argv: list[str] | None = None) -> int:
         'bridge-icpg', help='Import iCPG ReasonNodes as MnemoNodes'
     )
 
+    # --- ingest-claude ---
+    p_ic = sub.add_parser(
+        'ingest-claude',
+        help='Ingest Claude Code transcripts into mnemos',
+    )
+    p_ic.add_argument('--session', help='Specific sessionId to ingest')
+    p_ic.add_argument(
+        '--transcript', help='Path to a specific JSONL transcript file'
+    )
+    p_ic.add_argument('--slug', help='Ingest only files under this slug dir')
+    p_ic.add_argument(
+        '--all', action='store_true',
+        help='Ingest every transcript under --projects-root',
+    )
+    p_ic.add_argument(
+        '--projects-root',
+        help='Override Claude Code projects dir (default ~/.claude/projects)',
+    )
+    p_ic.add_argument(
+        '--no-redact', action='store_true',
+        help='Disable secret redaction (not recommended)',
+    )
+
+    # --- haze ---
+    p_hz = sub.add_parser(
+        'haze', help='Show per-session Claude haziness scores'
+    )
+    p_hz.add_argument('--session', help='Score one session by id')
+    p_hz.add_argument('--slug', help='Score all sessions under a slug')
+    p_hz.add_argument(
+        '--recent', type=int, default=10,
+        help='Show N most-recently-ingested sessions (default 10)',
+    )
+    p_hz.add_argument(
+        '--explain', action='store_true',
+        help='Dump contributing turns for each dim (requires --session)',
+    )
+    p_hz.add_argument(
+        '--quiet', action='store_true',
+        help='Suppress output (for hook use)',
+    )
+
     args = parser.parse_args(argv)
     store = MnemosStore(args.project)
 
@@ -99,6 +143,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_add(store, args)
     elif args.command == 'bridge-icpg':
         return cmd_bridge_icpg(store, args)
+    elif args.command == 'ingest-claude':
+        return cmd_ingest_claude(store, args)
+    elif args.command == 'haze':
+        return cmd_haze(store, args)
     else:
         parser.print_help()
         return 1
@@ -357,6 +405,227 @@ def cmd_bridge_icpg(store: MnemosStore, args) -> int:
     print(f'  GoalNodes imported: {stats["goals_imported"]}')
     print(f'  ConstraintNodes imported: {stats["constraints_imported"]}')
     return 0
+
+
+def cmd_ingest_claude(store: MnemosStore, args) -> int:
+    if not store.exists():
+        store.init_db()
+    else:
+        store.ensure_schema()  # migrate pre-feature dbs to add claude_* tables
+
+    redact_text = not getattr(args, 'no_redact', False)
+    projects_root = getattr(args, 'projects_root', None)
+    if projects_root:
+        projects_root = Path(projects_root).expanduser()
+
+    transcript = getattr(args, 'transcript', None)
+    slug = getattr(args, 'slug', None)
+    session = getattr(args, 'session', None)
+    do_all = getattr(args, 'all', False)
+
+    if transcript:
+        result = ingest_session(
+            store, Path(transcript), redact_text=redact_text
+        )
+        if result.get('skipped'):
+            print(f'Skipped: {result.get("reason", "unknown")}')
+            return 0
+        print(f'Session {result["session_id"][:8]}: '
+              f'+{result["turns"]} turns '
+              f'({"new" if result["new_session"] else "resume"})')
+        if result.get('session_id'):
+            haze = compute_haze(store, result['session_id'])
+            _print_haze_line(haze)
+        return 0
+
+    root = projects_root or Path.home() / '.claude' / 'projects'
+    if slug:
+        session_dir = root / slug
+        if not session_dir.exists():
+            print(f'No slug dir: {session_dir}')
+            return 1
+        files = list(session_dir.glob('*.jsonl'))
+    elif session:
+        # Search all slug dirs for a <session>.jsonl file.
+        files = list(root.glob(f'*/{session}.jsonl'))
+        if not files:
+            print(f'No transcript for session {session}')
+            return 1
+    elif do_all:
+        stats = ingest_all(store, projects_root=root)
+        # Score every ingested session. Bulk-scoring is cheap (~ms per session)
+        # and means `mnemos haze --recent N` works immediately after ingest.
+        scored = 0
+        with store._conn() as conn:
+            session_ids = [r['id'] for r in conn.execute(
+                'SELECT id FROM claude_sessions'
+            ).fetchall()]
+        for sid in session_ids:
+            compute_haze(store, sid)
+            scored += 1
+        print(f'Ingested {stats["files"]} files '
+              f'({stats["sessions"]} new sessions, '
+              f'{stats["turns"]} turns, {stats["skipped"]} skipped, '
+              f'{scored} scored)')
+        return 0
+    else:
+        print('Provide --transcript, --session, --slug, or --all')
+        return 1
+
+    total_turns = 0
+    new_sessions = 0
+    for path in files:
+        r = ingest_session(store, path, redact_text=redact_text)
+        if r.get('skipped'):
+            continue
+        total_turns += r.get('turns', 0)
+        if r.get('new_session'):
+            new_sessions += 1
+        if r.get('session_id'):
+            compute_haze(store, r['session_id'])
+    print(f'Ingested {len(files)} files '
+          f'({new_sessions} new, {total_turns} turns)')
+    return 0
+
+
+def cmd_haze(store: MnemosStore, args) -> int:
+    if not store.exists():
+        print('No Mnemos database. Run `mnemos init` first.')
+        return 1
+    store.ensure_schema()  # migrate pre-feature dbs to add claude_* tables
+
+    quiet = getattr(args, 'quiet', False)
+    session = getattr(args, 'session', None)
+    slug = getattr(args, 'slug', None)
+    explain = getattr(args, 'explain', False)
+    recent = getattr(args, 'recent', 10)
+
+    if session:
+        haze = compute_haze(store, session)
+        if quiet:
+            return 0
+        _print_haze_detail(haze)
+        if explain:
+            _explain_haze(store, session)
+        return 0
+
+    with store._conn() as conn:
+        if slug:
+            rows = conn.execute(
+                """SELECT s.id, s.project_path, s.turn_count, s.last_ingested_at,
+                          h.composite, h.correction_density, h.redo_ratio,
+                          h.first_try_error_rate, h.orphan_tool_use_rate,
+                          h.backtrack_norm
+                   FROM claude_sessions s
+                   LEFT JOIN claude_haze h ON h.session_id = s.id
+                   WHERE s.project_slug = ?
+                   ORDER BY s.last_ingested_at DESC LIMIT ?""",
+                (slug, recent),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT s.id, s.project_path, s.turn_count, s.last_ingested_at,
+                          h.composite, h.correction_density, h.redo_ratio,
+                          h.first_try_error_rate, h.orphan_tool_use_rate,
+                          h.backtrack_norm
+                   FROM claude_sessions s
+                   LEFT JOIN claude_haze h ON h.session_id = s.id
+                   ORDER BY s.last_ingested_at DESC LIMIT ?""",
+                (recent,),
+            ).fetchall()
+
+    if not rows:
+        if not quiet:
+            print('No ingested sessions. Run `mnemos ingest-claude --all`.')
+        return 0
+
+    if quiet:
+        return 0
+
+    print(f'{"SESSION":10s} {"PROJECT":40s} {"TURNS":>6s} '
+          f'{"HAZE":>6s} {"BAND":>7s} {"DOMINANT":>20s} WHEN')
+    for r in rows:
+        comp = r['composite']
+        if comp is None:
+            comp_str, band_str, dom_str = '-', '-', '-'
+        else:
+            dom = dominant_dim({
+                'correction_density': r['correction_density'],
+                'redo_ratio': r['redo_ratio'],
+                'first_try_error_rate': r['first_try_error_rate'],
+                'orphan_tool_use_rate': r['orphan_tool_use_rate'],
+                'backtrack_norm': r['backtrack_norm'],
+            })
+            comp_str = f'{comp:.2f}'
+            band_str = band(comp)
+            dom_str = dom
+        proj = (r['project_path'] or '')[-40:]
+        print(f'{r["id"][:8]:10s} {proj:40s} {r["turn_count"]:>6d} '
+              f'{comp_str:>6s} {band_str:>7s} {dom_str:>20s} '
+              f'{r["last_ingested_at"]}')
+    return 0
+
+
+def _print_haze_line(haze: dict) -> None:
+    comp = haze['composite']
+    print(f'Haze: {comp:.2f} ({band(comp)}) '
+          f'[{dominant_dim(haze)} dominant, {haze["turns_analyzed"]} turns]')
+
+
+def _print_haze_detail(haze: dict) -> None:
+    comp = haze['composite']
+    print(f'HAZE {haze["session_id"][:8]}  '
+          f'{comp:.2f} {band(comp).upper()}  '
+          f'({haze["turns_analyzed"]} turns)')
+    print()
+    for name, weight in WEIGHTS.items():
+        val = haze.get(name, 0.0)
+        bar = '#' * int(val * 20) + '.' * (20 - int(val * 20))
+        print(f'  {name:22s}  {val:.3f}  [{bar}]  w={weight}')
+
+
+def _explain_haze(store: MnemosStore, session_id: str) -> None:
+    with store._conn() as conn:
+        src_row = conn.execute(
+            'SELECT source_path FROM claude_sessions WHERE id = ?',
+            (session_id,),
+        ).fetchone()
+        if not src_row:
+            return
+        source_path = src_row['source_path']
+        turns = conn.execute(
+            """SELECT idx, role, tool_name, file_path, is_error,
+                      text_preview, correction_match
+               FROM claude_turns WHERE session_id = ? ORDER BY idx""",
+            (session_id,),
+        ).fetchall()
+
+    print()
+    print('CONTRIBUTING TURNS')
+    shown = 0
+    for t in turns:
+        interesting = (
+            t['correction_match']
+            or t['is_error']
+            or (t['tool_name'] == 'Bash' and t['text_preview']
+                and 'git' in t['text_preview'])
+        )
+        if not interesting:
+            continue
+        shown += 1
+        if shown > 20:
+            print(f'  ... (trimmed; see {source_path} for full log)')
+            break
+        marker = []
+        if t['correction_match']:
+            marker.append('CORRECT')
+        if t['is_error']:
+            marker.append('ERROR')
+        if t['tool_name']:
+            marker.append(t['tool_name'])
+        tag = ','.join(marker) or t['role']
+        preview = (t['text_preview'] or t['file_path'] or '')[:80]
+        print(f'  idx={t["idx"]:<6d} [{tag:16s}] {preview}')
 
 
 def _try_load_icpg(project_dir: str):

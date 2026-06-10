@@ -1,0 +1,15 @@
+id: telos
+name: Telos
+version: 1.0.0
+description: Intent-grounded testing — IFS scoring via Cortex
+
+hooks:
+  - event: project.connected
+    fn: on_project_connected
+
+heartbeat:
+  - name: telos_ifs_check
+    interval_seconds: 300
+    fn: heartbeat_ifs
+
+router: true

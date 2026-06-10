@@ -6,6 +6,326 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.42.0] - 2026-06-09
+
+### Council Chief: Claude Fable 5
+
+Claude Fable 5 (`claude-fable-5`, GA 2026-06-09) is now chief of the council of
+experts across the stack: it leads every review panel and casts the deciding
+synthesis.
+
+- `~/bin/claude-fable-5` wrapper (Anthropic Messages API).
+- council-review skill + `~/.claude/council.yaml`: `chief: claude-fable-5`, added
+  as lead reviewer in plan/review/architecture.
+- Maggy: `CouncilConfig.chief`, model registry + health allowlist entries.
+- srooter: `council_chief` + `claude-fable-5` model + risk validator.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.46.0) for the Maggy detail.
+
+## [6.41.0] - 2026-06-08
+
+### Build-in-Public Reddit Agent + Gemini Search Fix
+
+#### Added
+- **Reddit is the third build-in-public channel** (with LinkedIn + X). The
+  narrative engine generates a Reddit-native self-post and submits it directly
+  (Reddit isn't a Buffer service).
+- **Autonomous subreddit** — Maggy picks the target itself (defaults to
+  r/ClaudeCode / r/buildinpublic); no manual config required.
+- **Reddit Agent — voice + replies** (`plugins/build-in-public/voice.py`,
+  user-definable under `config.voice`): every post/reply is run through
+  `no_em_dash`, `strip_markdown` (Reddit-safe plain text), and optional human
+  `typos`. A heartbeat monitors comments on Maggy's own posts and replies once
+  each, rate-limited, never to itself.
+- **Credential reuse** — Reddit creds resolve from the environment, then a
+  sibling ideaminer checkout; auth supports refresh-token and script-app
+  (username/password) grants.
+
+#### Fixed
+- **Gemini `--pro-search`** (`bin/gemini-api`) — grounding was sent to the
+  OpenAI-compat endpoint (400 `Unknown name "google_search"`) with a
+  non-existent model id. Now routes to the native `generateContent` endpoint on
+  `gemini-3.5-flash`, where the `google_search` tool is valid.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.43.0–6.45.0) for the full Maggy
+detail: iCPG dashboard auto-build, orchestrator image fix + isolated worktrees
++ isolation modes, the unsandboxed-agent security fix, and the Reddit agent.
+
+---
+
+## [6.40.0] - 2026-06-04
+
+### Followed-Model Routing — One Choice, Every Layer (srooter + hooks + Maggy)
+
+A single "followed" (primary) model is configured once and respected across the
+srooter gateway, the route-task hooks, and Maggy — auto-detected from the
+machine, overridable in onboarding. Smart mode keeps trivial/cheap asks local.
+
+#### Added
+- **Shared source of truth** — `scripts/model_routing.py` writes/reads
+  `~/.claude/model-config.json` (`primary`, `classifier`, `mode`, `analyze`).
+  `detect_available()` probes provider keys (env + `~/.zshrc` + srooter env),
+  `~/bin` CLI wrappers, and local Ollama; `ensure()` auto-creates the config;
+  `apply` syncs the primary into srooter's `long_context` route. CLI:
+  `detect | show | get | set-primary | set-analyze | apply`. 12 tests.
+- **Onboarding picker** — `scripts/onboard.sh` collects the MiniMax key and
+  asks which detected model to follow; `/model-config` views/changes it anytime.
+- **route-task hook** — additively injects `FOLLOWED MODEL: <primary>` into
+  routing context (tier classification untouched; explicit overrides win).
+- **MiniMax pre-analysis (opt-out)** — when `analyze: true` (default), the hook
+  sends each prompt to MiniMax for a terse INTENT/SCOPE/RISKS/APPROACH brief
+  injected into context so Claude executes accordingly; fails open, capped at
+  `MINIMAX_TIMEOUT=20s`, toggle via `set-analyze`.
+- **MiniMax wired into srooter** — `MINIMAX_API_KEY` activates the
+  pre-configured `minimax-m2.5` main coding route; `~/bin/minimax` wrapper.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.43.0) for the Maggy-side changes.
+
+---
+
+## [6.39.0] - 2026-06-04
+
+### Mnemos: Claude Transcript Ingestion + Per-Session Haziness Scoring
+
+A new memory dimension — Mnemos now ingests Claude Code session transcripts and
+scores how much each session *struggled*, so fatigue can be measured from real
+history rather than only live signals.
+
+#### Added
+- **Transcript ingester** (`scripts/mnemos/claude_log.py`) — parses the per-session
+  JSONL under `~/.claude/projects/` into `claude_sessions` / `claude_turns`.
+  Idempotent (resumes via `last_line_offset`, `INSERT OR IGNORE` on
+  `(session_id, idx)`). Stores **only** structural fields + a redacted 200-char
+  preview — never full content.
+- **Haziness scoring** (`scripts/mnemos/haziness.py`) — weighted 5-dimension score
+  (correction density, redo ratio, first-try error rate, orphan tool-use,
+  backtracking) with `clear`/`cloudy`/`hazy`/`lost` bands and dominant-dimension
+  reporting, persisted to `claude_haze`.
+- **Secret redaction** (`scripts/mnemos/redact.py`) — ordered patterns
+  (PEM/JWT/Anthropic/Stripe/OpenAI/GitHub/AWS/credential) applied to every text
+  field before it is persisted.
+- **CLI** — `mnemos ingest-claude` (`--all` / `--session` / `--slug` /
+  `--transcript`) and `mnemos haze` (`--recent` / `--session` / `--explain`).
+- **Stop hook** (`templates/mnemos-stop-ingest.sh`) — ingests + scores the
+  just-closed session on exit; never blocks the user; per-project opt-out via
+  `touch .mnemos/claude-log.disabled`.
+- **Session-hooks installer** (`scripts/install_session_hooks.py`) — idempotent,
+  non-destructive merge of the session-hook chain into a project's
+  `.claude/settings.json`. Wired into `/initialize-project` (new Step 7c) and
+  shipped by `install.sh`.
+
+#### Fixed
+- **Schema migration for existing databases** — `MnemosStore.ensure_schema()`
+  applies the schema idempotently so pre-existing `.mnemos/mnemo.db` files gain
+  the new `claude_*` tables. Previously the first ingest on an existing DB failed
+  with `no such table` (and the Stop hook swallowed it silently).
+
+#### Hardened
+- `install.sh` now `chmod +x` **all** `~/.claude/templates/*.sh` hook scripts
+  (previously only two were made executable).
+
+#### Tests
+- 52 new tests covering ingestion, migration, redaction, idempotency, the two
+  CLI commands, and the session-hooks installer. ruff + mypy clean.
+
+---
+
+## [6.38.1] - 2026-05-26
+
+### Maggy: Model Health + Dashboard Regression Guards
+
+#### Added
+- **Model health checker** — parallel ping of all configured models with allowlist/blocklist security, timeout handling, latency tracking
+- **Sidebar structure tests** — regression guards for tab/pane consistency, catches stale HTML after dashboard changes
+- **Project scoping tests** — verifies JS functions pass project keys to API endpoints (inbox, team, cortex, memory, plugins)
+- **Routes models tests** — structural checks for model/health/council API endpoints
+- 30 new tests across 4 test files
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detailed changes.
+
+---
+
+## [6.38.0] - 2026-05-25
+
+### Maggy: Council of Experts — Multi-Model Deliberation + Auto-Execution Gating
+
+3-round deliberation engine where AI models independently evaluate, cross-examine each other's feedback, and reach consensus. Approved changes are gated through blast radius analysis (file count, subsystem boundaries, test coverage) and validation classification (objective vs subjective). Only low-blast objective changes auto-execute; critical paths always require human review.
+
+#### Added
+- **Council deliberation** — async parallel reviewer queries, 3 rounds max (independent → cross-examine → final)
+- **Blast radius analyzer** — severity scoring (low/medium/high/critical), auth/UI/API detection
+- **Executor gate** — decision matrix with 4 actions: AUTO_EXECUTE, AUTO_WITH_ROLLBACK, AUTO_WITH_NOTIFY, HUMAN_REVIEW
+- **Audit log** — SQLite WAL persistence for all council decisions
+- **Council config** — YAML-based reviewer panels (plan, review, architecture), 13-tier model registry
+- 62 new tests across 6 test files
+
+#### Fixed
+- Build-in-public plugin: PluginManifest dataclass compatibility (was calling `.get()` on a dataclass)
+- Dashboard: project-scoped activity filter, plugin list improvements
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detailed changes.
+
+---
+
+## [6.37.0] - 2026-05-24
+
+### Maggy: Skill Protocols — Intent-Driven Execution
+
+When a user says "push to git", Maggy now detects the intent, matches it to a **protocol** (YAML-defined workflow), and executes the steps: lint → test → stage → commit → push. Each step streams results in real-time with pass/fail status. If a required step fails, the protocol aborts.
+
+#### Added
+- **Protocol system** — YAML-defined workflows in `maggy/skills/protocols/`
+- **Intent matcher** — matches user messages to protocol triggers (longest-match wins)
+- **Protocol executor** — runs steps sequentially with condition checks, variable substitution, and abort-on-failure
+- **AI-generated commit messages** — protocols with `requires: message` auto-generate via DeepSeek Flash
+- **3 built-in protocols**: `git-push` (lint→test→stage→commit→push), `run-tests` (lint→typecheck→pytest), `create-pr` (test→push→gh pr create)
+- **Frontend rendering** — protocol steps show as checklist with expandable output
+- 24 new tests across 4 test files (models, loader, matcher, executor)
+
+#### Architecture
+- Protocols checked BEFORE LLM routing — if intent matches, protocol runs instead of chat
+- YAML protocols are extensible — drop a `.yaml` file in `protocols/` and it's live
+- LLM fallback for everything that doesn't match a protocol
+
+---
+
+## [6.36.0] - 2026-05-24
+
+### Maggy: Unified Chat Pipeline + Cortex: Modular Edge Extraction
+
+**Maggy** — Unified chat pipeline with real-time streaming, CLI session refresh, URL-based project routing, message persistence for all backends, and pipeline logging dashboard.
+
+**Cortex** — Modular edge extraction (Python AST, TypeScript regex, Git co-change), cyclomatic complexity scoring, and expanded structure tool tests.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detailed Maggy changes.
+
+---
+
+## [6.35.0] - 2026-05-24
+
+### Telos -- Intent-Grounded Testing Framework
+
+Replaced fragile AI subprocess calls in e2e-testkit with **[Telos](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md)**, an intent-grounded testing framework backed by **[Cortex MCP](cortex-mcp/)**. Three scoring planes, multiplicative IFS formula -- a zero in any plane collapses the total score. Telos reads Cortex's `reasons`, `drift_events`, `symbols`, and `edges` tables directly via read-only SQLite.
+
+#### IFS (Intent Fidelity Scale)
+
+| Plane | Metric | Source |
+|-------|--------|--------|
+| F1 -- Conformance | `passed / total` tests | pytest/vitest subprocess |
+| F2 -- Validation | drift severity | Cortex `drift_events` table |
+| F3 -- Integrity | IF-3 to IF-8 checks | Cortex `reasons` + `symbols` + `edges` |
+| **IFS** | **F1 x F2 x F3** | Multiplicative -- all planes matter |
+
+#### Integrity Checks (Plane 3)
+
+- **IF-3** Orphan symbols (no reason edges)
+- **IF-4** Empty contracts (no pre/post/invariants)
+- **IF-6** Stale reasons (proposed > 7 days, never fulfilled)
+- **IF-7** Scope sprawl (reason scopes > 10 files)
+
+#### Added
+- `plugins/telos/` -- full plugin: models, cortex_reader, 3 planes, IFS scorer, routes, manifest
+- `CortexReader` -- read-only SQLite from `.cortex/cortex.db` (no MCP overhead)
+- `/api/telos/status?project_dir=.` -- IFS breakdown endpoint
+- `project.connected` hook -- auto-computes IFS on project open
+- Graceful degradation -- no Cortex DB means F2=F3=1.0, IFS = F1 only
+- 55 new tests across 7 test files (models, reader, planes, scorer, integration)
+
+#### Fixed
+- `test_cli_chat.py` stale import -- `cwd_project` moved to `cli_context`, test still pointed at `cli_chat`
+- `chat_stream.py` whitespace bug -- `--resume` accepted whitespace-only session IDs
+- Plugin hook wiring gap -- manifest `hooks` were declared but never subscribed by `PluginManager`
+- `project.connected` emission -- added to `create_session`, `auto_connect`, `preload_sessions`
+
+#### Architecture
+- Telos reads Cortex directly (sync SQLite, `PRAGMA query_only=ON`) -- same monorepo, zero MCP overhead
+- Per-reason drift severity capped at 1.0 (council feedback: prevents one noisy reason from dominating F2)
+- `e2e-testkit` kept during transition per council recommendation
+
+---
+
+## [6.34.0] - 2026-05-23
+
+### LLM-First Input Architecture + Cortex Integration
+
+Redesigned Maggy's input routing to be strictly LLM-first. Added Cortex MCP as unified code intelligence layer.
+
+#### Changed
+- `!` prefix for shell commands -- explicit opt-in, no heuristic word lists
+- `/` prefix for slash commands
+- Everything else goes to LLM -- no word lists, no regex gatekeeping
+- Pi-direct routing for non-Claude models (deepseek, kimi, qwen, gemini, codex, grok)
+
+#### Fixed
+- Thinking block loop (`Invalid signature in thinking block`) -- stale `claude_session_id` tracked with `session_cleared` flag
+- Project switch -- chat window now resets session and loads correct project
+- Natural language treated as commands -- removed all hardcoded word lists
+
+---
+
+## [6.33.0] - 2026-05-23
+
+### Cortex MCP — Full Edge Parity + Cyclomatic Complexity
+
+Cortex now **exceeds** codebase-memory-mcp on both coverage (+40% symbols) and depth (+24% edges).
+
+#### Added
+- **10 edge types** fully operational: CALLS, IMPORTS, DEFINES_METHOD, USAGE, TESTS, WRITES, ASYNC_CALLS, HANDLES, RAISES, HTTP_CALLS
+- **Python edge extraction** (`python_edges.py`): full AST-based extraction for all edge types
+- **TypeScript edge extraction** (`ts_edges.py`): regex-based CALLS, IMPORTS, ASYNC_CALLS, DECORATES, HTTP_CALLS, RAISES
+- **Cyclomatic complexity** (`complexity.py`): per-function scoring for Python (AST) and TS/JS (regex)
+- **Phantom symbol resolution**: unresolved edge targets (builtins like `ValueError`, `HTTPException`) stored as `symbol_type='external'` so edges are preserved
+- **Git co-change analysis** (`git_edges.py`): FILE_CHANGES_WITH edges from `git log` (implemented, not yet wired into indexer)
+- **Bidirectional graph traversal**: `cortex_trace` supports `direction='out'|'in'|'both'`
+- **FTS5 camelCase splitting**: `validateToken` now searchable as `validate` + `token`
+- **Deduplication**: recursive CTEs use `SELECT DISTINCT` for clean traversal results
+
+#### Benchmark (claude-skills-package, 526 files)
+
+| Metric | Cortex | CBM | Delta |
+|--------|-------:|----:|-------|
+| Symbols | 5,501 | 3,916 | +40% |
+| Total edges | 14,850 | 12,010 | +24% |
+| CALLS | 5,280 | 2,918 | +81% |
+| HANDLES | 352 | 5 | +6940% |
+| Incremental reindex | 0.03s | ~2s | 66x faster |
+| Symbol search | 0.40ms | ~5ms | 12x faster |
+| FTS search | 0.10ms | ~3ms | 30x faster |
+| 3-hop traverse | 0.18ms | ~10ms | 55x faster |
+
+#### Files Added/Modified
+- `src/cortex/structure/python_edges.py` — full Python edge extraction via AST
+- `src/cortex/structure/ts_edges.py` — full TS/JS edge extraction via regex
+- `src/cortex/structure/complexity.py` — cyclomatic complexity scoring
+- `src/cortex/structure/git_edges.py` — git co-change analysis
+- `src/cortex/structure/edge_extractor.py` — refactored to thin coordinator
+- `src/cortex/structure/indexer.py` — phantom symbols, complexity, FTS augmentation
+- `src/cortex/storage/graph.py` — bidirectional traversal
+- `docs/cortex-vs-codebase-memory.md` — updated benchmark report
+
+---
+
+## [6.32.0] - 2026-05-22
+
+### Cortex MCP — Elixir Support + System Wiring
+
+#### Added
+- **Elixir AST extraction** in Cortex parser: `defmodule`, `def`, `defp`, route macros (`get/post/put/delete/patch`)
+- `.ex`/`.exs` extensions recognized by the indexer
+- 9 tests for Elixir extraction (modules, functions, private functions, routes, line numbers)
+- **Cortex wired into local system**: Claude Code CLI, Claude Desktop, maggy codebases, engram, blueprint
+- **Build-in-public plugin**: native X thread support via Buffer's `metadata.twitter.thread` API
+- `on_thread_requested` event handler for pre-written tweet threads
+
+#### Configuration
+- `~/.claude/.mcp.json` — cortex server added (parallel with codebase-memory-mcp)
+- `~/.claude/claude_desktop_config.json` — cortex server added
+- `~/.maggy/config.yaml` — cortex-mcp registered as codebase
+- `~/.maggy/engram.db` — tool capabilities stored
+- `~/.maggy/blueprints.db` — `code_intelligence` blueprint added
+
+---
+
 ## [6.31.0] - 2026-05-21
 
 ### ADR-Enforced Code Reviews

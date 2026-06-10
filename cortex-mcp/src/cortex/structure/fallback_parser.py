@@ -168,7 +168,7 @@ def _extract_python(
 # TypeScript / JavaScript extraction (regex)
 # ---------------------------------------------------------------------------
 
-_TS_PATTERNS: list[tuple[str, str]] = [
+_TS_EXPORT_PATTERNS: list[tuple[str, str]] = [
     (r"export\s+(?:async\s+)?function\s+(\w+)\s*\([^)]*\)", "function"),
     (r"export\s+(?:abstract\s+)?class\s+(\w+)", "class"),
     (r"export\s+const\s+(\w+)\s*[=:]", "constant"),
@@ -180,6 +180,19 @@ _TS_PATTERNS: list[tuple[str, str]] = [
     ),
     (r"export\s+(?:async\s+)?function\s+(use\w+)", "hook"),
 ]
+
+_TS_LOCAL_PATTERNS: list[tuple[str, str]] = [
+    (r"(?:async\s+)?function\s+(\w+)\s*\([^)]*\)", "function"),
+    (r"(?:abstract\s+)?class\s+(\w+)", "class"),
+    (r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>", "function"),
+    (r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?function", "function"),
+    (r"interface\s+(\w+)", "interface"),
+    (r"type\s+(\w+)\s*=", "type"),
+    (r"enum\s+(\w+)", "enum"),
+    (r"(?:const|let|var)\s+(use\w+)\s*=", "hook"),
+]
+
+_TS_PATTERNS = _TS_EXPORT_PATTERNS
 
 _TS_ROUTE_RE = re.compile(
     r"(?:app|router)\.(get|post|put|delete|patch)"
@@ -221,6 +234,9 @@ def _extract_typescript(
     symbols = _ts_exports(source, fp, lang)
     for s in symbols:
         seen.add(s.name)
+    symbols += _ts_locals(source, fp, lang, seen)
+    for s in symbols:
+        seen.add(s.name)
     symbols += _ts_routes(source, fp, lang)
     symbols += _ts_methods(source, fp, lang)
     symbols = _dedup_symbols(symbols, seen)
@@ -244,6 +260,31 @@ def _ts_exports(source: str, fp: str, lang: str) -> list[Symbol]:
     symbols: list[Symbol] = []
     seen: set[str] = set()
     for pattern, stype in _TS_PATTERNS:
+        for match in re.finditer(pattern, source):
+            name = match.group(1)
+            if name in seen:
+                continue
+            seen.add(name)
+            sig = _ts_sig_at(source, match)
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type=stype,
+                language=lang,
+                signature=sig[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+    return symbols
+
+
+def _ts_locals(
+    source: str, fp: str, lang: str, skip: set[str],
+) -> list[Symbol]:
+    symbols: list[Symbol] = []
+    seen: set[str] = set(skip)
+    for pattern, stype in _TS_LOCAL_PATTERNS:
         for match in re.finditer(pattern, source):
             name = match.group(1)
             if name in seen:
@@ -397,6 +438,95 @@ def _extract_rust(
 
 
 # ---------------------------------------------------------------------------
+# Elixir extraction (regex)
+# ---------------------------------------------------------------------------
+
+_ELIXIR_MODULE_RE = re.compile(r"defmodule\s+([\w.]+)")
+_ELIXIR_FN_RE = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
+_ELIXIR_DEFP_RE = re.compile(r"^\s*defp\s+(\w+)", re.MULTILINE)
+_ELIXIR_ROUTE_RE = re.compile(
+    r"^\s*(get|post|put|delete|patch)\s+\"([^\"]+)\"",
+    re.MULTILINE,
+)
+
+
+def _extract_elixir(
+    file_path: Path,
+    source: str,
+) -> list[Symbol]:
+    symbols: list[Symbol] = []
+    seen: set[str] = set()
+    fp = str(file_path)
+
+    for match in _ELIXIR_MODULE_RE.finditer(source):
+        name = match.group(1)
+        if name not in seen:
+            seen.add(name)
+            sig = source[match.start():source.find("\n", match.start())]
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type="module",
+                language="elixir",
+                signature=sig.strip()[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+
+    for match in _ELIXIR_FN_RE.finditer(source):
+        name = match.group(1)
+        key = f"fn:{name}"
+        if key not in seen:
+            seen.add(key)
+            sig = source[match.start():source.find("\n", match.end())]
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type="function",
+                language="elixir",
+                signature=sig.strip()[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+
+    for match in _ELIXIR_DEFP_RE.finditer(source):
+        name = match.group(1)
+        key = f"defp:{name}"
+        if key not in seen:
+            seen.add(key)
+            sig = source[match.start():source.find("\n", match.end())]
+            symbols.append(Symbol(
+                name=name,
+                file_path=fp,
+                symbol_type="private_function",
+                language="elixir",
+                signature=sig.strip()[:200],
+                checksum=_checksum(sig),
+                line_start=_line_number_at(source, match.start()),
+                line_end=_line_number_at(source, match.end()),
+            ))
+
+    for match in _ELIXIR_ROUTE_RE.finditer(source):
+        method = match.group(1).upper()
+        path = match.group(2)
+        name = f"{method} {path}"
+        symbols.append(Symbol(
+            name=name,
+            file_path=fp,
+            symbol_type="route",
+            language="elixir",
+            signature=name,
+            checksum=_checksum(name),
+            line_start=_line_number_at(source, match.start()),
+            line_end=_line_number_at(source, match.end()),
+        ))
+
+    return symbols
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -406,6 +536,7 @@ _EXTRACTORS: dict[str, object] = {
     "javascript": _extract_typescript,
     "go": _extract_go,
     "rust": _extract_rust,
+    "elixir": _extract_elixir,
 }
 
 

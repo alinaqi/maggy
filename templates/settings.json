@@ -119,6 +119,12 @@
             "command": "if [ -x \".claude/scripts/mnemos-stop-checkpoint.sh\" ]; then exec \".claude/scripts/mnemos-stop-checkpoint.sh\"; fi; if [ -x \"$HOME/.claude/templates/mnemos-stop-checkpoint.sh\" ]; then exec \"$HOME/.claude/templates/mnemos-stop-checkpoint.sh\"; fi; echo \"[maggy] hook script 'mnemos-stop-checkpoint.sh' not installed \u2014 run <maggy>/install.sh (one-time) or touch .claude/scripts/mnemos-stop-checkpoint.sh to silence\" >&2; exit 0",
             "timeout": 5,
             "statusMessage": "Writing session checkpoint..."
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \".claude/scripts/mnemos-stop-ingest.sh\" ]; then exec \".claude/scripts/mnemos-stop-ingest.sh\"; fi; if [ -x \"$HOME/.claude/templates/mnemos-stop-ingest.sh\" ]; then exec \"$HOME/.claude/templates/mnemos-stop-ingest.sh\"; fi; echo \"[maggy] hook script 'mnemos-stop-ingest.sh' not installed \u2014 run <maggy>/install.sh (one-time) or touch .claude/scripts/mnemos-stop-ingest.sh to silence\" >&2; exit 0",
+            "timeout": 10,
+            "statusMessage": "Ingesting Claude transcript + scoring haze..."
           }
         ]
       }

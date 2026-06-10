@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS symbols (
     line_start INTEGER,
     line_end INTEGER,
     docstring TEXT,
+    complexity INTEGER,
     is_pinned INTEGER DEFAULT 0,
     created_at TEXT NOT NULL
 );

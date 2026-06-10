@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import shutil
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Header, Query, Request
@@ -11,6 +15,26 @@ from fastapi import APIRouter, Header, Query, Request
 from .auth import check_auth
 
 router = APIRouter(prefix="/api/icpg", tags=["icpg"])
+
+# Project keys with an in-flight build — prevents concurrent bootstraps
+# writing the same reason.db (avoids "database locked" / partial writes).
+_BUILDS_IN_FLIGHT: set[str] = set()
+
+
+def _resolve_codebase_path(cfg, project_key: str) -> str | None:
+    """Find the source root for a project key (db may not exist yet)."""
+    for cb in cfg.codebases:
+        if cb.key == project_key:
+            return cb.path
+    return None
+
+
+def _icpg_cmd() -> list[str]:
+    """Resolve how to invoke the iCPG CLI in this environment."""
+    exe = shutil.which("icpg")
+    if exe:
+        return [exe]
+    return [sys.executable, "-m", "icpg"]
 
 
 def _find_stores(cfg) -> list[dict]:
@@ -176,3 +200,44 @@ async def graph_data(
         for e in edges
     ]
     return {"nodes": nodes, "edges": links}
+
+
+def _run_bootstrap(path: str, days: int) -> subprocess.CompletedProcess:
+    """Run the iCPG bootstrap CLI against a codebase (blocking)."""
+    return subprocess.run(
+        [*_icpg_cmd(), "--project", path, "bootstrap",
+         "--days", str(days), "--no-llm"],
+        capture_output=True, text=True, timeout=600,
+    )
+
+
+@router.post("/{project_key}/build")
+async def build_icpg(
+    request: Request, project_key: str,
+    days: int = Query(90, ge=1, le=3650),
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Auto-build the iCPG for a project from its git history."""
+    check_auth(request, x_api_key)
+    path = _resolve_codebase_path(request.app.state.cfg, project_key)
+    if not path:
+        return {"error": f"Unknown project: {project_key}"}
+    if not (Path(path) / ".git").exists():
+        return {"error": "Not a git repository — cannot bootstrap iCPG"}
+    if project_key in _BUILDS_IN_FLIGHT:
+        return {"error": "A build is already running for this project"}
+    _BUILDS_IN_FLIGHT.add(project_key)
+    try:
+        proc = await asyncio.to_thread(_run_bootstrap, path, days)
+    except subprocess.TimeoutExpired:
+        return {"error": "iCPG build timed out (>600s)"}
+    except FileNotFoundError:
+        return {"error": "iCPG CLI not found on server PATH"}
+    finally:
+        _BUILDS_IN_FLIGHT.discard(project_key)
+    if proc.returncode != 0:
+        tail = (proc.stderr or proc.stdout or "").strip()[-500:]
+        return {"error": f"Build failed: {tail or 'unknown error'}"}
+    db = _resolve_db(request.app.state.cfg, project_key)
+    stats = _stats(db) if db else {}
+    return {"ok": True, "stats": stats}

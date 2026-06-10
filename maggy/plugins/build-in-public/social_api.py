@@ -26,6 +26,38 @@ logger = logging.getLogger(__name__)
 X_API = "https://api.x.com/2"
 X_AUTH_URL = "https://api.x.com/oauth2/token"
 
+# Local credential fallback: read Reddit creds from a sibling ideaminer
+# checkout when they aren't in the environment. Lets local Maggy reuse
+# ideaminer's Reddit app without re-entering keys.
+_IDEAMINER_ENV_FILES = [
+    Path.home() / "Documents" / "AI-Playground" / "ideaminer" / ".env",
+    Path.home() / "Documents" / "AI-Playground" / "ideaminer" / "backend" / ".env",
+    Path.home() / "Documents" / "AI-Playground" / "ideaminer" / ".env.local",
+]
+_ideaminer_env_cache: dict | None = None
+
+
+def _ideaminer_env() -> dict:
+    """Parse Reddit-relevant vars from ideaminer .env files (cached)."""
+    global _ideaminer_env_cache
+    if _ideaminer_env_cache is None:
+        import re
+        _ideaminer_env_cache = {}
+        for f in _IDEAMINER_ENV_FILES:
+            try:
+                for line in f.read_text().splitlines():
+                    m = re.match(r'\s*([A-Z0-9_]+)\s*=\s*["\']?([^"\'\n]+)', line)
+                    if m and m.group(1).startswith("REDDIT_"):
+                        _ideaminer_env_cache.setdefault(m.group(1), m.group(2))
+            except OSError:
+                continue
+    return _ideaminer_env_cache
+
+
+def reddit_cred(key: str) -> str:
+    """Resolve a Reddit credential from the environment, then ideaminer."""
+    return os.environ.get(key) or _ideaminer_env().get(key, "")
+
 
 @dataclass
 class SocialPost:
@@ -184,11 +216,16 @@ class SocialMonitor:
             return self._reddit_client
         try:
             import asyncpraw
-            self._reddit_client = asyncpraw.Reddit(
-                client_id=os.environ.get("REDDIT_CLIENT_ID", ""),
-                client_secret=os.environ.get("REDDIT_CLIENT_SECRET", ""),
-                user_agent=os.environ.get("REDDIT_USER_AGENT", "Maggy/1.0"),
-            )
+            kwargs = {
+                "client_id": reddit_cred("REDDIT_CLIENT_ID"),
+                "client_secret": reddit_cred("REDDIT_CLIENT_SECRET"),
+                "user_agent": reddit_cred("REDDIT_USER_AGENT") or "Maggy/1.0",
+            }
+            # Script-app write auth (e.g. ideaminer) when username/password exist.
+            user, pw = reddit_cred("REDDIT_USERNAME"), reddit_cred("REDDIT_PASSWORD")
+            if user and pw:
+                kwargs["username"], kwargs["password"] = user, pw
+            self._reddit_client = asyncpraw.Reddit(**kwargs)
         except ImportError:
             logger.debug("asyncpraw not installed")
         except Exception as e:
@@ -244,6 +281,27 @@ class SocialMonitor:
 
         return posts
 
+    async def reddit_post_comments(self, submission_id: str,
+                                   limit: int = 50) -> list[dict]:
+        """Fetch top-level comments on one of our posts (read client)."""
+        client = self._get_reddit_client()
+        if not client:
+            return []
+        out: list[dict] = []
+        try:
+            sub = await client.submission(id=submission_id.replace("t3_", ""))
+            await sub.comments.replace_more(limit=0)
+            for c in sub.comments.list()[:limit]:
+                out.append({
+                    "id": c.id,
+                    "fullname": f"t1_{c.id}",
+                    "author": str(c.author) if c.author else "",
+                    "body": getattr(c, "body", "") or "",
+                })
+        except Exception as e:
+            logger.debug("Reddit comments fetch failed: %s", e)
+        return out
+
     async def reddit_monitor_subreddits(self, subreddits: list[str],
                                         limit: int = 5) -> list[SocialPost]:
         """Monitor multiple subreddits for new content."""
@@ -255,9 +313,8 @@ class SocialMonitor:
 
     async def reddit_comment(self, post_id: str, text: str) -> bool:
         """Post a comment on a Reddit post. post_id = fullname (t3_abc123)."""
-        refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
-        if not refresh_token:
-            logger.debug("Reddit comment skipped: no user refresh token")
+        if not self._reddit_grant():
+            logger.debug("Reddit comment skipped: no user write credentials")
             return False
         try:
             access_token = await self._get_reddit_access_token()
@@ -279,44 +336,64 @@ class SocialMonitor:
         return await self.reddit_comment(comment_id, text)
 
     async def _get_reddit_access_token(self) -> str:
-        """Get OAuth2 access token from refresh token."""
-        refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
-        if not refresh_token:
+        """Get a user OAuth2 token via refresh_token or password grant.
+
+        Credentials resolve from the environment, then ideaminer. Supports a
+        web-app refresh token (REDDIT_REFRESH_TOKEN) or a script app
+        (REDDIT_USERNAME + REDDIT_PASSWORD).
+        """
+        grant = self._reddit_grant()
+        if not grant:
             return ""
         try:
             import base64
             async with httpx.AsyncClient(timeout=15) as client:
                 auth = base64.b64encode(
-                    f"{os.environ.get('REDDIT_CLIENT_ID','')}:{os.environ.get('REDDIT_CLIENT_SECRET','')}".encode()
+                    f"{reddit_cred('REDDIT_CLIENT_ID')}:{reddit_cred('REDDIT_CLIENT_SECRET')}".encode()
                 ).decode()
                 resp = await client.post(
                     "https://www.reddit.com/api/v1/access_token",
                     headers={
                         "Authorization": f"Basic {auth}",
                         "Content-Type": "application/x-www-form-urlencoded",
+                        "User-Agent": reddit_cred("REDDIT_USER_AGENT") or "Maggy/1.0",
                     },
-                    data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+                    data=grant,
                 )
                 if resp.status_code == 200:
                     return resp.json().get("access_token", "")
-                logger.debug("Reddit token refresh failed: %s", resp.text[:200])
+                logger.debug("Reddit token grant failed: %s", resp.text[:200])
         except Exception as e:
             logger.debug("Reddit auth failed: %s", e)
         return ""
 
+    @staticmethod
+    def _reddit_grant() -> dict:
+        """Build the OAuth grant body from available write credentials."""
+        refresh = reddit_cred("REDDIT_REFRESH_TOKEN")
+        if refresh:
+            return {"grant_type": "refresh_token", "refresh_token": refresh}
+        user, pw = reddit_cred("REDDIT_USERNAME"), reddit_cred("REDDIT_PASSWORD")
+        if user and pw:
+            return {"grant_type": "password", "username": user, "password": pw}
+        return {}
+
     async def reddit_post(self, subreddit: str, title: str,
-                          text: str = "", url: str = "") -> bool:
-        """Submit a post to Reddit. Requires OAuth2 refresh token with submit scope."""
-        refresh_token = os.environ.get("REDDIT_REFRESH_TOKEN", "")
-        if not refresh_token:
-            logger.debug("Reddit post skipped: no user refresh token")
-            return False
+                          text: str = "", url: str = "") -> str:
+        """Submit a post. Returns the post fullname (t3_…) on success, else "".
+
+        Requires user write credentials (refresh token or username/password).
+        """
+        if not self._reddit_grant():
+            logger.debug("Reddit post skipped: no user write credentials")
+            return ""
         try:
             access_token = await self._get_reddit_access_token()
             if not access_token:
-                return False
+                return ""
 
-            data = {"sr": subreddit, "title": title, "kind": "self", "text": text}
+            data = {"sr": subreddit.lstrip("r/").strip("/"), "title": title[:300],
+                    "kind": "self", "text": text, "api_type": "json"}
             if url:
                 data["kind"] = "link"
                 data["url"] = url
@@ -324,13 +401,22 @@ class SocialMonitor:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     "https://oauth.reddit.com/api/submit",
-                    headers={"Authorization": f"Bearer {access_token}"},
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "User-Agent": reddit_cred("REDDIT_USER_AGENT") or "Maggy/1.0",
+                    },
                     data=data,
                 )
-                return resp.status_code == 200
+                if resp.status_code != 200:
+                    return ""
+                jd = resp.json().get("json", {})
+                if jd.get("errors"):
+                    logger.debug("Reddit post errors: %s", jd["errors"])
+                    return ""
+                return jd.get("data", {}).get("name", "") or "t3_unknown"
         except Exception as e:
             logger.debug("Reddit post failed: %s", e)
-        return False
+        return ""
 
 
 # ═══ Competitor & Influencer Discovery ═══════════════════════════════════

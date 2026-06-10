@@ -1,199 +1,260 @@
-# Maggy
+# Claude Bootstrap + Maggy
 
-> **From Claude Bootstrap to autonomous AI engineering.**
+> **Turn Claude Code into a self-reviewing, test-enforced engineering system that remembers context across sessions — then route work across 13 models from a single dashboard.**
 
-> 🤖 **AI agents (Claude Code, Codex, Gemini CLI):** Read [GETSTARTED.md](GETSTARTED.md) first. Architecture, routing table, commands, conventions — everything you need in 2 minutes.
+Claude Bootstrap is an installable config pack (skills, hooks, rules, templates) for Claude Code. Maggy is the optional local server that adds multi-model routing, a web dashboard, intent-driven protocols, and plugin orchestration. Both live in this repo. Start with Bootstrap; add Maggy when you need the harness.
 
-This project started as **Claude Bootstrap** — an opinionated set of skills, hooks, and rules for Claude Code. Over time it grew into something much bigger: a multi-model routing system, a persistent memory layer, an intent-tracking code graph, container-based orchestration, and a full engineering command center. The bootstrap scaffolding is still here, but the future of this project is **Maggy** — an autonomous engineering system that routes work across AI models, learns from outcomes, and manages the full development lifecycle.
+[![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen)](maggy/tests/)
+[![Version](https://img.shields.io/badge/version-6.37.0-blue)](CHANGELOG.md)
+[![Stars](https://img.shields.io/github/stars/alinaqi/maggy)](https://github.com/alinaqi/maggy/stargazers)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-We ship [**mWP**](docs/mwp.md) (minimum wowable product, 5-7 on the 11-star scale), not MVP. Every feature should make you think "I need this" — not just "it works."
+**1100+ tests. 67 skills. 15 MCP tools. Used daily across production codebases.**
 
-62 skills, TDD enforcement via Stop hooks, agent teams, persistent memory (Mnemos), intent tracking (iCPG), and multi-model AI command center. Works with **Claude Code**, **Kimi CLI**, and **OpenAI Codex CLI**.
+---
 
-## Quick Start
+## Who This Is For
+
+- **Solo engineers** using Claude Code who want TDD enforcement, quality gates, and memory that survives context compaction — without changing their workflow
+- **Teams** routing work across Claude, DeepSeek, Kimi, Gemini, and Codex from a single dashboard with cost-aware model selection
+- **Platform engineers** building AI-assisted developer tooling who need a reference implementation with intent tracking, protocol execution, and plugin architecture
+
+---
+
+## Choose Your Path
+
+| | Claude Bootstrap | Maggy Harness |
+|---|---|---|
+| **What it is** | Skills, hooks, rules installed into `~/.claude/` | Local FastAPI server + web dashboard |
+| **Install time** | ~30 seconds | ~5 minutes (Python 3.11+, API keys) |
+| **Requires** | Claude Code (also works with Codex, Kimi, Gemini CLI) | Everything in Bootstrap + Python + optional Docker |
+| **You get** | TDD enforcement, 67 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, Cortex MCP, plugins, dashboard |
+
+### Bootstrap — 30-second install
 
 ```bash
 git clone https://github.com/alinaqi/maggy.git
 cd maggy && ./install.sh
-
-# In any project directory
-claude
-> /initialize-project
 ```
 
-Claude will validate tools, ask about your stack, create the repo structure, copy skills/rules/hooks, and spawn an agent team.
+Your next Claude Code session picks it up automatically.
 
-## Maggy — Autonomous Engineering System
-
-Maggy is the core of this project. It routes tasks across models, tracks performance, learns from outcomes, and manages the full development lifecycle from a local dashboard or CLI REPL.
-
-- **Multi-model routing** — semantic blast scoring routes tasks across Claude/Codex/Kimi/Ollama based on complexity, cost, and proven performance
-- **Task blueprints** — self-learning workflows; Maggy captures tool sequences from successful tasks and replays them with cheaper models
-- **Chat** — interactive sessions with markdown rendering, streaming, session persistence, and file upload
-- **Execute** — one-click TDD pipeline with iCPG context enrichment
-- **Tasks** — AI-prioritized inbox from GitHub Issues or Asana
-- **Competitors** — auto-discovered competitors + daily AI briefing
-- **Insights** — CLI session analysis, health signals, reviewer evaluation
-- **Reviewer knowledge map** — tracks which reviewer (CodeRabbit, Codex, local) is best at which finding category
+### Full Harness
 
 ```bash
 cd maggy && pip install -e .
-maggy serve   # dashboard at localhost:8080
-maggy         # CLI REPL (runs from any project directory)
+maggy serve   # Dashboard at localhost:8080
 ```
 
-See [maggy/README.md](./maggy/README.md) for setup and routing details.
+See [GETTING_STARTED.md](GETTING_STARTED.md) for prerequisites, API keys, and config setup.
 
-## Bootstrap Layer
+---
 
-The original scaffolding that sets up any project for AI-assisted development:
+## What It Looks Like in Practice
 
-| Layer | What | Why |
-|-------|------|-----|
-| **Skills** | 62 skills loaded via `@include` in CLAUDE.md | Language, framework, security, AI patterns |
-| **Rules** | Conditional rules (activate by file path) | Quality gates, TDD workflow, security — only when relevant |
-| **Hooks** | Stop hooks for TDD loops | Tests run after every Claude response, failures feed back automatically |
-| **Agents** | Team Lead + Quality + Security + Review + Merger + Feature | Coordinated pipeline: spec → test → implement → review → PR |
-| **Memory** | Mnemos (typed graph on disk) | Survives compaction, crashes, restarts |
-| **Intent** | iCPG (code property graph) | Tracks *why* code exists, detects drift |
-| **Explore** | iCPG-powered code explorer | `trace_path`, `search_graph`, `query_graph` instead of grep |
-| **Routing** | Plan-vs-execute classifier | CLAUDE tier → PLAN FIRST. DEEPSEEK/GEMINI → EXECUTE DIRECTLY |
-| **Plugins** | Event-driven plugin system | Drop folder into `~/.maggy/plugins/`, auto-discovered on startup |
-
-## Plugin System
-
-Maggy has an [mWP](docs/mwp.md)-first plugin architecture. Drop a folder with `plugin.yaml` + `plugin.py` into `~/.maggy/plugins/` or `plugins/` — it's auto-discovered and loaded at startup. Works standalone with Claude Bootstrap (no Maggy server needed).
-
-```yaml
-# plugin.yaml
-id: my-plugin
-version: 1
-entrypoint: plugin.py
-hooks:
-  - event: on_pr_merged
-    handler: handle_pr_merged
-  - event: on_feature_shipped
-    handler: handle_feature_shipped
+**Routing a task:**
+```
+You: "review the auth middleware for timing attacks"
+→ Blast score: 8/10 (security + architecture)
+→ Routed to: Claude (Tier 11)
+→ ADR gate: found docs/adr/0003-jwt-strategy.md → injected as context
+→ Review runs with full architectural context
 ```
 
-**First plugin: Build-in-Public** — autonomous storyteller that notices your work, synthesizes a narrative, and publishes across channels without you asking.
-
+**Skill Protocol execution:**
 ```
-PR merged → AI extracts narrative arc → anonymizes sensitive names
-→ formats per channel (LinkedIn teaches, X punches)
-→ schedules via Buffer API
+You: "push to git"
+→ Intent matched: git-push protocol
+→ ✅ lint       (2.1s)
+→ ✅ typecheck   (4.3s)
+→ ✅ tests       (11.2s)
+→ ✅ stage
+→ ✅ commit      [AI-generated: "fix: resolve token refresh race condition"]
+→ ✅ push
 ```
 
-- **Multi-channel**: LinkedIn (professional deep dives) + X (sharp one-liners) — different voice per platform
-- **Auto-redaction**: `anonymize.yaml` replaces company names, strips revenue/user data
-- **AI-powered**: DeepSeek synthesizes the story — not templates
-- **Zero-click**: Triggers from hooks, never asks for manual approval
+**Fatigue-aware memory:**
+```
+Session fatigue: 0.61 (PRE-SLEEP)
+→ Mnemos: auto-checkpoint written
+→ Micro-consolidation: 3 ResultNodes compressed
+→ iCPG context injected: 2 ReasonNodes, 1 constraint
+→ Context freed: ~18k tokens
+```
 
-See `skills/build-in-public/SKILL.md` for channel best practices.
+---
 
-## Skills (62)
+## The Problem This Solves
 
-**Core** — TDD, memory, intent tracking, code review, agent teams, security, commit hygiene, cross-agent delegation, Polyphony orchestration
+You're using Claude Code. It's impressive — but:
 
-**Languages** — Python, TypeScript, Node.js, React, React Native, Android (Java/Kotlin), Flutter
+- It picks the most expensive model for everything, including trivial tasks
+- Context fills up, state is lost, you re-explain yourself every session
+- There's no enforcement: code quality, test coverage, and ADR compliance only happen if you remember to ask
+- Running multiple agents on the same repo causes file conflicts
+- You have no visibility into what Claude is actually doing inside your codebase
 
-**Databases** — Supabase, Firebase, Cloudflare D1, DynamoDB, Aurora, Cosmos DB
+---
 
-**AI** — Agentic development, LLM patterns, AI models reference
+## What Bootstrap Gives You
 
-**UI** — Web (Tailwind), mobile, visual testing, Playwright, PWA
+| Layer | What it does |
+|-------|-------------|
+| **67 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, security, ADRs, cross-agent delegation |
+| **TDD enforcement** | Stop hooks — tests must pass before Claude considers a task done |
+| **Quality gates** | Max 20 lines/function, 3 params, 2 nesting levels. Enforced per file |
+| **iCPG** | Intent-Augmented Code Property Graph. Stores *why* code exists. 6-dimension drift detection. Prevents duplicate implementations |
+| **Mnemos** | Task-scoped memory with 4-dimension fatigue model. Survives context compaction with typed checkpoints |
+| **ADR enforcement** | Non-trivial changes require an Architectural Decision Record. Missing one? Reverse-engineered from git history |
+| **Agent teams** | 6 agents: Lead, Quality, Security, Review, Merger, Feature |
 
-**Integrations** — Stripe, Reddit, Shopify, WooCommerce, Medusa, Klaviyo, Teams, PostHog
+---
 
-See [full skills catalog](./docs/claude-bootstrap-reference.md#skills-catalog-62-skills) for details.
+## What Maggy Adds
 
-## Cross-Tool Compatibility
+| System | What it does |
+|--------|-------------|
+| **13-Tier Routing** | Semantic blast score (1–10) routes to cheapest capable model. Local Qwen3 classifier → DeepSeek (~80% of tasks) → Kimi → Gemini → Grok → Codex → Claude. Budget-capped with auto-demotion. [Routing details](#model-routing) |
+| **Skill Protocols** | YAML-defined workflows in `maggy/skills/protocols/`. "Push to git" → lint → test → stage → commit → push. Drop a `.yaml` to add your own |
+| **Telos** | Testing beyond TDD. Three planes: Conformance × Validation × Integrity. A zero in any plane collapses the total score. [Details](#telos-testing-beyond-tdd) |
+| **Cortex MCP** | Code intelligence: 10 edge types, cyclomatic complexity, FTS5 search, bidirectional traversal. 15 tools, single SQLite DB. [Benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) |
+| **Polyphony** | Docker-isolated parallel agent execution. Second session auto-provisions a workspace. [Spec](maggy/docs/polyphony-spec.md) |
+| **Engram** | Cross-session memory. 7 amnesia types. Persists architectural knowledge across weeks |
+| **Plugins** | Drop-in system. Ships with: Build-in-Public (auto-posts to LinkedIn/X), Telos, GitHub/Asana/Monday providers |
 
-| Feature | Claude Code | Kimi CLI | Codex CLI | DeepSeek V4 |
-|---------|-------------|----------|-----------|-------------|
-| Skills | `.claude/skills/` | `.kimi/skills/` | `.codex/skills/` | via Claude Code |
-| Instructions | `CLAUDE.md` | (uses skills) | `AGENTS.md` | via Claude Code |
-| Memory | 9-section XML summary | None | Encrypted blob / text summary | **Mnemos typed graph** |
-| Routing | Manual | Manual | Manual | **6-tier auto-routing** |
+---
 
-`install.sh` auto-detects installed tools. `/sync-agents` syncs config across tools on demand.
+## Model Routing
 
-## Memory: Mnemos vs. Codex vs. Claude Code
+Every message is scored 1–10 for complexity and classified by task type. The cheapest capable model wins.
 
-Every AI coding tool loses context on compaction. The difference is whether it prevents failure or just reacts to it.
+| Tier | Model | Role |
+|------|-------|------|
+| T0 | Qwen3 (local) | Classification, triage, free bulk ops |
+| T1 | Gemini Flash-Lite | Bulk extraction, CIG pipelines |
+| T2 | DeepSeek Flash | Docs, tests, scaffolding |
+| T3 | Gemini Flash | Multimodal, vision, audio |
+| T4 | DeepSeek Pro | Complex coding, multi-file refactors |
+| T5 | Gemini CLI | Multi-file agentic coding |
+| T6 | AGY | End-to-end implementation (git + code + test) |
+| T7 | Kimi | Long-context analysis, routing alt |
+| T8 | Gemini Pro Search | Deep research, Google grounding, 2M context |
+| T9 | Grok | Competitor intel, deep reasoning |
+| T10 | Codex | Bulk generation, security-sensitive tasks |
+| T11 | Claude Sonnet | Quality-critical code, complex debugging |
+| T12 | Claude Opus | Architecture, security review, ADR decisions |
 
-**Codex** compaction is an opaque encrypted blob triggered by a single token counter. When it misfires, the agent enters documented "death spirals" — up to 26 compactions per session, re-reading the same files 10-20×, burning 160M+ tokens on work that used to cost 89M. No telemetry surfaces *why* compaction fired. No memory survives the session.
+Routing is semantic (Qwen3 as local classifier), fatigue-aware, budget-capped, and cascading.
 
-**Claude Code** uses 9-section XML summarization at a hardcoded ~95% token threshold. The summary is opaque to the user, discard decisions are invisible, and critical context (active errors, file contents) is silently dropped. No cross-session recall, no team context, no signal that the agent is struggling *before* the summary happens.
+### Gateway routing with srooter — [www.srooter.ai](https://www.srooter.ai)
 
-**Maggy Mnemos** treats memory as a typed graph where goals and constraints are never evicted, while ephemeral context decays by relevance. A 4-dimension fatigue model (token pressure, scope scatter, reread ratio, error density) triggers consolidation *early* — in the COMPRESS state at 40-60% load, long before a death spiral. Mnemos measures **re-read ratio** explicitly — the leading indicator of a compaction death spiral. When the agent starts re-reading files it already read, fatigue rises and consolidation triggers *before* the context window is full. Every eviction decision is auditable in SQLite. Cross-session memory via Engram.
+We've added first-class support for **[srooter](https://www.srooter.ai)**, an Anthropic/OpenAI-compatible LLM gateway that routes your requests across models (Claude, MiniMax, DeepSeek, Kimi, Gemini, Grok, local Qwen) transparently — intent-based routing, budget caps, fallbacks, and a usage dashboard, without changing your tools.
 
-| | Codex | Claude Code | Maggy (Mnemos) |
-|---|---|---|---|
-| **Compaction trigger** | Configurable token threshold, blind to workload | Hardcoded ~95% token threshold, blind | **4-dimension fatigue score** — token-aware but not token-blind |
-| **What survives** | Opaque AES-encrypted blob (both paths) | 9-section XML summary | **Typed memory nodes** with per-type eviction (goals/constraints never evicted) |
-| **Transparency** | Zero — cannot audit the summary | Readable but discard decisions invisible | **Fully auditable** — SQLite + JSONL, every node and eviction on disk |
-| **Death spiral prevention** | None — known to compact for hours | None — no pre-failure signal | **Re-read ratio + fatigue scoring** triggers consolidation at 40-60%, before the window is full |
-| **Cross-session memory** | None | None | **Engram store** — typed, queryable, persists across sessions |
-| **Pre-compaction safety** | None — compacts reactively | None | **Checkpoint written before compaction** — critical nodes survive even if compaction fails |
-
-## Routing: Maggy vs. the Landscape
-
-Every AI tool claims to pick the right model. Here's how they actually compare:
-
-| | OpenRouter | Martian | Portkey | Semantic Router | **Maggy** |
-|---|---|---|---|---|---|
-| **Approach** | Performance-based, user-defined fallbacks | LLM-as-Classifier, trained router model | Gateway: retries, load balancing, rule-based | Embedding similarity, pre-defined routes | **LLM-as-Classifier with cascading fallback** |
-| **Classification cost** | None (user picks) | API call (~$0.001) | None (rule-based) | None (embeddings) | **$0 (local qwen3)** |
-| **Classifier resilience** | N/A | Single point of failure | N/A | N/A | **Cascade: qwen3 → kimi → deepseek → cache** |
-| **Fatigue-aware** | No | No | No | No | **Yes — 4-dimension fatigue, PRE_SLEEP/REM escalation** |
-| **Mid-task switching** | No | No | No | No | **Checkpoint-based state transfer (in progress)** |
-| **Memory-aware** | Token count only | No | Token count only | No | **Semantic: typed nodes, per-type eviction, re-read ratio** |
-| **Self-learning** | No | No | No | No | **Per-project routing profiles with success/failure tracking** |
-
-**Three things only Maggy has:**
-
-1. **Fatigue-aware routing** — nobody routes based on agent state. When Mnemos detects PRE_SLEEP (0.60), Maggy skips cheap tiers. At REM (0.75), it forces premium models. OpenRouter can't do this. Martian can't. No paper proposes it.
-
-2. **Cascading classifier resilience** — every other router has a single point of failure. If Martian's classifier is down, routing stops. Maggy cascades through qwen3 → kimi → deepseek-flash → cached tier. The classifier itself is multi-model.
-
-3. **Semantic memory, not token counting** — Portkey checks `token_count > 8000` to switch context windows. Maggy tracks what KIND of memory matters: goals survive compaction, error traces decay, code-refs persist. Routes based on semantic importance, not a counter.
-
-## Core Concepts
-
-**TDD via Stop Hooks** — tests run after every Claude response. Failures feed back automatically. No plugins needed. [Details →](./docs/claude-bootstrap-reference.md#tdd-loops-via-stop-hooks)
-
-**Mnemos Memory** — typed graph on disk (goals, constraints, results, context). Survives compaction, crashes, multi-agent failures. 4-dimension fatigue model writes checkpoints *before* things go wrong. [Details →](./docs/claude-bootstrap-reference.md#mnemos--task-scoped-memory)
-
-**iCPG Intent Tracking** — links every code change to a ReasonNode with intent, postconditions, and invariants. 6-dimension drift detection. [Details →](./docs/claude-bootstrap-reference.md#icpg--intent-augmented-code-property-graph)
-
-**Agent Teams** — 6 agents with enforced pipeline (spec → test → implement → review → security → PR). Only Feature agents can edit code. [Details →](./docs/claude-bootstrap-reference.md#agent-teams)
-
-## Usage
+**Recommended with Maggy, Claude Code, or Codex.** Point any of them at the gateway and your traffic is routed for you — no per-tool config:
 
 ```bash
-# New project
-mkdir my-app && cd my-app
-claude
-> /initialize-project
-
-# Existing project
-cd my-existing-app
-claude
-> /initialize-project    # auto-detects existing code
-
-# Update skills globally
-cd "$(cat ~/.claude/.bootstrap-dir)"
-git pull && ./install.sh
+# Claude Code (or Codex) → srooter
+export ANTHROPIC_BASE_URL="https://www.srooter.ai/anthropic"   # or your local gateway
+export ANTHROPIC_API_KEY="<your-srooter-key>"
+claude        # now routed through srooter
 ```
+
+Pick the model you "follow" once with `/model-config` — Maggy, the route-task hooks, and srooter all honor the same choice. Trivial asks stay on the cheap/local tier; real coding goes to your primary model (e.g. MiniMax-M2.5).
+
+---
+
+## Telos: Testing Beyond TDD
+
+Standard TDD tells you if your code passes tests. Telos tells you if your code fulfills its *intent*.
+
+```
+IFS (Intent Fidelity Scale) = F1 × F2 × F3
+
+F1 — Conformance:  passed / total tests            (pytest / vitest)
+F2 — Validation:   drift severity                  (Cortex drift_events)
+F3 — Integrity:    IF-3 orphan symbols              (no reason edges)
+                   IF-4 empty contracts             (no pre/post/invariants)
+                   IF-6 stale reasons               (proposed >7d, never fulfilled)
+                   IF-7 scope sprawl                (reason scopes >10 files)
+```
+
+A zero in any plane collapses IFS to zero. 100% test pass rate with severe architectural drift = score of 0. This is intentional. See the [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md).
+
+---
+
+## Repo Structure
+
+```
+.claude/
+  skills/       # 67 skills — Python, TS, React, security, mobile, databases
+  hooks/        # TDD enforcement, quality gates, Mnemos lifecycle
+  rules/        # Conditional rules by file glob
+  templates/    # settings.json, CLAUDE.md, ADR template, PR template
+
+maggy/
+  maggy/
+    pipeline/   # Unified ChatPipeline orchestrator
+    skills/     # Skill injection + YAML protocol engine
+    api/        # REST API (chat, routing, plugins, pipeline logs)
+    static/     # Web dashboard (vanilla JS, no build step)
+    services/   # Routing, memory, execution, Mnemos
+
+cortex-mcp/     # Code intelligence MCP server
+  src/cortex/
+    structure/  # AST extraction, edge types, complexity
+    storage/    # SQLite graph store, FTS5 index
+
+plugins/        # Drop-in plugins (build-in-public, telos, providers)
+```
+
+---
+
+## Tests
+
+```bash
+cd maggy && python3 -m pytest tests/ -x -q        # 900+ tests
+cd cortex-mcp && python3 -m pytest tests/ -q       # 207 tests
+```
+
+---
+
+## What's New in v6.37
+
+- **Skill Protocols** — YAML intent-driven workflows. "Push to git" runs lint → test → commit → push automatically
+- **Unified Pipeline** — single ChatPipeline orchestrator with real-time streaming, fallback, per-request logging
+- **Telos** — intent-grounded testing with IFS scoring on every project open
+- **Cortex MCP** — modular edge extraction (Python AST, TypeScript, Git co-change). Elixir support
+- **13-Tier Routing** — AGY, Gemini CLI, and Grok added to the routing ladder
+
+See [CHANGELOG.md](CHANGELOG.md) for full history.
+
+---
 
 ## Docs
 
-- [Full reference](./docs/claude-bootstrap-reference.md) — TDD hooks, Mnemos, iCPG, agent teams, skills catalog, evolution
-- [Maggy reference](./maggy/docs/maggy-reference.md) — CLI commands, REPL, routing, dashboard, architecture
-- [Architecture v5](./maggy/docs/architecture-v5.md) — Full system architecture
-- [Polyphony spec](./maggy/docs/polyphony-spec.md) — Container orchestration
-- [Changelog](./CHANGELOG.md) — Version history
+| | |
+|---|---|
+| [Getting Started](GETTING_STARTED.md) | Installation, prerequisites, first session walkthrough |
+| [Architecture v5](maggy/docs/architecture-v5.md) | System design, routing, dashboard |
+| [CLI Reference](maggy/docs/maggy-reference.md) | REPL commands, slash commands, routing |
+| [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) | Intent-grounded testing spec |
+| [Cortex docs](cortex-mcp/docs/) | Code intelligence, edge types, MCP tools |
+| [Cortex benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) | Performance vs codebase-memory-mcp |
+| [Changelog](CHANGELOG.md) | Version history (current: v6.37.0) |
+
+---
+
+## Contributing
+
+Skill PRs welcome. All skills run through the linter before merge:
+
+```bash
+PYTHONPATH=scripts python3 -m skill_lint --fail-on error skills/your-skill/
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the quality gate checklist.
+
+---
 
 ## License
 
@@ -201,4 +262,4 @@ MIT — See [LICENSE](LICENSE)
 
 ---
 
-**Need help scaling AI in your org?** [Claude Code & MCP experts](https://leanai.ventures/aiops/claude)
+*Need help scaling AI engineering in your org? [LeanAI Ventures — Claude Code & MCP specialists](https://leanai.ventures/aiops/claude)*

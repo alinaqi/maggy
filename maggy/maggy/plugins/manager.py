@@ -151,6 +151,9 @@ class PluginManager:
             if manifest.heartbeat and self._scheduler:
                 self._register_heartbeat(manifest, module)
 
+            # Wire manifest hook subscriptions
+            self._wire_hooks(manifest, module)
+
             self._plugins[manifest.id] = manifest
             self._modules[manifest.id] = module
             logger.info("Loaded plugin: %s v%d (router=%s, heartbeat=%d jobs)",
@@ -161,6 +164,20 @@ class PluginManager:
         except Exception as e:
             logger.warning("Failed to load plugin %s: %s", manifest.id, e)
             return False
+
+    def _wire_hooks(self, manifest: PluginManifest, module) -> None:
+        """Subscribe manifest-declared hooks to the event bus."""
+        for hook in manifest.hooks:
+            event = hook.get("event", "")
+            fn_name = hook.get("fn", "")
+            fn = getattr(module, fn_name, None) if fn_name else None
+            if not fn or not event:
+                continue
+            self._bus.subscribe(event, manifest.id, fn)
+            logger.info(
+                "Plugin %s: subscribed %s -> %s",
+                manifest.id, event, fn_name,
+            )
 
     def _register_router(self, manifest: PluginManifest, module):
         """Load and register a FastAPI router from a plugin."""

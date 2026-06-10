@@ -225,6 +225,62 @@ class TestEdgeExtraction:
         assert len(rows) >= 1
 
 
+class TestFtsCamelCaseSplitting:
+    async def test_fts_finds_camel_case_parts(
+        self, db: CortexDB, tmp_path: Path
+    ) -> None:
+        src = tmp_path / 'src'
+        src.mkdir(exist_ok=True)
+        (src / 'auth.py').write_text(
+            'def validateToken(token):\n    return True\n',
+            encoding='utf-8',
+        )
+        await index_project(db, tmp_path, force=True)
+        rows = await db.read(
+            "SELECT file_path FROM source_fts WHERE content MATCH 'validate'",
+            (),
+        )
+        assert len(rows) >= 1
+
+    async def test_fts_finds_snake_case_parts(
+        self, db: CortexDB, tmp_path: Path
+    ) -> None:
+        src = tmp_path / 'src'
+        src.mkdir(exist_ok=True)
+        (src / 'utils.py').write_text(
+            'def get_user_by_id(uid):\n    return uid\n',
+            encoding='utf-8',
+        )
+        await index_project(db, tmp_path, force=True)
+        rows = await db.read(
+            "SELECT file_path FROM source_fts WHERE content MATCH 'user'",
+            (),
+        )
+        assert len(rows) >= 1
+
+
+class TestTsCallsEdges:
+    async def test_creates_ts_calls_edges(
+        self, db: CortexDB, tmp_path: Path
+    ) -> None:
+        src = tmp_path / 'src'
+        src.mkdir(exist_ok=True)
+        (src / 'app.ts').write_text(
+            "export function initApp() {\n"
+            "  loadConfig()\n"
+            "  setupRoutes()\n"
+            "}\n"
+            "function loadConfig() { return {} }\n"
+            "function setupRoutes() {}\n",
+            encoding='utf-8',
+        )
+        await index_project(db, tmp_path, force=True)
+        rows = await db.read(
+            "SELECT edge_type FROM edges WHERE edge_type = 'CALLS'", ()
+        )
+        assert len(rows) >= 1
+
+
 class TestFileSizeLimit:
     async def test_skips_large_files(
         self, db: CortexDB, sample_project: Path

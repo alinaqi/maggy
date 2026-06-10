@@ -60,6 +60,25 @@ async def get_project(
     }
 
 
+@router.get("/{name}/status")
+async def get_project_status(
+    name: str,
+    request: Request,
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Bootstrap status: CLIs, git, cortex state."""
+    check_auth(request, x_api_key)
+    registry = request.app.state.registry
+    if not registry:
+        raise HTTPException(503, "Not configured")
+    project = registry.get(name)
+    if not project:
+        raise HTTPException(404, f"{name!r} not found")
+    from maggy.services.project_bootstrap import run_bootstrap
+    status = run_bootstrap(project.path)
+    return status.to_dict()
+
+
 @router.post("", status_code=201)
 async def add_project(
     body: _ProjectIn,
@@ -81,6 +100,43 @@ async def add_project(
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return {"name": project.name, "status": "created"}
+
+
+class _OpenFolderIn(BaseModel):
+    path: str
+
+
+@router.post("/open-folder", status_code=201)
+async def open_folder(
+    body: _OpenFolderIn,
+    request: Request,
+    x_api_key: str | None = Header(None),
+) -> dict:
+    """Register any existing folder as a project."""
+    from pathlib import Path
+
+    check_auth(request, x_api_key)
+    registry = request.app.state.registry
+    if not registry:
+        raise HTTPException(503, "Not configured")
+
+    folder = Path(body.path).expanduser().resolve()
+    if not folder.is_dir():
+        raise HTTPException(400, f"Directory not found: {folder}")
+
+    name = folder.name
+    existing = registry.get(name)
+    if existing:
+        return {"name": name, "path": str(folder), "status": "already_registered"}
+
+    from maggy.config import ProjectConfig
+    project = ProjectConfig(
+        name=name, repo=f"local/{name}",
+        path=str(folder), default_branch="main",
+    )
+    registry.add(project)
+    return {"name": name, "path": str(folder), "status": "registered"}
+
 
 @router.post("/create-new")
 async def create_new_project(

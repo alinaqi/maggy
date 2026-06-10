@@ -17,7 +17,6 @@ from maggy.checkpoint import CheckpointManager
 from maggy.config import (
     CodebaseConfig,
     MaggyConfig,
-    OrgConfig,
     ProjectConfig,
     StorageConfig,
 )
@@ -34,7 +33,6 @@ from maggy.services.planner import DualPlanner
 
 def _project_cfg(tmp_path) -> MaggyConfig:
     return MaggyConfig(
-        org=OrgConfig(name="acme"),
         storage=StorageConfig(path=str(tmp_path / "store.db")),
         codebases=[
             CodebaseConfig(path=str(tmp_path / "repo"), key="webapp"),
