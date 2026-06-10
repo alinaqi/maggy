@@ -4,6 +4,24 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.48.0] - 2026-06-10
+
+### Council T4 — Reconcile memory + coordination
+
+#### Fixed (concurrency)
+- The concurrent multi-agent SQLite stores set WAL but no `busy_timeout`, so a
+  second writer failed immediately with "database is locked". Added
+  `PRAGMA busy_timeout=5000` to `orchestrator/store.py` (Polyphony task state),
+  `council/audit_log.py`, `mnemos/db.py`, and `services/approval.py` — concurrent
+  writers now wait up to 5s instead of erroring/corrupting.
+
+#### Added (memory precedence)
+- `memory_precedence.py` — the explicit reconciliation rule the chief asked for:
+  **cikg (intent) > mnemos (goals) > history (observational)**. `history` is
+  advisory and never overrides cikg/mnemos. `resolve()`/`winner()` give the
+  executor gate a single answer when memory systems disagree.
+- 16 tests (busy_timeout set, concurrent-writers-wait, precedence resolution).
+
 ## [6.47.0] - 2026-06-10
 
 ### Architecture Hardening (council T1 + T2)

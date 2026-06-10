@@ -33,6 +33,7 @@ class ApprovalStore:
             db_path, check_same_thread=False,
         )
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")  # concurrent writers wait (T4)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS approvals (
                 id TEXT PRIMARY KEY,

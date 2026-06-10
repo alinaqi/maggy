@@ -87,6 +87,10 @@ class PolyphonyStore:
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path))
         conn.execute("PRAGMA journal_mode=WAL")
+        # Concurrent Polyphony agents write this task-state DB; without a
+        # busy_timeout a second writer fails immediately with "database is
+        # locked". Wait up to 5s instead (council T4).
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.row_factory = sqlite3.Row
         return conn

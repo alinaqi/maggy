@@ -46,6 +46,7 @@ class AuditLog:
     def _conn(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(str(self._path))
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")  # parallel reviewers write (T4)
         try:
             yield conn
             conn.commit()
