@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from maggy.pipeline.tool_sandbox import ToolSandbox, ToolSandboxError
-from maggy.pipeline.tool_schema import TOOL_ALLOWLIST, WRITE_TOOLS, ToolCall
+from maggy.pipeline.tool_schema import WRITE_TOOLS, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +38,15 @@ class ToolResult:
 class ToolExecutor:
     def __init__(
         self, sandbox: ToolSandbox, working_dir: str,
-        approval_store=None,
+        approval_store=None, runner=None,
     ) -> None:
         self._sandbox = sandbox
         self._root = Path(working_dir)
         self._approval_store = approval_store
+        # When set (ContainerToolRunner), file/git/shell ops run INSIDE a
+        # workspace-mounted container instead of on the host. This is the
+        # default isolation for the autonomous path (T2-B).
+        self._runner = runner
 
     async def execute_round(
         self, calls: list[ToolCall],
@@ -61,17 +65,65 @@ class ToolExecutor:
             self._sandbox.validate_tool_call(call)
         except ToolSandboxError as e:
             return ToolResult(call.name, False, str(e))
-        handler_name = _HANDLERS.get(call.name)
-        if not handler_name:
-            return ToolResult(call.name, False, "No handler")
-        handler = getattr(self, handler_name)
         try:
-            output = await handler(call.params)
+            if self._runner is not None:
+                output = self._run_in_container(call)
+            else:
+                handler_name = _HANDLERS.get(call.name)
+                if not handler_name:
+                    return ToolResult(call.name, False, "No handler")
+                output = await getattr(self, handler_name)(call.params)
             self._notify_approval(call, output, success=True)
             return ToolResult(call.name, True, output)
         except Exception as e:
             self._notify_approval(call, str(e), success=False)
             return ToolResult(call.name, False, str(e))
+
+    # ── Container execution path (default isolation) ────────────────────
+
+    def _rel(self, path_param: str) -> str:
+        """Validate a path and return it relative to the workspace root."""
+        abs_path = self._sandbox.validate_path(path_param)
+        return str(Path(abs_path).resolve().relative_to(self._root.resolve()))
+
+    def _run_in_container(self, call: ToolCall) -> str:
+        """Dispatch a tool call to ops inside the workspace container."""
+        from maggy.pipeline.tool_handlers import _detect_test_command
+        r = self._runner
+        p = call.params
+        name = call.name
+        if name == "file_read":
+            return r.read_file(self._rel(p["path"]))
+        if name == "grep":
+            rc, out = r.exec(["grep", "-rn", "--", p["pattern"], self._rel(p["path"])])
+            return out
+        if name == "git_status":
+            return r.exec(["git", "status", "--short"])[1]
+        if name == "git_diff":
+            return r.exec(["git", "diff", p.get("ref", "HEAD")])[1]
+        if name == "git_log":
+            return r.exec(["git", "log", "--oneline", "-n", str(p.get("n", 10))])[1]
+        if name == "test_run":
+            cmd = _detect_test_command(self._root)
+            if not cmd:
+                return "Error: no test command detected"
+            return r.run_shell(cmd, timeout=p.get("timeout_s", 120))[1][-5000:]
+        if name == "file_write":
+            return r.write_file(self._rel(p["path"]), p["content"])
+        if name == "file_edit":
+            rel = self._rel(p["path"])
+            content = r.read_file(rel)
+            if p["old"] not in content:
+                return "error: old text not found"
+            return r.write_file(rel, content.replace(p["old"], p["new"], 1))
+        if name == "git_commit":
+            files = p.get("files")
+            if files:
+                r.exec(["git", "add", *[self._rel(f) for f in files]])
+            else:
+                r.exec(["git", "add", "-A"])
+            return r.exec(["git", "commit", "-m", p["message"]])[1]
+        return "No handler"
 
     def _notify_approval(
         self, call: ToolCall, output: str, success: bool,
@@ -167,3 +219,38 @@ class ToolExecutor:
         return await git_commit(
             self._root, params["message"], files,
         )
+
+
+def build_tool_executor(
+    sandbox: ToolSandbox, working_dir: str,
+    approval_store=None, isolation: str = "auto",
+) -> ToolExecutor:
+    """Build a ToolExecutor with the chosen isolation (T2-B).
+
+    isolation:
+      "container" — require Docker; raise if it can't start (fail closed).
+      "auto"      — container when Docker is available, else host sandbox.
+      "process"   — legacy host path-sandbox (deprecated, least safe).
+    """
+    from maggy.pipeline.container_runner import (
+        ContainerToolRunner,
+        docker_available,
+    )
+    runner = None
+    if isolation == "container" or (isolation == "auto" and docker_available()):
+        runner = ContainerToolRunner(working_dir)
+        try:
+            runner.start()
+        except Exception as e:
+            if isolation == "container":
+                raise
+            logger.warning(
+                "container isolation unavailable (%s); host sandbox fallback", e,
+            )
+            runner = None
+    if runner is None and isolation != "process":
+        logger.warning(
+            "autonomous pipeline running on the host sandbox (no container "
+            "isolation) — deprecated; set up Docker for full containment",
+        )
+    return ToolExecutor(sandbox, working_dir, approval_store, runner=runner)

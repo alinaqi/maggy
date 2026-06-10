@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, AsyncGenerator
 
 from maggy.pipeline.contracts import ExecutionContract
 from maggy.pipeline.steering import needs_steering, steering_injection
-from maggy.pipeline.tool_executor import ToolExecutor
+from maggy.pipeline.tool_executor import build_tool_executor
 from maggy.pipeline.tool_parser import extract_text_and_calls
 from maggy.pipeline.tool_sandbox import ToolSandbox
 
@@ -85,9 +85,10 @@ class PiBackend:
         max_rounds: int = 3,
     ) -> str:
         sandbox = ToolSandbox(working_dir)
-        executor = ToolExecutor(
+        executor = build_tool_executor(
             sandbox, working_dir,
             approval_store=self._approval_store,
+            isolation="auto",
         )
         for _ in range(max_rounds):
             parsed = extract_text_and_calls(output)

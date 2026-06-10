@@ -4,6 +4,29 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.47.0] - 2026-06-10
+
+### Architecture Hardening (council T1 + T2)
+
+Council of experts (chief Claude Fable 5 + DeepSeek Pro, Gemini, Grok) reviewed
+the architecture; these are the agreed fixes.
+
+#### T1 — Gate the self-tuning router
+- `learn_override` now proposes in **shadow** (never applied). `apply_override`
+  only honors active rules. `promote_override` gates shadow->active on
+  outcome-validity (>= MIN_SAMPLES outcomes at >= MIN_SUCCESS_RATE). Plus
+  `revert_override`, `pending_overrides`, and a diffable `routing-rules-audit.jsonl`.
+
+#### T2 — Unify isolation
+- **(A)** Pinned, golden-tested CLI manifests (`adapters/cli_manifests.py`) replace
+  `--help` auto-discovery for known delegation CLIs; pi.py builds their commands
+  from the manifest first.
+- **(B)** Autonomous pipeline now runs file/git/shell tool ops **inside a Docker
+  container** (`pipeline/container_runner.py`, workspace mounted at /workspace),
+  not on the host. `build_tool_executor(isolation=auto|container|process)` makes
+  container the default when Docker is available; the host path-sandbox is the
+  deprecated, fail-loud fallback. ~28 new tests across the two parts.
+
 ## [6.46.0] - 2026-06-09
 
 ### Council of Experts: Claude Fable 5 as Chief
