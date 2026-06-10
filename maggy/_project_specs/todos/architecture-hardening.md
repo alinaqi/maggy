@@ -7,8 +7,8 @@ Panel: **Claude Fable 5 (chief)**, DeepSeek Pro, Gemini 2.5 Pro, Grok.
 
 | # | Todo | Chief | DeepSeek | Gemini | Grok | Decision |
 |---|------|-------|----------|--------|------|----------|
-| T1 | Gate the self-tuning router | rec | NOW | NOW | NOW | **IMPLEMENT** |
-| T2 | Unify isolation on containers | rec (top) | NOW | NOW | NOW | **IMPLEMENT (priority #1)** |
+| T1 | Gate the self-tuning router | rec | NOW | NOW | NOW | **✅ DONE** (31e7ac5) |
+| T2 | Unify isolation on containers | rec (top) | NOW | NOW | NOW | **◐ part A done (manifests); part B (containerize) pending** |
 | T3 | Extract a frozen kernel | rec | LATER | LATER | LATER | **DEFER** |
 | T4 | Reconcile memory + coordination | risk | NOW | LATER | NOW | **IMPLEMENT** |
 
