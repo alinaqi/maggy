@@ -90,17 +90,19 @@ class PiBackend:
             approval_store=self._approval_store,
             isolation="auto",
         )
-        for _ in range(max_rounds):
-            parsed = extract_text_and_calls(output)
-            if not parsed["calls"]:
-                break
-            results = await executor.execute_round(parsed["calls"])
-            tool_output = "\n".join(
-                f"[{r.tool_name}] {'OK' if r.success else 'FAIL'}: {r.output[:500]}"
-                for r in results
-            )
-            output = f"{parsed['text']}\n\n## Tool Results\n{tool_output}"
-        executor._cleanup_backups()
+        try:
+            for _ in range(max_rounds):
+                parsed = extract_text_and_calls(output)
+                if not parsed["calls"]:
+                    break
+                results = await executor.execute_round(parsed["calls"])
+                tool_output = "\n".join(
+                    f"[{r.tool_name}] {'OK' if r.success else 'FAIL'}: {r.output[:500]}"
+                    for r in results
+                )
+                output = f"{parsed['text']}\n\n## Tool Results\n{tool_output}"
+        finally:
+            executor.close()  # tears down the container + removes backups
         return output
 
     async def _steer_if_needed(

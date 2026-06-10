@@ -146,3 +146,11 @@ def test_factory_container_required_raises_without_docker(tmp_path, monkeypatch)
     )
     with pytest.raises(RuntimeError):
         build_tool_executor(ToolSandbox(str(tmp_path)), str(tmp_path), isolation="container")
+
+
+@pytest.mark.asyncio
+async def test_executor_close_tears_down_runner(tmp_path):
+    runner = MagicMock()
+    ex = ToolExecutor(ToolSandbox(str(tmp_path)), str(tmp_path), runner=runner)
+    ex.close()
+    runner.close.assert_called_once()

@@ -166,6 +166,15 @@ class ToolExecutor:
         if backup_dir.exists():
             shutil.rmtree(backup_dir)
 
+    def close(self) -> None:
+        """Tear down the container (if any) and remove host backups."""
+        if self._runner is not None:
+            try:
+                self._runner.close()
+            except Exception:
+                logger.debug("runner close failed", exc_info=True)
+        self._cleanup_backups()
+
     async def _handle_file_read(self, params: dict) -> str:
         from maggy.pipeline.tool_handlers import file_read
         path = self._sandbox.validate_path(params["path"])
