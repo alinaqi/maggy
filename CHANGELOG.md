@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.43.0] - 2026-06-10
+
+### /initialize-project sets up model routing + council for every project
+
+#### Added
+- **`/initialize-project` Step 7d** — seeds the shared followed-model config
+  (`~/.claude/model-config.json`, auto-detected) and the council of experts
+  (`~/.claude/council.yaml`, chief `claude-fable-5`) if missing. Both are global,
+  so a fresh machine is ready to route tasks to the cheapest capable model and
+  convene the council on any project.
+- `scripts/model_routing.py ensure` — CLI command to create-if-missing the
+  followed-model config and print the primary.
+
 ## [6.42.0] - 2026-06-09
 
 ### Council Chief: Claude Fable 5

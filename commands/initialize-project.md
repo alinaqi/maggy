@@ -1402,6 +1402,35 @@ are copied into the project.
 
 To opt out of transcript ingestion for a project: `touch .mnemos/claude-log.disabled`.
 
+### Step 7d: Model Routing & Council of Experts
+
+**Seed the shared model-routing config and the council so every project uses
+them.** Both live in `~/.claude/` (global), so this is idempotent — it sets up
+the machine once and all projects inherit it.
+
+```bash
+BOOTSTRAP_DIR=$(cat ~/.claude/.bootstrap-dir 2>/dev/null)
+
+# 1. Followed model — auto-detect usable models (keys, ~/bin wrappers, ollama)
+#    and write ~/.claude/model-config.json (read by the route-task hooks + Maggy).
+python3 "$BOOTSTRAP_DIR/scripts/model_routing.py" ensure >/dev/null 2>&1 \
+  && echo "  ✓ followed model: $(python3 "$BOOTSTRAP_DIR/scripts/model_routing.py" get primary)"
+
+# 2. Council of experts — seed ~/.claude/council.yaml (chief: claude-fable-5,
+#    Anthropic's most capable model) from Maggy's defaults if it's missing.
+if [ ! -f "$HOME/.claude/council.yaml" ]; then
+  python3 -c "import sys; sys.path.insert(0, '$BOOTSTRAP_DIR/maggy'); \
+from maggy.services.council_config import load_council_config, save_council_config; \
+save_council_config(load_council_config())" 2>/dev/null \
+    && echo "  ✓ council seeded (chief: claude-fable-5)"
+fi
+```
+
+This makes a fresh machine ready to route tasks to the cheapest capable model
+and to convene the council (chief + panel) for plans, reviews, and architecture
+decisions. Change the followed model anytime with `/model-config <model>`, and
+the council chief in `~/.claude/council.yaml`.
+
 ### Step 8: GitHub repository setup (if selected and not already configured)
 
 **Create new repository:**
@@ -1446,6 +1475,7 @@ Updated:
   - code-graph.md (updated)
 ✓ Pre-push code review hook (installed/updated)
 ✓ Session lifecycle hooks wired into .claude/settings.json (mnemos/icpg, incl. transcript ingest + haziness)
+✓ Model routing + council ready (~/.claude/model-config.json, council chief: claude-fable-5)
 
 Added:
 ✓ llm-patterns.md (new skill added)

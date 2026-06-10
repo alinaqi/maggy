@@ -179,6 +179,9 @@ def main(argv: list[str] | None = None) -> int:
     rest = args[1:]
     if cmd == "detect":
         print(json.dumps(detect_available(), indent=2))
+    elif cmd == "ensure":
+        # Create the config if missing (auto-detected); print the primary.
+        print(ensure().get("primary", ""))
     elif cmd == "show":
         print(json.dumps(ensure(), indent=2))
     elif cmd == "get":
