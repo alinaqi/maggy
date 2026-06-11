@@ -20,11 +20,9 @@ from maggy import config as config_mod
 from maggy import providers
 from maggy.api.routes import router as api_router
 from maggy.api.routes_aggregator import router as aggregator_router
-from maggy.api.routes_competitors import router as competitor_intel_router
 from maggy.api.routes_budget import router as budget_router
 from maggy.api.routes_plugins import router as plugins_router
 from maggy.api.routes_testing import router as testing_router
-from maggy.api.routes_usage import router as usage_router
 from maggy.api.routes_cikg import router as cikg_router
 from maggy.api.routes_deploy import router as deploy_router
 from maggy.api.routes_editor import router as editor_router
@@ -356,7 +354,7 @@ _ROUTERS = (
 
 def create_app() -> FastAPI:
     """Build the FastAPI application."""
-    cfg = config_mod.load()
+    cfg = config_mod.load_or_bootstrap()  # auto-configures on first run
     if cfg.dashboard.auth_mode == "local" and cfg.dashboard.host not in ("127.0.0.1", "localhost", "::1"):
         raise RuntimeError(
             f"dashboard.auth_mode=\"local\" is only safe on loopback. "

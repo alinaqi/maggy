@@ -4,6 +4,32 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.49.0] - 2026-06-11
+
+### Zero-config onboarding — it just works out of the box
+
+Council/chief review found the auto-setup machinery existed but the default
+path ignored it: the shipped config had `your-org` placeholders, so first boot
+landed on a live dashboard with GitHub errors and an empty Execute panel, and
+install.sh told users to hand-edit YAML.
+
+#### Changed
+- **First boot auto-configures.** `config.load_or_bootstrap()` (used by
+  `main.create_app`) detects a missing or placeholder config and runs
+  `auto_configure()` — discovers the user's real local repos, sets the GitHub
+  org, writes a clean config (keyless local mode), and opens the dashboard
+  pointed at their actual work. No `your-org` fakes, no hand-editing.
+- `config.is_placeholder()` detects the unmodified example template.
+- **install.sh** no longer copies the placeholder template or prints "edit
+  config.yaml" steps; it states Maggy auto-configures and lists keys as optional.
+- **GETTING_STARTED**: 2-step install, no required API keys (local mode works
+  without them).
+
+#### Tests
+- 7 tests (placeholder detection, bootstrap-on-missing/placeholder, keep-real-
+  config, discovery-error fallback). Verified live: a fresh boot discovered 30
+  local repos with zero config.
+
 ## [6.48.0] - 2026-06-10
 
 ### Council T4 — Reconcile memory + coordination

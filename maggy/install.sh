@@ -44,15 +44,14 @@ python3 -m pip install -e "$HERE" || python3 -m pip install -r "$HERE/requiremen
 }
 echo "✓ Dependencies installed"
 
-# 4. Config directory + template
+# 4. Config directory — Maggy AUTO-CONFIGURES from your local repos on first
+#    run (no placeholder template, no hand-editing). See config.example.yaml
+#    only if you want to customize later.
 mkdir -p "$MAGGY_HOME"
-if [ ! -f "$MAGGY_HOME/config.yaml" ]; then
-  cp "$HERE/config.example.yaml" "$MAGGY_HOME/config.yaml"
-  echo "✓ Wrote config template to $MAGGY_HOME/config.yaml"
-  NEEDS_CONFIG=1
+if [ -f "$MAGGY_HOME/config.yaml" ]; then
+  echo "✓ Config exists at $MAGGY_HOME/config.yaml (not overwritten)"
 else
-  echo "✓ Config already exists at $MAGGY_HOME/config.yaml (not overwritten)"
-  NEEDS_CONFIG=0
+  echo "✓ Maggy will auto-configure from your local repos on first run"
 fi
 
 # 5. Remember bootstrap location for iCPG integration
@@ -66,23 +65,12 @@ fi
 
 echo
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [ "$NEEDS_CONFIG" = "1" ]; then
-  echo "Next steps:"
-  echo "  1. Edit $MAGGY_HOME/config.yaml"
-  echo "     - Set your org name, domain, GitHub org + repos"
-  echo "     - Set codebase paths for each repo you want Maggy to execute in"
-  echo
-  echo "  2. Export credentials:"
-  echo "     export GITHUB_TOKEN=ghp_...           # repo + issues scopes"
-  echo "     export ANTHROPIC_API_KEY=sk-ant-..."
-  echo
-  echo "  3. Run:"
-  echo "     cd $HERE && python3 -m maggy.main"
-  echo
-  echo "  4. Open http://localhost:8080"
-else
-  echo "Ready to run:"
-  echo "  cd $HERE && python3 -m maggy.main"
-  echo "  Then open http://localhost:8080"
-fi
+echo "Ready. Maggy auto-configures from your local repos on first run."
+echo
+echo "  Run:   maggy serve        (or: cd $HERE && python3 -m maggy.main)"
+echo "  Open:  http://localhost:8080"
+echo
+echo "Optional (not needed to start — local mode works without them):"
+echo "  export GITHUB_TOKEN=ghp_...       # GitHub issue sync"
+echo "  export ANTHROPIC_API_KEY=sk-ant-... # API-model features"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

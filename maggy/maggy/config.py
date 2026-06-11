@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
@@ -10,8 +11,14 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 CONFIG_DIR = Path(os.environ.get("MAGGY_HOME", "~/.maggy")).expanduser()
 CONFIG_PATH = CONFIG_DIR / "config.yaml"
+
+# Markers from the shipped config.example.yaml — if any survive, the user never
+# customized the template, so we auto-configure on first boot instead.
+_PLACEHOLDER_MARKERS = ("your-org", "your-domain")
 
 if TYPE_CHECKING:
     from maggy.budget import ProviderBudget
@@ -379,6 +386,44 @@ def load(refresh: bool = False) -> MaggyConfig:
         data = yaml.safe_load(f) or {}
     _CACHED = _merge_env(_from_dict(data))
     return _CACHED
+
+
+def is_placeholder(cfg: MaggyConfig) -> bool:
+    """True if the config is still the shipped example (never customized).
+
+    Such a config would point the inbox at a fake GitHub org and Execute at
+    non-existent repos — so first boot should auto-configure instead.
+    """
+    gh = cfg.issue_tracker.github
+    fields = [gh.org, *gh.repos, *(cb.path for cb in cfg.codebases)]
+    return any(
+        marker in value
+        for value in fields if value
+        for marker in _PLACEHOLDER_MARKERS
+    )
+
+
+def load_or_bootstrap(refresh: bool = False) -> MaggyConfig:
+    """Load config, auto-configuring on first run so Maggy just works.
+
+    First run = config missing OR still the placeholder template. In that case
+    we discover the user's real local repos and write a clean config (no fake
+    placeholders, keyless local mode), so the dashboard opens pointed at their
+    actual work with zero hand-editing.
+    """
+    needs_bootstrap = not CONFIG_PATH.exists() or is_placeholder(load(refresh=refresh))
+    if not needs_bootstrap:
+        return load(refresh=refresh)
+    try:
+        logger.info("Maggy first run — auto-configuring from local discovery")
+        cfg = auto_configure()
+        global _CACHED
+        _CACHED = cfg
+        return cfg
+    except Exception as e:
+        logger.warning("auto-configure failed (%s); starting with empty config", e)
+        _CACHED = _merge_env(MaggyConfig())
+        return _CACHED
 
 
 def save(cfg: MaggyConfig) -> None:

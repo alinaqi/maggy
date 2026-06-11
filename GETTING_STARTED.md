@@ -58,30 +58,28 @@ Everything in Path A, plus a local engineering command center that routes work a
 
 ### Prerequisites
 
-- Python 3.11+
-- pip
-- Claude Code CLI (or any supported AI CLI)
-- API keys: `ANTHROPIC_API_KEY` (required), `GITHUB_TOKEN` (recommended)
+- Python 3.11+ and pip
+- That's it. **No API keys required to start** — Maggy runs in local mode and
+  auto-configures from your local git repos on first launch.
 
-### Install
+### Install (2 steps)
 
 ```bash
-# Step 1: Install bootstrap (if you haven't)
 git clone https://github.com/alinaqi/maggy.git
-cd maggy
-./install.sh
+cd maggy/maggy && ./install.sh    # installs deps; no config to edit
 
-# Step 2: Install Maggy
-cd maggy
-pip install -e .
+maggy serve                       # dashboard at http://localhost:8080
+# (or:  python3 -m maggy.main)
+```
 
-# Step 3: Set API keys
-export ANTHROPIC_API_KEY=sk-ant-...
-export GITHUB_TOKEN=ghp_...
+On first launch Maggy discovers your local repos and opens the dashboard
+pointed at them — nothing to hand-edit.
 
-# Step 4: Run
-maggy serve    # web dashboard at localhost:8080
-maggy          # CLI REPL (auto-detects current project)
+**Optional** (add later when you want them, not needed to start):
+
+```bash
+export GITHUB_TOKEN=ghp_...        # GitHub issue sync in the Inbox
+export ANTHROPIC_API_KEY=sk-ant-...# API-model features
 ```
 
 ### Recommended: route through srooter ([www.srooter.ai](https://www.srooter.ai))
