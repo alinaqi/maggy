@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.44.0] - 2026-06-11
+
+### Maggy: zero-config onboarding + architecture hardening
+
+#### Onboarding — it just works out of the box
+- **First boot auto-configures.** `maggy serve` on a fresh install discovers your
+  local git repos, writes a clean config (keyless local mode), and **auto-opens
+  the dashboard** pointed at your real repos. No placeholder `your-org` config,
+  no hand-editing YAML, no API keys required to start. `install.sh` and
+  GETTING_STARTED simplified to a 2-step, keys-optional flow.
+
+#### Architecture hardening (council of experts, chief Claude Fable 5)
+- **T1** gate the self-tuning router (shadow + outcome-validity + approval + audit).
+- **T2** unify isolation: pinned, golden-tested CLI manifests (no `--help`
+  parsing for known CLIs) + the autonomous pipeline now runs tool ops inside a
+  Docker container, not on the host.
+- **T4** SQLite `busy_timeout` on the concurrent multi-agent stores + an explicit
+  memory-precedence rule (cikg > mnemos > history).
+- **Claude Fable 5** wired as chief of the council across Maggy and bootstrap.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) (6.46.0–6.49.0) for the full detail.
+
 ## [6.43.0] - 2026-06-10
 
 ### /initialize-project sets up model routing + council for every project

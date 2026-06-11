@@ -447,12 +447,39 @@ def main() -> None:
     import uvicorn
     cfg = config_mod.load()
     _print_banner(cfg.dashboard.host, cfg.dashboard.port)
+    _maybe_open_browser(cfg.dashboard.host, cfg.dashboard.port)
     uvicorn.run(
         "maggy.main:app",
         host=cfg.dashboard.host,
         port=cfg.dashboard.port,
         reload=False,
     )
+
+
+def _maybe_open_browser(host: str, port: int) -> None:
+    """Open the dashboard in the browser once the server is up.
+
+    Opt out with MAGGY_NO_BROWSER=1. Loopback only (skips remote/headless).
+    """
+    import os
+    if os.environ.get("MAGGY_NO_BROWSER"):
+        return
+    if host not in ("127.0.0.1", "localhost", "0.0.0.0", "::1"):
+        return
+    import threading
+    import time
+    import webbrowser
+    shown = "localhost" if host in ("0.0.0.0", "::1") else host
+    url = f"http://{shown}:{port}"
+
+    def _open() -> None:
+        time.sleep(1.5)  # let uvicorn bind first
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
+    threading.Thread(target=_open, daemon=True).start()
 
 
 if __name__ == "__main__":

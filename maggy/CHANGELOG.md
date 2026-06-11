@@ -24,6 +24,8 @@ install.sh told users to hand-edit YAML.
   config.yaml" steps; it states Maggy auto-configures and lists keys as optional.
 - **GETTING_STARTED**: 2-step install, no required API keys (local mode works
   without them).
+- **Auto-opens the dashboard** in the browser on `maggy serve` (loopback only;
+  opt out with `MAGGY_NO_BROWSER=1`).
 
 #### Tests
 - 7 tests (placeholder detection, bootstrap-on-missing/placeholder, keep-real-
