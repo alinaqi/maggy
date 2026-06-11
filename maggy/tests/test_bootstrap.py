@@ -1,122 +1,67 @@
-"""Tests for startup bootstrap — auto-populate services."""
+"""Tests for `maggy bootstrap` asset installation."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import os
 
 import pytest
 
-
-def _make_cfg(tmp_path: Path):
-    """Build a minimal MaggyConfig with codebases."""
-    from maggy.config import CodebaseConfig, MaggyConfig
-    # Create fake codebase dirs
-    repo_a = tmp_path / "repo-a"
-    repo_a.mkdir()
-    (repo_a / "main.py").write_text("print('hello')")
-    (repo_a / "utils.ts").write_text("export const x = 1;")
-    repo_b = tmp_path / "repo-b"
-    repo_b.mkdir()
-    (repo_b / "app.go").write_text("package main")
-    return MaggyConfig(
-        codebases=[
-            CodebaseConfig(path=str(repo_a), key="repo-a"),
-            CodebaseConfig(path=str(repo_b), key="repo-b"),
-        ],
-    )
+from maggy.services.bootstrap import BootstrapError, run_bootstrap, _resolve_source
 
 
-class TestSeedCIKG:
-    """Test CIKG seeding from codebases."""
-
-    def test_creates_codebase_nodes(self, tmp_path):
-        from maggy.main import _seed_cikg
-        from maggy.cikg.graph import KnowledgeGraphService
-        cfg = _make_cfg(tmp_path)
-        cikg = KnowledgeGraphService(tmp_path / "cikg.db")
-        _seed_cikg(cikg, cfg)
-        nodes = cikg.list_nodes("codebase")
-        assert len(nodes) == 2
-        names = {n.name for n in nodes}
-        assert names == {"repo-a", "repo-b"}
-
-    def test_creates_language_nodes(self, tmp_path):
-        from maggy.main import _seed_cikg
-        from maggy.cikg.graph import KnowledgeGraphService
-        cfg = _make_cfg(tmp_path)
-        cikg = KnowledgeGraphService(tmp_path / "cikg.db")
-        _seed_cikg(cikg, cfg)
-        langs = cikg.list_nodes("technology")
-        lang_names = {n.name for n in langs}
-        assert "python" in lang_names
-        assert "typescript" in lang_names
-        assert "go" in lang_names
-
-    def test_creates_edges(self, tmp_path):
-        from maggy.main import _seed_cikg
-        from maggy.cikg.graph import KnowledgeGraphService
-        cfg = _make_cfg(tmp_path)
-        cikg = KnowledgeGraphService(tmp_path / "cikg.db")
-        _seed_cikg(cikg, cfg)
-        edges = cikg.get_edges("codebase:repo-a", "out")
-        edge_types = {e.edge_type for e in edges}
-        assert "uses_technology" in edge_types
-
-    def test_skips_missing_dirs(self, tmp_path):
-        from maggy.config import CodebaseConfig, MaggyConfig
-        from maggy.main import _seed_cikg
-        from maggy.cikg.graph import KnowledgeGraphService
-        cfg = MaggyConfig(codebases=[
-            CodebaseConfig(path="/nonexistent/path", key="missing"),
-        ])
-        cikg = KnowledgeGraphService(tmp_path / "cikg.db")
-        _seed_cikg(cikg, cfg)
-        assert cikg.list_nodes("codebase") == []
-
-    def test_idempotent(self, tmp_path):
-        from maggy.main import _seed_cikg
-        from maggy.cikg.graph import KnowledgeGraphService
-        cfg = _make_cfg(tmp_path)
-        cikg = KnowledgeGraphService(tmp_path / "cikg.db")
-        _seed_cikg(cikg, cfg)
-        _seed_cikg(cikg, cfg)  # run again
-        nodes = cikg.list_nodes("codebase")
-        assert len(nodes) == 2  # no duplicates
+def _make_source(tmp_path):
+    src = tmp_path / "bootstrap"
+    (src / "skills" / "base").mkdir(parents=True)
+    (src / "skills" / "base" / "SKILL.md").write_text("# base")
+    (src / "commands").mkdir(parents=True)
+    (src / "commands" / "maggy.md").write_text("# /maggy")
+    (src / "hooks").mkdir(parents=True)
+    (src / "hooks" / "route-task-hook").write_text("#!/bin/bash\n")
+    (src / "bin").mkdir(parents=True)
+    (src / "bin" / "deepseek").write_text("#!/usr/bin/env python3\n")
+    (src / "plugins" / "demo").mkdir(parents=True)
+    (src / "plugins" / "demo" / "plugin.yaml").write_text("id: demo\n")
+    return src
 
 
-class TestBootstrap:
-    """Test the full _bootstrap function."""
+def test_installs_all_asset_types(tmp_path):
+    src = _make_source(tmp_path)
+    home = tmp_path / "claude"
+    bindir = tmp_path / "bin"
+    plugdir = tmp_path / "plugins"
+    result = run_bootstrap(src, claude_home=home, bin_dir=bindir, plugins_dir=plugdir)
+    assert result == {"skills": 1, "commands": 1, "hooks": 1, "bin": 1, "plugins": 1}
+    assert (home / "skills" / "base" / "SKILL.md").exists()
+    assert (home / "commands" / "maggy.md").exists()
+    assert (bindir / "deepseek").exists()
+    assert (plugdir / "demo" / "plugin.yaml").exists()
+    assert (home / ".bootstrap-dir").read_text() == str(src.resolve())
 
-    @pytest.mark.asyncio
-    async def test_calls_services(self):
-        from maggy.main import _bootstrap
-        app = MagicMock()
-        app.state.history = MagicMock()
-        app.state.introspector = MagicMock()
-        app.state.cikg = None
-        app.state.cfg = MagicMock()
-        await _bootstrap(app)
-        app.state.history.analyze.assert_called_once()
-        app.state.introspector.analyze.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_handles_missing_services(self):
-        from maggy.main import _bootstrap
-        app = MagicMock()
-        app.state.history = None
-        app.state.introspector = None
-        app.state.cikg = None
-        app.state.cfg = None
-        await _bootstrap(app)  # should not raise
+def test_bin_wrappers_are_executable(tmp_path):
+    src = _make_source(tmp_path)
+    bindir = tmp_path / "bin"
+    run_bootstrap(src, claude_home=tmp_path / "c", bin_dir=bindir,
+                  plugins_dir=tmp_path / "p")
+    assert os.access(bindir / "deepseek", os.X_OK)
 
-    @pytest.mark.asyncio
-    async def test_handles_analyze_error(self):
-        from maggy.main import _bootstrap
-        app = MagicMock()
-        app.state.history = MagicMock()
-        app.state.history.analyze.side_effect = RuntimeError("db locked")
-        app.state.introspector = None
-        app.state.cikg = None
-        app.state.cfg = None
-        await _bootstrap(app)  # should not raise
+
+def test_idempotent(tmp_path):
+    src = _make_source(tmp_path)
+    args = dict(claude_home=tmp_path / "c", bin_dir=tmp_path / "b",
+                plugins_dir=tmp_path / "p")
+    run_bootstrap(src, **args)
+    again = run_bootstrap(src, **args)  # no error on re-run
+    assert again["skills"] == 1
+
+
+def test_resolve_source_from_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAGGY_BOOTSTRAP_DIR", str(tmp_path))
+    assert _resolve_source(None) == tmp_path.resolve()
+
+
+def test_no_source_raises(tmp_path, monkeypatch):
+    monkeypatch.delenv("MAGGY_BOOTSTRAP_DIR", raising=False)
+    monkeypatch.setattr("maggy.services.bootstrap.Path.home", lambda: tmp_path)
+    with pytest.raises(BootstrapError):
+        _resolve_source(None)

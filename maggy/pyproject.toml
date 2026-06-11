@@ -3,13 +3,25 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "maggy"
+# Import package stays `maggy`; PyPI distribution name is `maggy-harness`
+# because `maggy` is taken on PyPI (a Hopsworks hyperparameter library).
+name = "maggy-harness"
 version = "0.1.0"
-description = "Generic AI engineering command center — part of the Maggy platform"
+description = "Maggy — a local AI engineering command center: multi-model routing, intent graph, memory, and a web dashboard for Claude Code."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Maggy Contributors" }]
+keywords = ["ai", "llm", "claude", "agents", "code-review", "model-routing", "developer-tools"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -26,6 +38,17 @@ dependencies = [
 
 [project.optional-dependencies]
 docs = ["openpyxl>=3.1", "python-docx>=1.0", "pymupdf>=1.24"]
+reddit = ["asyncpraw>=7.7"]          # build-in-public Reddit agent
+screenshots = ["playwright>=1.40"]   # dashboard/screenshot capture
+all = [
+    "openpyxl>=3.1", "python-docx>=1.0", "pymupdf>=1.24",
+    "asyncpraw>=7.7", "playwright>=1.40",
+]
+
+[project.urls]
+Homepage = "https://github.com/alinaqi/maggy"
+Repository = "https://github.com/alinaqi/maggy"
+Changelog = "https://github.com/alinaqi/maggy/blob/main/maggy/CHANGELOG.md"
 
 [project.scripts]
 maggy = "maggy.cli:app"
@@ -33,3 +56,13 @@ maggy = "maggy.cli:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["maggy*"]
+
+[tool.setuptools.package-data]
+# Ship the dashboard + any bundled non-Python assets inside the package.
+maggy = [
+    "static/*",
+    "static/**/*",
+    "prompt/*.md",
+    "**/*.yaml",
+    "**/*.yml",
+]

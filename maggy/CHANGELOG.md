@@ -4,6 +4,24 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.50.0] - 2026-06-11
+
+### PyPI packaging — `pip install maggy-harness`
+
+#### Added
+- **Installable from PyPI** as `maggy-harness` (the name `maggy` is taken; the
+  import package + `maggy` command are unchanged). `pyproject.toml` updated with
+  metadata, classifiers, URLs, package-data (ships the dashboard `static/`), and
+  optional extras: `[reddit]` (asyncpraw), `[screenshots]` (playwright), `[all]`.
+- **`maggy bootstrap`** command (`services/bootstrap.py`) — installs the Claude
+  Code skills, hooks, slash commands, `~/bin` model-delegation wrappers, and
+  plugins from a claude-bootstrap checkout (resolved via `--source`,
+  `$MAGGY_BOOTSTRAP_DIR`, or the saved marker). Idempotent. 5 tests.
+- Verified: a clean-venv `pip install` of the wheel runs `maggy serve` and serves
+  the dashboard; `twine check` passes on wheel + sdist.
+
+So onboarding is now: `pipx install maggy-harness && maggy bootstrap && maggy serve`.
+
 ## [6.49.0] - 2026-06-11
 
 ### Zero-config onboarding — it just works out of the box

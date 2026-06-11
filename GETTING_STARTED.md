@@ -62,15 +62,23 @@ Everything in Path A, plus a local engineering command center that routes work a
 - That's it. **No API keys required to start** — Maggy runs in local mode and
   auto-configures from your local git repos on first launch.
 
-### Install (2 steps)
+### Install
 
 ```bash
-git clone https://github.com/alinaqi/maggy.git
-cd maggy/maggy && ./install.sh    # installs deps; no config to edit
+# pip / pipx (recommended)
+pipx install maggy-harness      # or: pip install maggy-harness
+maggy bootstrap                 # skills, hooks, ~/bin model wrappers, plugins
+maggy serve                     # dashboard at http://localhost:8080
 
-maggy serve                       # dashboard at http://localhost:8080
-# (or:  python3 -m maggy.main)
+# — or from source —
+git clone https://github.com/alinaqi/maggy.git
+cd maggy/maggy && ./install.sh && maggy serve
 ```
+
+> The PyPI package is `maggy-harness` (the name `maggy` is taken); you still
+> `import maggy` and run the `maggy` command. `maggy bootstrap` installs the
+> Claude Code skills/hooks/commands, the `~/bin` model-delegation wrappers, and
+> plugins — the parts that live in the wider claude-bootstrap repo.
 
 On first launch Maggy discovers your local repos and opens the dashboard
 pointed at them — nothing to hand-edit.

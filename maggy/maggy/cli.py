@@ -53,6 +53,26 @@ def serve() -> None:
 
 
 @app.command()
+def bootstrap(
+    source: str = typer.Option(
+        None, "--source", "-s",
+        help="Path to a claude-bootstrap checkout (else $MAGGY_BOOTSTRAP_DIR or marker)",
+    ),
+) -> None:
+    """Install Maggy's skills, hooks, commands, ~/bin model wrappers, and plugins."""
+    from maggy.services.bootstrap import BootstrapError, run_bootstrap
+    try:
+        result = run_bootstrap(source)
+    except BootstrapError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    console.print("[green]✓ Bootstrap installed:[/green]")
+    for asset, n in result.items():
+        console.print(f"  {asset}: {n}")
+    console.print("\n[dim]Run [bold]maggy serve[/bold] to start the dashboard.[/dim]")
+
+
+@app.command()
 def restart() -> None:
     """Stop and restart the Maggy server."""
     console.print("[dim]Stopping Maggy server…[/dim]")

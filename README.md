@@ -42,10 +42,13 @@ Your next Claude Code session picks it up automatically.
 ### Full Harness — zero-config
 
 ```bash
-cd maggy && ./install.sh   # installs deps; no config to edit
-maggy serve                # auto-configures from your local repos,
-                           # then opens the dashboard at localhost:8080
+pipx install maggy-harness   # or: pip install maggy-harness
+maggy bootstrap              # installs skills, hooks, ~/bin model wrappers, plugins
+maggy serve                  # auto-configures from your local repos,
+                             # then opens the dashboard at localhost:8080
 ```
+
+(or from source: `cd maggy && ./install.sh && maggy serve`)
 
 No API keys required to start — Maggy runs in local mode and, on first launch,
 discovers your local git repos and opens the dashboard pointed at them. Add
