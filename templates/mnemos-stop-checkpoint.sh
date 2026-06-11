@@ -10,9 +10,14 @@ if [ ! -d "$CWD/.mnemos" ]; then
   exit 0
 fi
 
-# Write checkpoint via Python module
+# Write checkpoint via Python module.
+# NOTE: this MUST be the top-level `checkpoint` subcommand, not `_hook
+# checkpoint` — the latter is not a registered hook event, so it errored and
+# silently fell through to the thin Python fallback below (placeholder goal,
+# empty subgoal/narrative/files). The top-level command runs write_checkpoint(),
+# which captures active goal/constraint/result nodes + git branch + uncommitted.
 cd "$CWD" 2>/dev/null || true
-python3 -m mnemos _hook checkpoint --force 2>/dev/null || \
+python3 -m mnemos checkpoint --force 2>/dev/null || \
   python3 -c "
 import json, time, os, uuid
 
