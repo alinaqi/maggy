@@ -57,6 +57,29 @@ def _copy_tree(src: Path, dst: Path) -> int:
     return n
 
 
+def _plugins_src(source: Path) -> Path:
+    """Plugins live at <root>/plugins or, in this repo, <root>/maggy/plugins."""
+    top = source / "plugins"
+    if top.is_dir() and any(p.is_dir() for p in top.iterdir()):
+        return top
+    nested = source / "maggy" / "plugins"
+    return nested if nested.is_dir() else top
+
+
+def _copy_plugins(src: Path, dst: Path) -> int:
+    """Copy plugin FOLDERS only (skip the package loader: __init__/manager)."""
+    if not src.is_dir():
+        return 0
+    dst.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for item in src.iterdir():
+        if not item.is_dir() or item.name in ("__pycache__",):
+            continue
+        shutil.copytree(item, dst / item.name, dirs_exist_ok=True)
+        n += 1
+    return n
+
+
 def _copy_executables(src: Path, dst: Path) -> int:
     """Copy bin wrappers and mark them executable."""
     if not src.is_dir():
@@ -93,7 +116,7 @@ def run_bootstrap(
         "commands": _copy_tree(src / "commands", claude_home / "commands"),
         "hooks": _copy_tree(src / "hooks", claude_home / "hooks"),
         "bin": _copy_executables(src / "bin", bin_dir),
-        "plugins": _copy_tree(src / "plugins", plugins_dir),
+        "plugins": _copy_plugins(_plugins_src(src), plugins_dir),
     }
     claude_home.mkdir(parents=True, exist_ok=True)
     (claude_home / ".bootstrap-dir").write_text(str(src))

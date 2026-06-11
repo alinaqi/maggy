@@ -65,3 +65,19 @@ def test_no_source_raises(tmp_path, monkeypatch):
     monkeypatch.setattr("maggy.services.bootstrap.Path.home", lambda: tmp_path)
     with pytest.raises(BootstrapError):
         _resolve_source(None)
+
+
+def test_plugins_from_nested_maggy_dir(tmp_path):
+    """Plugins under <root>/maggy/plugins (this repo's layout) are found."""
+    src = tmp_path / "root"
+    (src / "maggy" / "plugins" / "demo").mkdir(parents=True)
+    (src / "maggy" / "plugins" / "demo" / "plugin.yaml").write_text("id: demo\n")
+    (src / "maggy" / "plugins" / "__init__.py").write_text("")   # loader file
+    (src / "maggy" / "plugins" / "manager.py").write_text("")    # loader file
+    plug = tmp_path / "out"
+    result = run_bootstrap(src, claude_home=tmp_path / "c",
+                           bin_dir=tmp_path / "b", plugins_dir=plug)
+    assert result["plugins"] == 1                       # the demo folder
+    assert (plug / "demo" / "plugin.yaml").exists()
+    assert not (plug / "__init__.py").exists()          # loader NOT copied
+    assert not (plug / "manager.py").exists()
