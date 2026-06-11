@@ -1,0 +1,73 @@
+name: Publish maggy-harness to PyPI
+
+# Publishes the maggy-harness package when a version tag is pushed (e.g. v0.1.0)
+# or a GitHub Release is published. Uses PyPI Trusted Publishing (OIDC) — no
+# API token or secret is ever stored in the repo.
+#
+# One-time setup on PyPI (https://pypi.org/manage/account/publishing/):
+#   Project:        maggy-harness
+#   Owner:          alinaqi
+#   Repository:     maggy
+#   Workflow name:  publish.yml
+#   Environment:    pypi
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: maggy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build backend
+        run: python -m pip install --upgrade build
+
+      - name: Build wheel + sdist
+        run: python -m build
+
+      - name: Verify metadata
+        run: |
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+
+      - name: Smoke-test the wheel in a clean venv
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          /tmp/smoke/bin/python -c "import maggy, maggy.main, maggy.cli; print('import OK')"
+          /tmp/smoke/bin/maggy --help >/dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: maggy/dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
