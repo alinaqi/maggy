@@ -18,13 +18,13 @@ Chat with your codebases across Claude, Codex, and Kimi — with semantic routin
 ## Quick Start
 
 ```bash
-cd maggy
-pip install -e .
+pip install maggy-harness    # or: pipx install maggy-harness
+maggy bootstrap              # installs skills, hooks, ~/bin model wrappers, plugins
 
 # Pull the local model (optional but recommended)
 ollama pull qwen3-coder:30b-a3b
 
-# Configure
+# Configure (optional — Maggy runs in local mode without keys)
 export GITHUB_TOKEN=ghp_...
 export ANTHROPIC_API_KEY=sk-ant-...
 
@@ -32,6 +32,13 @@ export ANTHROPIC_API_KEY=sk-ant-...
 maggy              # interactive REPL (auto-detects project)
 maggy serve        # web dashboard at localhost:8080
 maggy chat api     # chat with a specific project
+```
+
+Or install from source for development:
+
+```bash
+cd maggy
+pip install -e .
 ```
 
 Or from inside Claude Code:

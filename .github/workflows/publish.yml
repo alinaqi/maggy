@@ -19,6 +19,11 @@ on:
     types: [published]
   workflow_dispatch: {}
 
+# Run all JavaScript actions on Node.js 24. GitHub forces this default from
+# 2026-06-16; opting in now silences the Node 20 deprecation warnings.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build distribution
