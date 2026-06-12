@@ -14,8 +14,10 @@ import subprocess
 from pathlib import Path
 
 _FALLBACK = Path.home() / ".local" / "bin" / "srooterctl"
-# srooter keys are url-safe tokens; reject anything with shell metachars/spaces.
-_KEY_RE = re.compile(r"^[A-Za-z0-9_.\-]{8,200}$")
+# srooter keys are url-safe tokens; reject shell metachars/spaces AND a leading
+# hyphen, so the value can never be smuggled to srooterctl as a CLI flag
+# (the CLI is positional bash — no `--` end-of-options sentinel to rely on).
+_KEY_RE = re.compile(r"^[A-Za-z0-9_.][A-Za-z0-9_.\-]{7,199}$")
 _URL_RE = re.compile(r"^https?://[A-Za-z0-9.\-:/_]+$")
 _TIMEOUT = 45
 

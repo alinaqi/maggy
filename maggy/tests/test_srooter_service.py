@@ -92,6 +92,11 @@ class TestEnable:
         with pytest.raises(ValueError):
             srooter.enable("srt_abc; rm -rf /")
 
+    def test_rejects_leading_hyphen_key(self):
+        # argv flag smuggling: a key like "-x" must never reach srooterctl
+        with pytest.raises(ValueError):
+            srooter.enable("--help")
+
     @patch("maggy.services.srooter._run")
     @patch("maggy.services.srooter.find_srooterctl", return_value="/bin/srooterctl")
     def test_rejects_bad_gateway_url(self, _ctl, _run):
