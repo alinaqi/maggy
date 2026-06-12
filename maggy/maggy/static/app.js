@@ -2254,6 +2254,12 @@ async function loadSettings() {
     ]);
     let html = `<h2 class="text-sm font-bold text-white mb-3">System Setup</h2>`;
 
+    // Routing via srooter — one-click enable
+    html += `<div class="card p-4 mb-3" id="srooter-card">
+      <div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-route mr-1"></i>Model Routing (srooter)</div>
+      <div id="srooter-body" class="text-[10px] text-gray-600"><i class="fas fa-spinner fa-spin mr-1"></i>Checking…</div>
+    </div>`;
+
     // AI Models section
     const clis = sys.clis || [];
     const installed = clis.filter(c => c.installed);
@@ -2393,9 +2399,100 @@ async function loadSettings() {
     pane.innerHTML = html;
     loadCustomModels();
     loadCouncilConfig();
+    loadSrooterStatus();
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Detection failed: ${esc(e.message)}</div>`;
   }
+}
+
+// ---- srooter routing: one-click enable from Settings -----------------------
+
+async function loadSrooterStatus() {
+  const body = document.getElementById('srooter-body');
+  if (!body) return;
+  try {
+    const s = await api('/srooter/status');
+    body.innerHTML = renderSrooter(s);
+  } catch (e) {
+    body.innerHTML = `<span class="text-red-400">Status check failed: ${esc(e.message)}</span>`;
+  }
+}
+
+function renderSrooter(s) {
+  if (!s.installed) {
+    return `<div class="text-gray-500">srooter routing isn't installed on this machine.</div>
+      <a href="https://www.srooter.ai" target="_blank" class="text-orange-400 hover:underline">Get started at srooter.ai →</a>`;
+  }
+  if (s.enabled) {
+    return `<div class="flex items-center gap-2 mb-2">
+        <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border text-green-400 border-green-900"><i class="fas fa-check-circle" style="font-size:8px"></i>Routed via srooter</span>
+        <span class="text-gray-600">${esc(s.gateway || '')}</span>
+      </div>
+      <button onclick="disableSrooter()" class="btn btn-ghost text-[10px]" id="srooter-btn"><i class="fas fa-power-off mr-1"></i>Switch back to direct</button>`;
+  }
+  if (s.key_set) {
+    return `<div class="text-gray-500 mb-2">Your srooter key is saved${s.gateway ? ' (' + esc(s.gateway) + ')' : ''}. Routing is currently off — turn it on with one click.</div>
+      <div class="flex gap-2 items-center">
+        <button onclick="enableSrooter(true)" class="btn btn-primary text-[10px]" id="srooter-btn"><i class="fas fa-bolt mr-1"></i>Turn on routing</button>
+        <a href="#" onclick="event.preventDefault();showSrooterForm()" class="text-[9px] text-gray-500 hover:underline">Use a different key</a>
+      </div>
+      <div id="srooter-form" class="hidden mt-2"></div>
+      <div id="srooter-msg" class="text-[10px] hidden mt-1"></div>`;
+  }
+  return srooterForm();
+}
+
+function srooterForm() {
+  return `<div class="text-gray-500 mb-2">Route Claude, Codex &amp; more through the cheapest capable model. Paste your srooter key to enable.</div>
+    <div class="space-y-2">
+      <input id="srooter-key" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="srooter API key (srt_…)" type="password">
+      <input id="srooter-url" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="Gateway URL (optional — defaults to api.srooter.ai)">
+      <div class="flex gap-2 items-center">
+        <button onclick="enableSrooter()" class="btn btn-primary text-[10px]" id="srooter-btn"><i class="fas fa-bolt mr-1"></i>Enable srooter</button>
+        <a href="https://www.srooter.ai" target="_blank" class="text-[9px] text-gray-500 hover:underline">Need a key?</a>
+      </div>
+      <div id="srooter-msg" class="text-[10px] hidden"></div>
+    </div>`;
+}
+
+function showSrooterForm() {
+  const holder = document.getElementById('srooter-form');
+  if (!holder) return;
+  holder.innerHTML = srooterForm();
+  holder.classList.remove('hidden');
+}
+
+async function enableSrooter(useStored) {
+  const key = useStored ? '' : ((document.getElementById('srooter-key') || {}).value || '');
+  const url = (document.getElementById('srooter-url') || {}).value || '';
+  const btn = document.getElementById('srooter-btn');
+  const msg = document.getElementById('srooter-msg');
+  if (!useStored && !key.trim()) { srooterMsg(msg, 'Enter your srooter API key first.', true); return; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Enabling…'; }
+  try {
+    const s = await api('/srooter/enable', { method: 'POST', body: JSON.stringify({ api_key: key.trim(), gateway_url: url.trim() }) });
+    document.getElementById('srooter-body').innerHTML = renderSrooter(s);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt mr-1"></i>Enable srooter'; }
+    srooterMsg(msg, e.message, true);
+  }
+}
+
+async function disableSrooter() {
+  const btn = document.getElementById('srooter-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Switching…'; }
+  try {
+    const s = await api('/srooter/disable', { method: 'POST' });
+    document.getElementById('srooter-body').innerHTML = renderSrooter(s);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-power-off mr-1"></i>Switch back to direct'; }
+  }
+}
+
+function srooterMsg(el, text, isErr) {
+  if (!el) return;
+  el.textContent = text;
+  el.className = `text-[10px] ${isErr ? 'text-red-400' : 'text-green-400'}`;
 }
 
 async function runModelHealthCheck() {

@@ -53,6 +53,7 @@ from maggy.api.routes_orchestrator import router as orchestrator_router
 from maggy.api.routes_pipeline import router as pipeline_router
 from maggy.api.routes_refresh import router as refresh_router
 from maggy.api.routes_shell import router as shell_router
+from maggy.api.routes_srooter import router as srooter_router
 from maggy.api.routes_approval import router as approval_router
 from maggy.api.routes_models import router as models_router
 from maggy.mesh.ws_server import router as ws_mesh_router
@@ -347,7 +348,7 @@ _ROUTERS = (
     mesh_router, mesh_admin_router, models_router, observability_router,
     orchestrator_router, pipeline_router, planning_router, plugins_router,
     process_router, projects_router, refresh_router, routing_router,
-    setup_router, shell_router, skills_router, system_router, testing_router, users_router,
+    setup_router, shell_router, skills_router, srooter_router, system_router, testing_router, users_router,
     ws_mesh_router,
 )
 
