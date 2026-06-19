@@ -199,6 +199,20 @@ class OrchestratorConfig:
 
 
 @dataclass
+class ReviewConfig:
+    """Config for the agentic council PR reviewer (maggy.review)."""
+    # Default GitHub token for reviews; a per-request override beats this, and
+    # env GITHUB_TOKEN is the final fallback (see review.config.resolve_token).
+    github_token: str = ""
+    # "owner/repo" -> local checkout path, used by the static gate + FP filter.
+    repo_paths: dict[str, str] = field(default_factory=dict)
+    # User-defined languages registered into the skill registry at runtime; each:
+    # {name, extensions:[...], path_markers?:[...], skill_file?}.
+    languages: list[dict] = field(default_factory=list)
+    default_dry_run: bool = True
+
+
+@dataclass
 class MaggyConfig:
     issue_tracker: IssueTrackerConfig = field(default_factory=IssueTrackerConfig)
     codebases: list[CodebaseConfig] = field(default_factory=list)
@@ -214,6 +228,7 @@ class MaggyConfig:
     mesh: MeshConfig = field(default_factory=MeshConfig)
     heartbeat: HeartbeatConfig = field(default_factory=HeartbeatConfig)
     orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
+    review: ReviewConfig = field(default_factory=ReviewConfig)
 
     def codebase_paths(self) -> dict[str, Path]:
         """Return {key: expanded_path} for all configured codebases."""
@@ -306,6 +321,7 @@ def _from_dict(data: dict[str, Any]) -> MaggyConfig:
         mesh=MeshConfig(**(data.get("mesh") or {})),
         heartbeat=HeartbeatConfig(**(data.get("heartbeat") or {})),
         orchestrator=OrchestratorConfig(**(data.get("orchestrator") or {})),
+        review=ReviewConfig(**(data.get("review") or {})),
     )
 
 
