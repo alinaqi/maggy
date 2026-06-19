@@ -21,6 +21,12 @@ class TestValidCommentLines:
         patch = "@@ -1,2 +1,3 @@\n a\n+b\n c"
         assert 2 in valid_comment_lines(patch)  # the added 'b' is new line 2
 
+    def test_no_newline_marker_not_counted(self):
+        # "\ No newline at end of file" must not advance the line counter
+        patch = "@@ -1,1 +1,2 @@\n a\n+b\n\\ No newline at end of file\n+c"
+        # a(ctx)=line1, +b=line2, marker skipped, +c=line3
+        assert valid_comment_lines(patch) == {2, 3}
+
 
 class TestMatchChanged:
     def test_suffix_match_strips_relative_prefix(self):

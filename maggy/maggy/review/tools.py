@@ -67,10 +67,14 @@ def register_tools(agent):
         lp = ctx.deps.local_path
         if not lp or not Path(lp).exists():
             return "(local repo not available for grep — use read_file on a specific path instead)"
+        # pattern/path_glob are model-controlled (and the model can be
+        # prompt-injected via the diff). Terminate options with `--` so a
+        # leading-dash value can't be smuggled to grep as a flag.
         cmd = ["grep", "-rnI", "--exclude-dir=.git", "--exclude-dir=node_modules",
-               "--exclude-dir=.venv", "-E", pattern, str(lp)]
+               "--exclude-dir=.venv", "-E"]
         if path_glob:
-            cmd[1:1] = [f"--include={path_glob}"]
+            cmd.append(f"--include={path_glob}")
+        cmd += ["--", pattern, str(lp)]
         try:
             out = subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout
         except Exception as e:  # noqa: BLE001

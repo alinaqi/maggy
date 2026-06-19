@@ -99,12 +99,14 @@ def _ts_gate(lp: Path, changed_ts: set[str], on_log) -> list[Finding]:
 
 
 def _py_gate(lp: Path, changed_py: set[str], on_log) -> list[Finding]:
-    existing = [c for c in sorted(changed_py) if (lp / c).exists()]
+    # changed_py are PR-controlled filenames; drop any leading-dash path so it
+    # can't be smuggled to ruff as a flag, and terminate options with `--`.
+    existing = [c for c in sorted(changed_py) if (lp / c).exists() and not c.startswith("-")]
     if not existing:
         return []
     on_log(f"[static] py: ruff (bug rules) on {len(existing)} changed file(s)")
     out = _run(["ruff", "check", "--select", _RUFF_SELECT, "--output-format", "concise",
-                "--no-cache", *existing], lp, 180)
+                "--no-cache", "--", *existing], lp, 180)
     if out.startswith("__TOOL_ERROR__"):
         on_log(f"[static] py: ruff did not run ({out[:80]})")
         return []

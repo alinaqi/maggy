@@ -62,6 +62,8 @@ def valid_comment_lines(patch: str) -> set[int]:
             continue
         if newno is None:
             continue
+        if ln.startswith("\\"):
+            continue  # "\ No newline at end of file" — not a real line, don't count it
         if ln.startswith("+"):
             lines.add(newno)
             newno += 1
