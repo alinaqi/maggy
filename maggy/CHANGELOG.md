@@ -35,8 +35,14 @@ false positives.
 - **Dashboard** — a **PR Review** tab: repo + PR#, optional token/checkout path,
   dry-run toggle, live model/token/language status, and a rendered verdict with
   findings, cost, and run log.
-- 32 tests (registry detection/loading/extensibility, token resolution order,
-  vendored pure functions, route status codes). ruff + mypy clean.
+- **Reviewer-bot config in Settings** — a "Reviewer Bot" card sets the bot
+  GitHub token in one field (no YAML), with `GET/POST /api/pr-review/config`.
+  Reviews then post as the bot instead of the user's env PAT; the status line
+  shows bot-set vs env-fallback vs none. The raw token is never returned by the
+  API (only a last-4 hint); a Clear button reverts to the env fallback.
+- 36 tests (registry detection/loading/extensibility, token resolution order,
+  vendored pure functions, route status codes, reviewer-bot config + masking).
+  ruff + mypy clean.
 
 #### Security
 - Hardened the reviewer's shell-outs against argv flag-smuggling: `grep`
