@@ -42,6 +42,38 @@ class TestStatus:
         assert "installed" in body and "languages" in body and "token_configured" in body
 
 
+class TestReviewerConfig:
+    def test_get_masks_token(self, client):
+        client.app.state.cfg.review.github_token = "ghp_secretABCD"
+        resp = client.get("/api/pr-review/config")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["token_set"] is True
+        assert body["token_hint"] == "…ABCD"
+        assert "ghp_secretABCD" not in str(body)  # raw token never returned
+
+    @patch("maggy.config.save")
+    def test_set_token(self, _save, client):
+        resp = client.post("/api/pr-review/config", json={"github_token": "ghp_botTOKEN"})
+        assert resp.status_code == 200
+        assert resp.json()["token_set"] is True
+        assert client.app.state.cfg.review.github_token == "ghp_botTOKEN"
+
+    @patch("maggy.config.save")
+    def test_clear_token_falls_back(self, _save, client, monkeypatch):
+        client.app.state.cfg.review.github_token = "ghp_old"
+        monkeypatch.setenv("GITHUB_TOKEN", "env_tok")
+        resp = client.post("/api/pr-review/config", json={"clear_token": True})
+        assert resp.json()["token_set"] is False
+        assert resp.json()["uses_env_fallback"] is True
+        assert client.app.state.cfg.review.github_token == ""
+
+    @patch("maggy.config.save")
+    def test_set_default_dry_run(self, _save, client):
+        resp = client.post("/api/pr-review/config", json={"default_dry_run": False})
+        assert resp.json()["default_dry_run"] is False
+
+
 class TestRun:
     def test_missing_token_400(self, client, monkeypatch):
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)

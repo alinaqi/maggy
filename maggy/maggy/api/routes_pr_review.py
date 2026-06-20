@@ -8,6 +8,8 @@ per-request override > Maggy config (review.github_token) > env GITHUB_TOKEN.
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
@@ -25,6 +27,27 @@ class RunRequest(BaseModel):
     dry_run: bool | None = None       # None -> fall back to config.review.default_dry_run
     github_token: str | None = None   # per-request override (beats config + env)
     repo_path: str | None = None      # local checkout for the static gate / FP filter
+
+
+class ReviewConfigUpdate(BaseModel):
+    github_token: str | None = None   # set the bot token; None/"" = leave unchanged
+    clear_token: bool = False         # explicitly clear it (fall back to env GITHUB_TOKEN)
+    default_dry_run: bool | None = None
+
+
+def _mask(tok: str) -> str:
+    """Never return a raw token — only a recognizable last-4 hint."""
+    return f"…{tok[-4:]}" if tok and len(tok) >= 4 else ("set" if tok else "")
+
+
+def _config_view(rc) -> dict:
+    """Masked, safe-to-return view of the reviewer config."""
+    return {
+        "token_set": bool(rc.github_token),
+        "token_hint": _mask(rc.github_token),
+        "uses_env_fallback": (not rc.github_token) and bool(os.environ.get("GITHUB_TOKEN")),
+        "default_dry_run": rc.default_dry_run,
+    }
 
 
 def _register_config_languages(cfg) -> None:
@@ -63,6 +86,32 @@ async def status(request: Request, x_api_key: str | None = Header(None)) -> dict
         "token_configured": bool(_resolve_token(cfg, None)),
         "languages": review_languages.supported(),
     }
+
+
+@router.get("/config")
+async def get_config(request: Request, x_api_key: str | None = Header(None)) -> dict:
+    """Reviewer-bot config (masked). The raw token is never returned."""
+    check_auth(request, x_api_key)
+    return _config_view(request.app.state.cfg.review)
+
+
+@router.post("/config")
+async def set_config(
+    request: Request, body: ReviewConfigUpdate, x_api_key: str | None = Header(None),
+) -> dict:
+    """Save the reviewer-bot token / dry-run default to Maggy config."""
+    check_auth(request, x_api_key)
+    cfg = request.app.state.cfg
+    rc = cfg.review
+    if body.clear_token:
+        rc.github_token = ""
+    elif body.github_token is not None and body.github_token.strip():
+        rc.github_token = body.github_token.strip()
+    if body.default_dry_run is not None:
+        rc.default_dry_run = body.default_dry_run
+    from maggy import config as config_mod
+    config_mod.save(cfg)
+    return _config_view(rc)
 
 
 def _serialize(out: dict) -> dict:
