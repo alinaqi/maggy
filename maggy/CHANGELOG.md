@@ -4,6 +4,22 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.52.0] - 2026-06-21
+
+### Uninstall path (#28)
+
+#### Added
+- **`maggy uninstall`** — removes exactly what `maggy bootstrap` / `install.sh`
+  placed (bundled skills, commands, hooks, rules, templates, `~/bin` model
+  wrappers, plugins, and the install marker). **Dry-run by default**; `--yes` to
+  remove. It only removes asset *names* the source defines, so your own files in
+  `~/.claude`, `~/bin`, and `~/.maggy` are never touched.
+- **`UNINSTALL.md`** — a full revert guide: the one-liner, what's removed, and
+  the deliberately-left-alone bits (the pip package, `~/.maggy` data,
+  `settings.json` hook lines, srooter shell routing) with copy-paste commands.
+- 6 tests (plan is non-destructive, removal is symmetric with bootstrap, user
+  files are spared, marker removed, no-source errors clearly).
+
 ## [6.51.0] - 2026-06-20
 
 ### Agentic council PR reviewer — `maggy.review`
