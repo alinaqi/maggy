@@ -50,6 +50,16 @@ cd "$(cat ~/.claude/.bootstrap-dir)"
 git pull && ./install.sh
 ```
 
+### Uninstall
+
+```bash
+maggy uninstall        # dry-run — preview exactly what would be removed
+maggy uninstall --yes  # remove the managed assets (your own files are spared)
+pip uninstall maggy-harness
+```
+
+Full revert guide (incl. `~/.maggy` data, `settings.json` hooks, srooter): [UNINSTALL.md](UNINSTALL.md).
+
 ---
 
 ## Path B: Maggy -- Autonomous Engineering Harness

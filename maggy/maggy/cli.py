@@ -73,6 +73,45 @@ def bootstrap(
 
 
 @app.command()
+def uninstall(
+    source: str = typer.Option(
+        None, "--source", "-s",
+        help="Path to the checkout used to install (else $MAGGY_BOOTSTRAP_DIR or marker)",
+    ),
+    yes: bool = typer.Option(
+        False, "--yes", "-y",
+        help="Actually remove. Without this it's a dry-run preview.",
+    ),
+) -> None:
+    """Remove what `maggy bootstrap` installed (skills, hooks, commands, ~/bin wrappers, plugins)."""
+    from maggy.services.bootstrap import BootstrapError
+    from maggy.services.uninstall import plan_uninstall, run_uninstall
+    try:
+        plan = plan_uninstall(source)
+    except BootstrapError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    if sum(len(v) for v in plan.values()) == 0:
+        console.print("[green]Nothing to remove — no bootstrap assets found.[/green]")
+        return
+    console.print("[yellow]Will remove:[/yellow]" if yes else "[yellow]Would remove (dry-run):[/yellow]")
+    for cat, names in plan.items():
+        if names:
+            extra = "…" if len(names) > 8 else ""
+            console.print(f"  {cat}: {len(names)} — {', '.join(names[:8])}{extra}")
+    if not yes:
+        console.print("\n[dim]Re-run with [bold]--yes[/bold] to remove. Left alone: the pip package, "
+                      "Maggy data (~/.maggy), and ~/.claude/settings.json — see UNINSTALL.md.[/dim]")
+        return
+    removed = run_uninstall(source)
+    n = sum(len(v) for v in removed.values())
+    console.print(f"[green]✓ Removed {n} item(s).[/green]")
+    console.print("[dim]Still installed (remove manually if you want): the package "
+                  "([bold]pip uninstall maggy-harness[/bold]), ~/.maggy data, and any hook lines in "
+                  "~/.claude/settings.json. See UNINSTALL.md.[/dim]")
+
+
+@app.command()
 def restart() -> None:
     """Stop and restart the Maggy server."""
     console.print("[dim]Stopping Maggy server…[/dim]")
