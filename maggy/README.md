@@ -12,6 +12,7 @@ Chat with your codebases across Claude, Codex, and Kimi — with semantic routin
 - **Parallel Execution** — Polyphony container orchestration for complex tasks (blast>=7)
 - **AI-prioritized Tasks** — ranks open issues by urgency + OKR alignment
 - **One-click Execute** — TDD pipeline with iCPG context enrichment
+- **Council PR Review** — a multi-model council reviews a GitHub PR from the dashboard: deterministic mega-PR chunking, a static gate (tsc/ruff) as ground truth, an adversarial refute pass to kill false positives, and extensible per-language skills (Python/TS/Go/Rust/Java/C#/Ruby/PHP — drop in more). `pip install maggy-harness[review]`
 - **Competitor Intelligence** — auto-discovered competitors, daily AI briefing
 - **Engram Memory** — persistent cross-session memory with amnesia diagnostics
 

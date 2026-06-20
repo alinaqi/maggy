@@ -127,6 +127,7 @@ You're using Claude Code. It's impressive — but:
 | **Cortex MCP** | Code intelligence: 10 edge types, cyclomatic complexity, FTS5 search, bidirectional traversal. 15 tools, single SQLite DB. [Benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) |
 | **Polyphony** | Docker-isolated parallel agent execution. Second session auto-provisions a workspace. [Spec](maggy/docs/polyphony-spec.md) |
 | **Engram** | Cross-session memory. 7 amnesia types. Persists architectural knowledge across weeks |
+| **Council PR Review** | Multi-model council reviews a GitHub PR from the dashboard — deterministic mega-PR chunking, a static gate (tsc/ruff) as ground truth, and an adversarial refute pass that kills false positives. Extensible per-language skills (Python/TS/Go/Rust/Java/C#/Ruby/PHP + drop-in more). `pip install maggy-harness[review]` |
 | **Plugins** | Drop-in system. Ships with: Build-in-Public (auto-posts to LinkedIn/X), Telos, GitHub/Asana/Monday providers |
 
 ---

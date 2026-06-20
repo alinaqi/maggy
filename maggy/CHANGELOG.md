@@ -4,6 +4,53 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.51.0] - 2026-06-20
+
+### Agentic council PR reviewer — `maggy.review`
+
+A multi-model "council" reviews a GitHub PR and posts a CodeRabbit-style review
+with inline comments. It plans the review from blast radius, deterministically
+chunks mega-PRs (every model call sees a bounded slice), reviews each chunk with
+a rotating panel of tool-using agents, runs a deterministic static gate
+(tsc/ruff) as ground truth, then adversarially refutes blocking findings to kill
+false positives.
+
+#### Added
+- **`maggy/review/` module** — vendored the council pipeline (planner, reviewers,
+  chair, refuter, GitHub I/O, static gate). Pydantic structured outputs;
+  per-finding evidence required for blockers. (The functional-test/provision
+  harness is intentionally not vendored — it boots untrusted app code.)
+- **Extensible language skills** (`review/languages.py`) — a registry maps a
+  language to its file extensions/path-markers + a skill file. Adding a language
+  needs **no core change**: drop `review/skills/<lang>.md` and
+  `register_language(...)`, or declare it under `review.languages` in config.
+  Seeds the common set — **go, rust, java, csharp, ruby, php** — alongside
+  python/typescript/db.
+- **Configurable GitHub token** — resolution is per-request override →
+  `review.github_token` (config) → `GITHUB_TOKEN` (env). New `ReviewConfig`
+  section. The token is never returned by `/api/config` or `/api/pr-review/status`.
+- **API** — `/api/pr-review/{status,languages,run}`. The heavy pipeline is an
+  optional extra (`pip install maggy-harness[review]`) imported lazily; `/run`
+  returns 503 with an install hint when it's absent.
+- **Dashboard** — a **PR Review** tab: repo + PR#, optional token/checkout path,
+  dry-run toggle, live model/token/language status, and a rendered verdict with
+  findings, cost, and run log.
+- 32 tests (registry detection/loading/extensibility, token resolution order,
+  vendored pure functions, route status codes). ruff + mypy clean.
+
+#### Security
+- Hardened the reviewer's shell-outs against argv flag-smuggling: `grep`
+  (model-controlled pattern) and `ruff` (PR-controlled filenames) now use a `--`
+  option terminator and reject leading-dash values.
+
+#### Fixed
+- `valid_comment_lines` counted `\ No newline at end of file` diff markers as
+  real lines, shifting inline-comment positions. (Found by dogfooding the council
+  on its own PR.)
+- The `[review]` extra now declares the provider SDKs (`google-genai`, `openai`)
+  the default roster needs — it previously failed at runtime with
+  `Unknown provider: google`.
+
 ## [6.50.0] - 2026-06-11
 
 ### PyPI packaging — `pip install maggy-harness`
