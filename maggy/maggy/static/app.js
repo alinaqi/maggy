@@ -2261,6 +2261,12 @@ async function loadSettings() {
       <div id="srooter-body" class="text-[10px] text-gray-600"><i class="fas fa-spinner fa-spin mr-1"></i>Checking…</div>
     </div>`;
 
+    // Reviewer bot — GitHub token the council PR reviewer posts with
+    html += `<div class="card p-4 mb-3" id="reviewbot-card">
+      <div class="text-[10px] text-gray-500 uppercase mb-2"><i class="fas fa-robot mr-1"></i>Reviewer Bot (PR review)</div>
+      <div id="reviewbot-body" class="text-[10px] text-gray-600"><i class="fas fa-spinner fa-spin mr-1"></i>Checking…</div>
+    </div>`;
+
     // AI Models section
     const clis = sys.clis || [];
     const installed = clis.filter(c => c.installed);
@@ -2401,6 +2407,7 @@ async function loadSettings() {
     loadCustomModels();
     loadCouncilConfig();
     loadSrooterStatus();
+    loadReviewBot();
   } catch (e) {
     pane.innerHTML = `<div class="card p-4 text-sm text-red-400">Detection failed: ${esc(e.message)}</div>`;
   }
@@ -2593,6 +2600,59 @@ function prrMsg(el, text, isErr) {
   el.textContent = text;
   el.className = `text-[10px] ${isErr ? 'text-red-400' : 'text-green-400'}`;
   el.classList.remove('hidden');
+}
+
+// ---- Reviewer bot token (Settings) -----------------------------------------
+
+async function loadReviewBot() {
+  const body = document.getElementById('reviewbot-body');
+  if (!body) return;
+  try {
+    const c = await api('/pr-review/config');
+    body.innerHTML = renderReviewBot(c);
+  } catch (e) {
+    body.innerHTML = `<span class="text-red-400">Failed: ${esc(e.message)}</span>`;
+  }
+}
+
+function renderReviewBot(c) {
+  let state;
+  if (c.token_set) state = `<span class="text-green-400">Bot token set (${esc(c.token_hint)})</span> — reviews post as the bot.`;
+  else if (c.uses_env_fallback) state = `<span class="text-yellow-500">Using your <code>GITHUB_TOKEN</code> env</span> — reviews post as you (self-review → comment only).`;
+  else state = `<span class="text-red-400">No token</span> — set one below or export <code>GITHUB_TOKEN</code>.`;
+  return `<div class="text-gray-400 mb-2">${state}</div>
+    <div class="text-gray-600 mb-2">Use a dedicated bot account's <a href="https://github.com/settings/tokens/new?scopes=repo&description=maggy-reviewer" target="_blank" class="text-orange-400 hover:underline">Personal Access Token (repo scope)</a> so reviews come from the bot, not you.</div>
+    <div class="space-y-2">
+      <input id="rb-token" type="password" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="ghp_… bot token (blank = leave unchanged)">
+      <label class="text-[10px] text-gray-400 flex items-center gap-1"><input type="checkbox" id="rb-dry" ${c.default_dry_run ? 'checked' : ''}> Default new reviews to dry-run (don't post)</label>
+      <div class="flex gap-2 items-center">
+        <button onclick="saveReviewBot()" class="btn btn-primary text-[10px]" id="rb-btn"><i class="fas fa-save mr-1"></i>Save</button>
+        ${c.token_set ? '<button onclick="clearReviewBot()" class="btn btn-ghost text-[10px]"><i class="fas fa-trash mr-1"></i>Clear (use env)</button>' : ''}
+        <span id="rb-msg" class="text-[10px] hidden"></span>
+      </div>
+    </div>`;
+}
+
+async function saveReviewBot() {
+  const tok = (document.getElementById('rb-token') || {}).value || '';
+  const dry = document.getElementById('rb-dry').checked;
+  const btn = document.getElementById('rb-btn');
+  const msg = document.getElementById('rb-msg');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving…'; }
+  try {
+    const c = await api('/pr-review/config', { method: 'POST', body: JSON.stringify({ github_token: tok.trim() || null, default_dry_run: dry }) });
+    document.getElementById('reviewbot-body').innerHTML = renderReviewBot(c);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save mr-1"></i>Save'; }
+    prrMsg(msg, e.message, true);
+  }
+}
+
+async function clearReviewBot() {
+  try {
+    const c = await api('/pr-review/config', { method: 'POST', body: JSON.stringify({ clear_token: true }) });
+    document.getElementById('reviewbot-body').innerHTML = renderReviewBot(c);
+  } catch (e) { /* leave UI as-is on error */ }
 }
 
 async function runModelHealthCheck() {
