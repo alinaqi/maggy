@@ -161,6 +161,7 @@
     <div class="sidebar-section">System</div>
     <nav class="flex-1 flex flex-col gap-0.5 overflow-y-auto scroll-thin">
       <a href="#" onclick="switchTab('forge')" data-tab="forge" class="sidebar-link"><i class="fas fa-hammer"></i><span>Forge</span></a>
+      <a href="#" onclick="switchTab('pr-review')" data-tab="pr-review" class="sidebar-link"><i class="fas fa-scale-balanced"></i><span>PR Review</span></a>
       <a href="#" onclick="switchTab('logs')" data-tab="logs" class="sidebar-link"><i class="fas fa-scroll"></i><span>Logs</span></a>
       <a href="#" onclick="switchTab('settings')" data-tab="settings" class="sidebar-link"><i class="fas fa-gear"></i><span>Settings</span></a>
     </nav>
@@ -221,6 +222,7 @@
       <div id="pane-routing" class="h-full p-4 hidden"></div>
       <div id="pane-budget" class="h-full p-4 hidden"></div>
       <div id="pane-forge" class="h-full p-4 hidden"></div>
+      <div id="pane-pr-review" class="h-full p-4 hidden overflow-y-auto"></div>
       <div id="pane-logs" class="h-full hidden">
         <div class="pane-content">
           <div class="flex items-center gap-2 mb-4">

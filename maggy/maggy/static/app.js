@@ -165,6 +165,7 @@ function switchTab(tab, fromHash) {
   else if (tab === 'routing') loadRouting();
   else if (tab === 'budget') loadBudget();
   else if (tab === 'forge') loadForge();
+  else if (tab === 'pr-review') loadPrReview();
   else if (tab === 'logs') loadLogs();
   else if (tab === 'skills') loadSkills();
   else if (tab === 'settings') loadSettings();
@@ -2493,6 +2494,105 @@ function srooterMsg(el, text, isErr) {
   if (!el) return;
   el.textContent = text;
   el.className = `text-[10px] ${isErr ? 'text-red-400' : 'text-green-400'}`;
+}
+
+// ---- PR Review: agentic council reviewer (maggy.review) --------------------
+
+async function loadPrReview() {
+  const pane = document.getElementById('pane-pr-review');
+  if (!pane) return;
+  pane.innerHTML = `<h2 class="text-sm font-bold text-white mb-3"><i class="fas fa-scale-balanced mr-1"></i>PR Review — agentic council</h2>
+    <div id="prr-status" class="text-[10px] text-gray-500 mb-3"><i class="fas fa-spinner fa-spin mr-1"></i>Checking reviewer…</div>
+    <div class="card p-4 mb-3">
+      <div class="grid grid-cols-2 gap-3 text-[11px]">
+        <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">Repo (owner/repo)</label>
+          <input id="prr-repo" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="zenloopGmbH/surveys-backend"></div>
+        <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">PR number</label>
+          <input id="prr-num" type="number" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="525"></div>
+        <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">GitHub token (optional — overrides default)</label>
+          <input id="prr-token" type="password" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="ghp_… (blank = use configured/env)"></div>
+        <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">Local checkout path (optional — enables static gate)</label>
+          <input id="prr-path" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="~/Documents/…"></div>
+      </div>
+      <div class="flex gap-2 items-center mt-3">
+        <label class="text-[10px] text-gray-400 flex items-center gap-1"><input type="checkbox" id="prr-dry" checked> Dry-run (don't post to GitHub)</label>
+        <span class="flex-1"></span>
+        <button onclick="runPrReview()" class="btn btn-primary text-[10px]" id="prr-btn"><i class="fas fa-play mr-1"></i>Run council</button>
+      </div>
+      <div id="prr-msg" class="text-[10px] hidden mt-2"></div>
+    </div>
+    <div id="prr-result"></div>`;
+  loadPrReviewStatus();
+}
+
+async function loadPrReviewStatus() {
+  const el = document.getElementById('prr-status');
+  if (!el) return;
+  try {
+    const s = await api('/pr-review/status');
+    if (!s.installed) {
+      el.innerHTML = `<span class="text-yellow-500">Reviewer not installed.</span> ${esc(s.hint || '')}`;
+      return;
+    }
+    const models = (s.models || []).join(', ') || 'none (set provider keys)';
+    const tok = s.token_configured ? '<span class="text-green-400">token ✓</span>' : '<span class="text-red-400">no token</span>';
+    el.innerHTML = `Models: <span class="text-gray-300">${esc(models)}</span> · ${tok} · ${(s.languages || []).length} languages`;
+  } catch (e) {
+    el.innerHTML = `<span class="text-red-400">Status failed: ${esc(e.message)}</span>`;
+  }
+}
+
+async function runPrReview() {
+  const repo = (document.getElementById('prr-repo').value || '').trim();
+  const num = parseInt(document.getElementById('prr-num').value, 10);
+  const msg = document.getElementById('prr-msg');
+  if (!repo.includes('/') || !num) { prrMsg(msg, 'Enter owner/repo and a PR number.', true); return; }
+  const [owner, name] = repo.split('/', 2);
+  const body = {
+    owner: owner, repo: name, pr_number: num,
+    dry_run: document.getElementById('prr-dry').checked,
+    github_token: (document.getElementById('prr-token').value || '').trim() || null,
+    repo_path: (document.getElementById('prr-path').value || '').trim() || null
+  };
+  const btn = document.getElementById('prr-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Reviewing… (may take a minute)';
+  if (msg) msg.classList.add('hidden');
+  try {
+    const r = await api('/pr-review/run', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('prr-result').innerHTML = renderPrReview(r);
+  } catch (e) {
+    prrMsg(msg, e.message, true);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-play mr-1"></i>Run council';
+  }
+}
+
+function renderPrReview(r) {
+  const ok = r.decision === 'approve';
+  const badge = ok ? '<span class="text-green-400">✅ Approve</span>' : '<span class="text-red-400">🛑 Changes requested</span>';
+  const cost = r.cost ? `~$${(r.cost.total_usd || 0).toFixed(3)}` : '';
+  let h = `<div class="card p-4">
+    <div class="flex items-center gap-2 mb-2 text-[11px]">${badge}
+      <span class="text-gray-600">blast ${esc(String(r.blast_radius || '?'))} · ${(r.findings || []).length} findings · ${esc(cost)}${r.dry_run ? ' · dry-run' : ''}</span></div>
+    <div class="text-[11px] text-gray-300 mb-3">${esc(r.summary || '')}</div>`;
+  for (const f of (r.findings || [])) {
+    const tag = f.severity === 'blocking' ? '🔴' : '🟡';
+    h += `<div class="mb-2 p-2 rounded" style="background:var(--bg-secondary)">
+      <div class="text-[11px] text-white">${tag} <span class="text-gray-400">${esc(f.file || '')}${f.line ? ':' + f.line : ''}</span> — <b>${esc(f.title || '')}</b></div>
+      <div class="text-[10px] text-gray-400 mt-0.5">${esc(f.detail || '')}</div></div>`;
+  }
+  if (r.logs && r.logs.length) {
+    h += `<details class="mt-2"><summary class="text-[10px] text-gray-500 cursor-pointer">Run log (${r.logs.length})</summary>
+      <pre class="text-[9px] text-gray-500 mt-1 whitespace-pre-wrap">${esc(r.logs.join('\n'))}</pre></details>`;
+  }
+  return h + '</div>';
+}
+
+function prrMsg(el, text, isErr) {
+  if (!el) return;
+  el.textContent = text;
+  el.className = `text-[10px] ${isErr ? 'text-red-400' : 'text-green-400'}`;
+  el.classList.remove('hidden');
 }
 
 async function runModelHealthCheck() {
