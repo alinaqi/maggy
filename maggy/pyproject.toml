@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # Import package stays `maggy`; PyPI distribution name is `maggy-harness`
 # because `maggy` is taken on PyPI (a Hopsworks hyperparameter library).
 name = "maggy-harness"
-version = "0.1.0"
+version = "0.2.0"
 description = "Maggy — a local AI engineering command center: multi-model routing, intent graph, memory, and a web dashboard for Claude Code."
 readme = "README.md"
 requires-python = ">=3.11"
