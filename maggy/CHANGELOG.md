@@ -6,6 +6,9 @@ All notable changes to Maggy will be documented in this file.
 
 ## [6.53.0] - 2026-06-21
 
+> Published to PyPI as **`maggy-harness` 0.2.1** (together with 6.52.0). The
+> changelog tracks feature versions; the PyPI package uses semver from 0.1.0.
+
 ### Backup / restore / diff — safe, reversible installs
 
 #### Added
