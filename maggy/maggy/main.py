@@ -363,7 +363,7 @@ def create_app() -> FastAPI:
             f"You configured host={cfg.dashboard.host!r} — set auth_mode=\"token\" and MAGGY_API_KEY, "
             f"or bind to 127.0.0.1."
         )
-    app = FastAPI(title="Maggy", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="Maggy", version="0.2.1", lifespan=lifespan)
     app.add_middleware(_NoCacheStatic)
     app.state.cfg = cfg
     app.state.configured = config_mod.is_configured()
