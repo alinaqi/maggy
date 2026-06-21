@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.53.0] - 2026-06-21
+
+### Backup / restore / diff — safe, reversible installs
+
+#### Added
+- **`maggy backup` / `maggy restore` / `maggy diff`** — snapshot your existing
+  files before installing, roll back anytime, and preview exactly what a
+  bootstrap would add or change vs your current setup. `maggy bootstrap`
+  auto-backs-up first, so your pristine pre-Maggy state is always recoverable.
+  Backups (settings.json + only the files Maggy would overwrite) live in
+  `~/.maggy/backups/<timestamp>/`. See [UNINSTALL.md](UNINSTALL.md).
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for the full per-release detail.
+
 ## [6.52.0] - 2026-06-21
 
 ### Uninstall path (#28)

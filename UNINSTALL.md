@@ -19,6 +19,33 @@ are left untouched.
 
 ---
 
+## Backup, restore & diff (before you install)
+
+You don't have to take Maggy's word for it — preview and snapshot first:
+
+```bash
+maggy diff               # what would change vs your current setup (+new / ~changed / identical)
+maggy backup             # snapshot your existing files (settings.json + anything Maggy would overwrite)
+maggy restore --list     # list snapshots
+maggy restore            # restore the newest (or --id <stamp>)
+```
+
+`maggy bootstrap` **auto-backs-up first** — so your very first install captures
+your pristine, pre-Maggy state. To roll the machine back to exactly how it was:
+
+```bash
+maggy restore            # bring back your original files
+maggy uninstall --yes    # remove Maggy's added files
+```
+
+Backups live in `~/.maggy/backups/<timestamp>/` (a plain mirror of your home
+layout — you can also just copy files back by hand). They capture **only** your
+own pre-existing files that Maggy would overwrite, never Maggy's own assets
+(those come off with `maggy uninstall`). Skip the auto-backup with
+`maggy bootstrap --no-backup`.
+
+---
+
 ## What `maggy uninstall` removes
 
 It mirrors the installer, removing only what it placed:
