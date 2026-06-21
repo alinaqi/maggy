@@ -44,44 +44,83 @@ def _git_branch(path: str) -> str:
     return ""
 
 
+def _is_git_repo(path: str) -> bool:
+    """True if `path` is inside a git work tree (so we can make a worktree)."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", path, "rev-parse", "--git-dir"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return out.returncode == 0
+    except Exception:
+        return False
+
+
 class ChatManager:
     """Manages interactive Claude Code sessions."""
 
-    def __init__(self, cfg: MaggyConfig, store=None):
+    def __init__(self, cfg: MaggyConfig, store=None, worktree_base: Path | None = None):
         self.cfg = cfg
         self._sessions: dict[str, ChatSession] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._store = store
+        # where isolated sub-tab worktrees live (git-linked back to the repo)
+        self._worktree_base = worktree_base or (Path.home() / ".maggy" / "chat")
         if store:
             self._restore_sessions(store)
 
     def create_session(
         self, project_key: str, project_path: str | None = None,
+        isolated: bool = False,
     ) -> ChatSession:
-        """Create a new chat session for a project."""
+        """Create a chat session for a project.
+
+        A project's first chat runs on its main working tree. Additional chats
+        (or `isolated=True`) get their OWN git worktree + branch, so parallel
+        chats never collide on the same files/branch.
+        """
         if project_path:
-            wd = self._validate_dir(project_path)
-            key = project_key or Path(wd).name
+            repo_dir = self._validate_dir(project_path)
+            key = project_key or Path(repo_dir).name
         else:
-            wd = self._resolve_project(project_key)
+            repo_dir = self._resolve_project(project_key)
             key = project_key
         sid = uuid.uuid4().hex[:10]
-        branch = _git_branch(wd)
+        if (isolated or self._has_main_session(key)) and _is_git_repo(repo_dir):
+            working_dir, isolation, label = self._isolate(repo_dir, sid)
+        else:
+            working_dir, isolation, label = repo_dir, "none", _git_branch(repo_dir)
         session = ChatSession(
-            id=sid, claude_session_id="",
-            project_key=key, working_dir=wd,
-            repo_dir=wd, isolation="none",
-            label=branch,
+            id=sid, claude_session_id="", project_key=key,
+            working_dir=working_dir, repo_dir=repo_dir,
+            isolation=isolation, label=label,
         )
         self._sessions[session.id] = session
         self._locks[session.id] = asyncio.Lock()
         if self._store:
             self._store.save_session(
-                session.id, key, wd, "",
-                repo_dir=wd, isolation="none",
-                label=branch,
+                session.id, key, working_dir, "",
+                repo_dir=repo_dir, isolation=isolation, label=label,
             )
         return session
+
+    def _has_main_session(self, key: str) -> bool:
+        """True if this project already has a chat on its main working tree."""
+        return any(
+            s.project_key == key and s.isolation == "none"
+            for s in self._sessions.values()
+        )
+
+    def _isolate(self, repo_dir: str, sid: str) -> tuple[str, str, str]:
+        """Create a worktree+branch for an isolated chat → (working_dir, isolation, label)."""
+        from maggy.orchestrator.worktree import create_worktree
+        try:
+            wt = create_worktree(Path(repo_dir), sid, self._worktree_base)
+            if Path(wt).is_dir():
+                return str(wt), "worktree", f"maggy/{sid}"
+        except Exception:
+            logger.warning("worktree create failed for %s; using main tree", sid, exc_info=True)
+        return repo_dir, "none", _git_branch(repo_dir)
 
     def find_by_project(self, key: str) -> ChatSession | None:
         """Find existing session for a project key."""
@@ -131,13 +170,26 @@ class ChatManager:
 
     def delete_session(self, session_id: str) -> bool:
         session = self._sessions.get(session_id)
-        if session:
-            del self._sessions[session_id]
-            self._locks.pop(session_id, None)
-            if self._store:
-                self._store.delete_session(session_id)
-            return True
-        return False
+        if not session:
+            return False
+        self._cleanup_worktree(session)
+        del self._sessions[session_id]
+        self._locks.pop(session_id, None)
+        if self._store:
+            self._store.delete_session(session_id)
+        return True
+
+    def _cleanup_worktree(self, session: ChatSession) -> None:
+        """Remove an isolated session's worktree (keeps the branch + commits)."""
+        if getattr(session, "isolation", "none") != "worktree":
+            return
+        if not session.repo_dir or not session.working_dir:
+            return
+        try:
+            from maggy.orchestrator.worktree import remove_worktree
+            remove_worktree(Path(session.repo_dir), Path(session.working_dir))
+        except Exception:
+            logger.warning("worktree cleanup failed for %s", session.id, exc_info=True)
 
     async def send(
         self, session_id: str, message: str,
