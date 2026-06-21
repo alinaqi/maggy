@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.52.0] - 2026-06-21
+
+### Uninstall path (#28)
+
+#### Added
+- **`maggy uninstall`** + **[UNINSTALL.md](UNINSTALL.md)** — a clean, reversible
+  way to undo what the installer placed. Symmetric with `bootstrap`/`install.sh`:
+  it removes only the bundled asset names (skills, commands, hooks, rules,
+  templates, `~/bin` model wrappers, plugins, and the install marker), so your
+  own files in `~/.claude`, `~/bin`, and `~/.maggy` are untouched. Dry-run by
+  default; `--yes` to remove. The guide also covers the deliberately-left bits
+  (the pip package, `~/.maggy` data, `settings.json` hooks, srooter routing).
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for the full per-release detail.
+
 ## [6.44.0] - 2026-06-11
 
 ### Maggy: zero-config onboarding + architecture hardening
