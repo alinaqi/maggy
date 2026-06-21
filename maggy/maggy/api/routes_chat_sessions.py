@@ -169,6 +169,7 @@ def _format_session(s) -> dict:
         "id": s.id, "project_key": s.project_key,
         "working_dir": s.working_dir, "repo_dir": s.repo_dir,
         "label": s.label, "status": s.status,
+        "isolation": getattr(s, "isolation", "none"),
         "messages": len(s.messages),
         "has_resume_id": bool(s.messages),
     }

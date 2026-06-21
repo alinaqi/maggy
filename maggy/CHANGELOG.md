@@ -18,6 +18,10 @@ All notable changes to Maggy will be documented in this file.
 - Deleting an isolated chat removes its worktree (the branch + commits are kept;
   the UI warns that uncommitted worktree changes are discarded). Non-git
   directories fall back to the main tree gracefully.
+- **Chat sub-tab bar** — the chat view now shows a per-project tab bar with every
+  chat (each isolated one labelled by its branch) and a **+** to open a new
+  parallel chat. (The old multi-session sidebar was dead code; this surfaces the
+  capability that was previously backend-only.)
 - 7 tests against a real git repo (incl. a full create→worktree→delete pass
   through the HTTP API).
 
