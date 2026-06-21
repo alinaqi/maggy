@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.54.0] - 2026-06-22
+
+### Parallel chats per project — worktree-isolated
+
+#### Added
+- **Multiple chats per project, each in its own git worktree + branch.** The
+  first chat runs on the project's main tree; every additional chat gets its own
+  `git worktree` on a fresh `maggy/<id>` branch, so parallel chats never collide
+  on files or branches. The backend auto-isolates a second chat even without the
+  flag. Deleting an isolated chat removes its worktree (branch + commits kept).
+  See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for detail.
+
 ## [6.53.0] - 2026-06-21
 
 > Published to PyPI as **`maggy-harness` 0.2.1** (together with 6.52.0). The
