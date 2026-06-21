@@ -923,13 +923,20 @@ async function newChatSession() {
 async function newSessionForProject(projectKey) {
   const existing = CHAT_SESSIONS_CACHE.find(s => s.project_key === projectKey);
   const path = existing ? (existing.repo_dir || existing.working_dir) : '';
+  // An additional chat for a project runs in its OWN git worktree + branch, so
+  // parallel chats don't collide. The first chat (no existing one) stays on the
+  // main tree — the backend also auto-isolates if a main chat already exists.
+  const isolated = !!existing;
   try {
     const data = await api('/chat/sessions', {
       method: 'POST',
-      body: JSON.stringify({ project_key: projectKey, project_path: path }),
+      body: JSON.stringify({ project_key: projectKey, project_path: path, isolated: isolated }),
     });
     CHAT_SESSION_ID = data.id;
     loadChat();
+    if (data.isolation === 'worktree') {
+      showToast(`New parallel chat on branch ${data.label} (isolated worktree)`);
+    }
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
@@ -977,7 +984,12 @@ async function commitRename(sessionId, input, el, fallback) {
 }
 
 async function deleteSession(sessionId) {
-  if (!confirm('Delete this session?')) return;
+  const s = (CHAT_SESSIONS_CACHE || []).find(x => x.id === sessionId);
+  const isWt = s && (s.isolation === 'worktree' || (s.label || '').startsWith('maggy/'));
+  const msg = isWt
+    ? `Delete this chat? Its worktree is removed (uncommitted changes there are lost). The branch ${s.label} and any commits are kept.`
+    : 'Delete this session?';
+  if (!confirm(msg)) return;
   try {
     await api(`/chat/sessions/${sessionId}`, { method: 'DELETE' });
     if (CHAT_SESSION_ID === sessionId) {

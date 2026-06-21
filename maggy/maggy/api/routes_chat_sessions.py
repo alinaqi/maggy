@@ -36,6 +36,7 @@ class CreateSessionRequest(BaseModel):
     project_key: str
     project_path: str | None = None
     history_context: str | None = None
+    isolated: bool = False  # run this chat in its own git worktree + branch
 
 
 @router.post("/auto-connect")
@@ -183,7 +184,9 @@ async def create_session(
     check_auth(request, x_api_key)
     chat = _require_chat(request)
     try:
-        session = chat.create_session(body.project_key, project_path=body.project_path)
+        session = chat.create_session(
+            body.project_key, project_path=body.project_path, isolated=body.isolated,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if body.history_context:

@@ -4,6 +4,23 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.54.0] - 2026-06-22
+
+### Parallel chats per project — worktree-isolated
+
+#### Added
+- **Multiple chats per project, each in its own git worktree + branch.** A
+  project's first chat runs on its main working tree; every additional chat (the
+  per-project **+**, or `isolated=True` on `POST /api/chat/sessions`) gets its
+  own `git worktree` on a fresh `maggy/<id>` branch — so parallel chats never
+  collide on files or branches. The backend **auto-isolates** a second chat even
+  without the flag, so collisions can't happen by accident.
+- Deleting an isolated chat removes its worktree (the branch + commits are kept;
+  the UI warns that uncommitted worktree changes are discarded). Non-git
+  directories fall back to the main tree gracefully.
+- 7 tests against a real git repo (incl. a full create→worktree→delete pass
+  through the HTTP API).
+
 ## [6.53.0] - 2026-06-21
 
 > Published to PyPI as **`maggy-harness` 0.2.1** (together with 6.52.0). The
