@@ -839,9 +839,37 @@ function renderChatSidebar(sessions) {
   return html;
 }
 
+function renderSessionTabs() {
+  // Sub-tab bar: every chat for the CURRENT project. Each additional chat runs
+  // in its own git worktree + branch. + opens a new parallel (isolated) chat.
+  const cur = (CHAT_SESSIONS_CACHE || []).find(s => s.id === CHAT_SESSION_ID);
+  if (!cur) return '';
+  const proj = cur.project_key;
+  const tabs = (CHAT_SESSIONS_CACHE || []).filter(s => s.project_key === proj);
+  let h = `<div class="shrink-0 flex items-center gap-1 px-3 py-1 border-b overflow-x-auto scroll-thin" style="border-color:var(--border);background:rgba(10,13,20,0.5);min-height:34px">`;
+  h += `<span class="text-[9px] text-gray-600 uppercase tracking-wide mr-1 shrink-0"><i class="fas fa-folder text-orange-500/50 mr-1"></i>${esc(proj)}</span>`;
+  tabs.forEach((s, i) => {
+    const active = s.id === CHAT_SESSION_ID;
+    const isWt = s.isolation === 'worktree' || (s.label || '').startsWith('maggy/');
+    const name = isWt ? (s.label || '').replace('maggy/', 'wt·') : (s.label || `chat ${i + 1}`);
+    const icon = isWt ? 'fa-code-branch' : 'fa-comment-dots';
+    const cls = active ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
+                       : 'text-gray-400 hover:bg-white/5 border-transparent';
+    h += `<div onclick="openChatSession('${jsStr(s.id)}')" class="group flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-[10px] border shrink-0 ${cls}">
+      <i class="fas ${icon} text-[8px] ${isWt ? 'text-orange-400/70' : 'text-green-400/50'}"></i>
+      <span class="truncate max-w-[140px]">${esc(name)}</span>
+      <i onclick="event.stopPropagation();deleteSession('${jsStr(s.id)}')" class="fas fa-xmark text-[8px] text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100" title="Close chat"></i>
+    </div>`;
+  });
+  h += `<button onclick="newSessionForProject('${jsStr(proj)}')" class="px-2 py-1 rounded text-[10px] text-gray-500 hover:text-orange-400 shrink-0" title="New parallel chat — its own git worktree + branch"><i class="fas fa-plus"></i></button>`;
+  h += `</div>`;
+  return h;
+}
+
 function renderChatMain() {
   let html = `<div class="flex-1 flex flex-col min-h-0">`;
   if (CHAT_SESSION_ID) {
+    html += renderSessionTabs();
     // Top progress shimmer bar (hidden by default)
     html += `<div id="progress-bar" class="hidden h-0.5 w-full overflow-hidden bg-gray-800/50"><div class="progress-shimmer h-full w-1/3"></div></div>`;
     // Model badge (shows current model during/after response)
