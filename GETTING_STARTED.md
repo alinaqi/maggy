@@ -50,15 +50,19 @@ cd "$(cat ~/.claude/.bootstrap-dir)"
 git pull && ./install.sh
 ```
 
-### Uninstall
+### Preview, back up & uninstall
 
 ```bash
+maggy diff             # what would change vs your current setup
+maggy backup           # snapshot your existing files (bootstrap also auto-backs-up first)
+maggy restore          # roll back to your pre-Maggy files (--list to choose one)
+
 maggy uninstall        # dry-run — preview exactly what would be removed
 maggy uninstall --yes  # remove the managed assets (your own files are spared)
 pip uninstall maggy-harness
 ```
 
-Full revert guide (incl. `~/.maggy` data, `settings.json` hooks, srooter): [UNINSTALL.md](UNINSTALL.md).
+Full backup/restore + revert guide (incl. `~/.maggy` data, `settings.json` hooks, srooter): [UNINSTALL.md](UNINSTALL.md).
 
 ---
 

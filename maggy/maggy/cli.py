@@ -58,10 +58,20 @@ def bootstrap(
         None, "--source", "-s",
         help="Path to a claude-bootstrap checkout (else $MAGGY_BOOTSTRAP_DIR or marker)",
     ),
+    no_backup: bool = typer.Option(
+        False, "--no-backup", help="Skip the automatic pre-install backup of your existing files",
+    ),
 ) -> None:
     """Install Maggy's skills, hooks, commands, ~/bin model wrappers, and plugins."""
     from maggy.services.bootstrap import BootstrapError, run_bootstrap
+    from maggy.services.snapshot import create_backup
     try:
+        if not no_backup:
+            m = create_backup(source)
+            n = sum(len(v) for v in m["captured"].values())
+            if n:
+                console.print(f"[dim]Backed up {n} existing file(s) → {m['id']} "
+                              f"([bold]maggy restore[/bold] to roll back)[/dim]")
         result = run_bootstrap(source)
     except BootstrapError as e:
         console.print(f"[red]{e}[/red]")
@@ -70,6 +80,74 @@ def bootstrap(
     for asset, n in result.items():
         console.print(f"  {asset}: {n}")
     console.print("\n[dim]Run [bold]maggy serve[/bold] to start the dashboard.[/dim]")
+
+
+@app.command()
+def backup(
+    source: str = typer.Option(None, "--source", "-s", help="Install source (else marker/env)"),
+) -> None:
+    """Snapshot your existing files (settings.json + anything Maggy would overwrite)."""
+    from maggy.services.bootstrap import BootstrapError
+    from maggy.services.snapshot import create_backup
+    try:
+        m = create_backup(source)
+    except BootstrapError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    n = sum(len(v) for v in m["captured"].values())
+    console.print(f"[green]✓ Backup {m['id']}[/green] — captured {n} file(s).")
+    for cat, names in m["captured"].items():
+        console.print(f"  {cat}: {', '.join(names)}")
+    if not n:
+        console.print("[dim]Nothing to back up — no existing files would be overwritten.[/dim]")
+
+
+@app.command()
+def restore(
+    backup_id: str = typer.Option(None, "--id", help="Backup id to restore (default: newest)"),
+    show_list: bool = typer.Option(False, "--list", "-l", help="List available backups"),
+) -> None:
+    """Restore your files from a backup (newest by default)."""
+    from maggy.services.snapshot import list_backups, restore_backup
+    backups = list_backups()
+    if show_list or not backups:
+        if not backups:
+            console.print("[yellow]No backups found.[/yellow]")
+            return
+        console.print("[bold]Backups (newest first):[/bold]")
+        for b in backups:
+            n = sum(len(v) for v in b["captured"].values())
+            console.print(f"  {b['id']} — {n} file(s)")
+        return
+    out = restore_backup(backup_id)
+    console.print(f"[green]✓ Restored backup {out['id']}[/green] — {out['restored']} file(s).")
+
+
+@app.command()
+def diff(
+    source: str = typer.Option(None, "--source", "-s", help="Install source (else marker/env)"),
+) -> None:
+    """Overview of what a bootstrap would change vs your current setup."""
+    from maggy.services.bootstrap import BootstrapError
+    from maggy.services.snapshot import diff_install
+    try:
+        d = diff_install(source)
+    except BootstrapError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    add = sum(len(v["add"]) for v in d.values())
+    chg = sum(len(v["change"]) for v in d.values())
+    same = sum(len(v["same"]) for v in d.values())
+    console.print(f"[bold]vs your setup:[/bold] [green]+{add} new[/green], "
+                  f"[yellow]~{chg} changed[/yellow], [dim]{same} identical[/dim]")
+    for cat, b in d.items():
+        if b["add"] or b["change"]:
+            parts = []
+            if b["add"]:
+                parts.append(f"[green]+{len(b['add'])}[/green]")
+            if b["change"]:
+                parts.append(f"[yellow]~{', '.join(b['change'][:6])}[/yellow]")
+            console.print(f"  {cat}: {'  '.join(parts)}")
 
 
 @app.command()

@@ -4,6 +4,24 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
+## [6.53.0] - 2026-06-21
+
+### Backup / restore / diff — safe, reversible installs
+
+#### Added
+- **`maggy backup`** — snapshots your *existing* files before Maggy touches
+  them: `~/.claude/settings.json` plus any pre-existing file an install would
+  overwrite (a *collision*). Stored in `~/.maggy/backups/<timestamp>/` as a plain
+  mirror of your home layout, with a manifest.
+- **`maggy restore`** (`--list`, `--id`) — restores a snapshot (newest by
+  default), bringing your original files back.
+- **`maggy diff`** — overview of what a bootstrap would do vs your current setup,
+  per asset: **+new / ~changed / identical**. See before you install.
+- **Auto-backup on `maggy bootstrap`** — it snapshots first (so the very first
+  install captures pristine, pre-Maggy state), `--no-backup` to skip.
+- Captures **only** your own files (never Maggy's assets — those revert via
+  `maggy uninstall`). 7 tests. `UNINSTALL.md` + GETTING_STARTED updated.
+
 ## [6.52.0] - 2026-06-21
 
 ### Uninstall path (#28)
