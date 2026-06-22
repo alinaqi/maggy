@@ -846,22 +846,21 @@ function renderSessionTabs() {
   if (!cur) return '';
   const proj = cur.project_key;
   const tabs = (CHAT_SESSIONS_CACHE || []).filter(s => s.project_key === proj);
-  let h = `<div class="shrink-0 flex items-center gap-1 px-3 py-1 border-b overflow-x-auto scroll-thin" style="border-color:var(--border);background:rgba(10,13,20,0.5);min-height:34px">`;
-  h += `<span class="text-[9px] text-gray-600 uppercase tracking-wide mr-1 shrink-0"><i class="fas fa-folder text-orange-500/50 mr-1"></i>${esc(proj)}</span>`;
+  let h = `<div class="session-tabbar shrink-0 flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto scroll-thin">`;
+  h += `<span class="text-[9px] uppercase tracking-wide mr-1 shrink-0 flex items-center gap-1.5" style="color:var(--text-muted)"><i class="fas fa-folder" style="color:var(--accent);opacity:.6"></i>${esc(proj)}</span>`;
   tabs.forEach((s, i) => {
     const active = s.id === CHAT_SESSION_ID;
     const isWt = s.isolation === 'worktree' || (s.label || '').startsWith('maggy/');
     const name = isWt ? (s.label || '').replace('maggy/', 'wt·') : (s.label || `chat ${i + 1}`);
     const icon = isWt ? 'fa-code-branch' : 'fa-comment-dots';
-    const cls = active ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
-                       : 'text-gray-400 hover:bg-white/5 border-transparent';
-    h += `<div onclick="openChatSession('${jsStr(s.id)}')" class="group flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-[10px] border shrink-0 ${cls}">
-      <i class="fas ${icon} text-[8px] ${isWt ? 'text-orange-400/70' : 'text-green-400/50'}"></i>
-      <span class="truncate max-w-[140px]">${esc(name)}</span>
-      <i onclick="event.stopPropagation();deleteSession('${jsStr(s.id)}')" class="fas fa-xmark text-[8px] text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100" title="Close chat"></i>
+    const iconColor = isWt ? 'var(--accent)' : 'var(--green)';
+    h += `<div onclick="openChatSession('${jsStr(s.id)}')" class="session-tab text-[11px] shrink-0${active ? ' active' : ''}" title="${esc(s.label || name)}">
+      <i class="fas ${icon} text-[9px]" style="color:${iconColor};opacity:${active ? 1 : 0.7}"></i>
+      <span class="truncate" style="max-width:150px">${esc(name)}</span>
+      <i onclick="event.stopPropagation();deleteSession('${jsStr(s.id)}')" class="fas fa-xmark tab-close" title="Close chat"></i>
     </div>`;
   });
-  h += `<button onclick="newSessionForProject('${jsStr(proj)}')" class="px-2 py-1 rounded text-[10px] text-gray-500 hover:text-orange-400 shrink-0" title="New parallel chat — its own git worktree + branch"><i class="fas fa-plus"></i></button>`;
+  h += `<button onclick="newSessionForProject('${jsStr(proj)}')" class="session-tab-add shrink-0 text-[11px]" title="New parallel chat — its own git worktree + branch"><i class="fas fa-plus"></i></button>`;
   h += `</div>`;
   return h;
 }

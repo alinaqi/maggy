@@ -46,6 +46,16 @@
     .editor-tab.active { color: #e5e7eb; border-bottom: 2px solid #f97316; background: rgba(249,115,22,0.05); }
     .editor-tab:not(.active) { border-bottom: 2px solid transparent; color: #6b7280; }
     .editor-tab:not(.active):hover { background: var(--input-bg); color: var(--hover-text); }
+    /* Chat session sub-tabs */
+    .session-tabbar { background: var(--bg); border-bottom: 1px solid var(--border); }
+    .session-tab { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 7px; border: 1px solid transparent; color: var(--text-muted); cursor: pointer; transition: all 0.12s ease; white-space: nowrap; }
+    .session-tab:hover { background: var(--hover-bg); color: var(--hover-text); }
+    .session-tab.active { background: var(--accent-glow); color: var(--accent); border-color: rgba(249,115,22,0.45); }
+    .session-tab .tab-close { opacity: 0; font-size: 9px; transition: opacity 0.12s; }
+    .session-tab:hover .tab-close { opacity: 0.55; }
+    .session-tab .tab-close:hover { opacity: 1; color: var(--red); }
+    .session-tab-add { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; color: var(--text-muted); cursor: pointer; transition: all 0.12s ease; }
+    .session-tab-add:hover { background: var(--hover-bg); color: var(--accent); }
     @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
     .dirty-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
     .editor-textarea { caret-color: var(--accent); scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
