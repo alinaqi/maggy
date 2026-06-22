@@ -4,7 +4,19 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
-## [6.54.0] - 2026-06-22
+## [6.55.0] - 2026-06-22
+
+### Council reviewer — diff compressor (token savings)
+
+#### Added
+- **`maggy/review/output_filter.py`** — compresses the per-file diff slices the
+  council reviewer re-sends to its 2–5 model panel: collapses runs of unchanged
+  context lines (`… N hidden …`) and stubs generated/lockfiles. **Hard invariant:
+  a changed line (`+`/`-`) or hunk header is never dropped** — proven by a
+  property test — and the full patch stays one `get_diff(path)` tool call away.
+  ~98% smaller on a lockfile-heavy chunk, multiplied across the panel; 0% / lossless
+  on tight diffs. (The build-not-buy outcome of a 4-model council review of RTK:
+  format-specific Python, no Rust binary in the wheel, no global-hook risk.) 11 tests.
 
 ### Parallel chats per project — worktree-isolated
 
