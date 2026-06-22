@@ -22,6 +22,7 @@ from .config import CHAIR, PRICING_KEY, available, cost_usd, load_env, load_skil
 from .github import get_pr, get_pr_files, post_review
 from .languages import detect_languages
 from .models import ReviewChunk, Verdict
+from .output_filter import compress_patch, is_generated
 from .static_check import run_static_gate
 
 # tool-using review agents make many requests (read_file/grep loops); the default
@@ -119,13 +120,24 @@ def decompose(files, langs) -> list[ReviewChunk]:
 
 def chunk_diff_text(files, chunk_files, per_file=PER_FILE_DIFF_CHARS, cap=MAX_CHUNK_DIFF_CHARS):
     """Diff text for ONLY this chunk's files — so a reviewer never judges on a
-    truncated global diff (the bug that produced false positives on mega PRs)."""
+    truncated global diff (the bug that produced false positives on mega PRs).
+
+    Per-file patches are compressed (far context collapsed, no changed line ever
+    dropped) and generated/lockfiles are stubbed — this slice is re-sent to every
+    panel reviewer, so trimming low-signal bytes here multiplies by panel size.
+    The full patch is always reachable via the reviewer's get_diff(path) tool.
+    """
     want = set(chunk_files)
     parts = []
     for f in files:
-        if f["filename"] in want and f.get("patch"):
-            parts.append(f"--- {f['filename']} (+{f.get('additions', 0)}/-{f.get('deletions', 0)}) ---\n"
-                         f"{f['patch'][:per_file]}")
+        fn = f["filename"]
+        if fn not in want or not f.get("patch"):
+            continue
+        head = f"--- {fn} (+{f.get('additions', 0)}/-{f.get('deletions', 0)}) ---"
+        if is_generated(fn):
+            parts.append(f"{head}\n[generated/lockfile — diff omitted; static gate covers it. get_diff('{fn}') for full]")
+            continue
+        parts.append(f"{head}\n{compress_patch(f['patch'])[:per_file]}")
     return "\n\n".join(parts)[:cap]
 
 
@@ -151,7 +163,9 @@ async def review_one(name, factory, skill, focus, title, deps, on_log, usages, m
         + ("Focus: " + focus if focus else "Review the whole change.")
     )
     if diff_text:
-        prompt += f"\n\n--- DIFF (this review area) ---\n{diff_text}"
+        prompt += ("\n\n(Unchanged context lines may be collapsed as '… N hidden …'; "
+                   "every +/- changed line is shown. Call get_diff(path) for a file's full patch.)"
+                   f"\n--- DIFF (this review area) ---\n{diff_text}")
     try:
         res = await _run_agent(rv, prompt, deps, REVIEWER_LIMITS)
         _rec(usages, model_key, res)
