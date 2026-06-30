@@ -62,3 +62,30 @@ class TestMatchProtocol:
         p = match_protocol("push to github please", protocols)
         assert p is not None
         assert p.name == "git-push"
+
+
+class TestCompoundRequestNotHijacked:
+    """A protocol must NOT hijack a request that also asks to build/implement —
+    otherwise 'implement it, test it, then merge it' runs only the tests."""
+
+    def test_implement_test_merge_not_hijacked(self, protocols):
+        p = match_protocol("can u implement it, test it and then merge it", protocols)
+        assert p is None  # this is an agent task, not a bare test run
+
+    def test_build_and_push_not_hijacked(self, protocols):
+        p = match_protocol("build the feature and push changes", protocols)
+        assert p is None
+
+    def test_add_feature_then_test_not_hijacked(self, protocols):
+        p = match_protocol("add a new endpoint and test it", protocols)
+        assert p is None
+
+    def test_fix_then_create_pr_not_hijacked(self, protocols):
+        p = match_protocol("fix the bug then create a pr", protocols)
+        assert p is None
+
+    def test_bare_invocation_still_matches(self, protocols):
+        # the fast-path must still work for genuine bare invocations
+        assert match_protocol("run tests", protocols).name == "run-tests"
+        assert match_protocol("push to github", protocols).name == "git-push"
+        assert match_protocol("can you run the tests please", protocols).name == "run-tests"
