@@ -21,3 +21,8 @@ steps:
     label: Run pytest
     cmd: python3 -m pytest tests/ -x -q 2>&1 | tail -20
     condition: tests/
+  - name: visual
+    label: Visual check
+    cmd: python3 -m pytest tests/visual/ -q 2>&1 | tail -15
+    optional: true
+    condition: tests/visual/

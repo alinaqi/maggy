@@ -4,7 +4,28 @@ All notable changes to Maggy will be documented in this file.
 
 ---
 
-## [6.55.0] - 2026-06-22
+## [6.56.0] - 2026-07-01
+
+### Visual validation framework + protocol hijack fix
+
+#### Added
+- **Visual validation** — `maggy/tests/visual/` runs the real dashboard in a
+  headless browser (Playwright), screenshots views, and compares against golden
+  images pixel-by-pixel (numpy-vectorized diff, ~50ms/image, anti-aliasing
+  tolerance). `visual.snapshot("name")`, `.snapshot_viewport()`, and
+  `.snapshot_element(selector)` are available in any visual test via a `visual`
+  fixture. Goldens live in `tests/visual/golden/` and are the acceptance
+  criterion — the same RED/GREEN TDD rhythm as functional tests. Visual tests
+  **auto-skip** when Playwright isn't installed, so the normal `pytest tests/`
+  run is never blocked. Install with `pip install maggy-harness[visual]`.
+  `run-tests` protocol gains a dedicated `visual` step. 10 tests (8 unit + 2
+  browser-based with real goldens). [docs](maggy/docs/visual-validation.md).
+
+#### Fixed
+- **Protocol matcher hijacking compound requests** (#43) — bare substring
+  matching hijacked "implement it, **test it** and then merge it" → ran only
+  tests. Now strips the matched trigger, vets the remainder for build/multi-step
+  intent. 5 new tests; 25 protocol-regression tests still pass.
 
 ### Council reviewer — diff compressor (token savings)
 
