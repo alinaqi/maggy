@@ -6,7 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [6.54.0] - 2026-06-22
+## [6.56.0] - 2026-07-01
+
+### Visual validation framework + protocol hijack fix
+
+#### Added
+- **Visual regression tests** — golden-image comparison of the Maggy dashboard
+  via Playwright + Pillow + numpy. `tests/visual/` mirrors the TDD RED→GREEN
+  cycle for UI changes. Auto-skips without the `[visual]` extra installed.
+- **Protocol matcher fix** — "implement it, test it, then merge it" no longer
+  hijacked to run-only-tests. Build/multi-step intent vetoes protocol matches.
+
+See [maggy/CHANGELOG.md](maggy/CHANGELOG.md) for full detail.
 
 ### Parallel chats per project — worktree-isolated
 
