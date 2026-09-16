@@ -26,8 +26,8 @@ def test_add_and_list(svc):
 
 def test_remove(svc):
     """Removing a monitor clears it from active list."""
-    svc.add(MonitorConfig(project_key="zenloop", provider="asana"))
-    svc.remove("zenloop")
+    svc.add(MonitorConfig(project_key="example-project", provider="asana"))
+    svc.remove("example-project")
     assert svc.list_active() == []
 
 

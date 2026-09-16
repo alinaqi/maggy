@@ -2672,7 +2672,7 @@ async function loadPrReview() {
     <div class="card p-4 mb-3">
       <div class="grid grid-cols-2 gap-3 text-[11px]">
         <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">Repo (owner/repo)</label>
-          <input id="prr-repo" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="zenloopGmbH/surveys-backend"></div>
+          <input id="prr-repo" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="example-org/surveys-backend"></div>
         <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">PR number</label>
           <input id="prr-num" type="number" class="w-full px-2 py-1 rounded text-xs" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border)" placeholder="525"></div>
         <div><label class="text-[9px] text-gray-500 uppercase block mb-0.5">GitHub token (optional — overrides default)</label>

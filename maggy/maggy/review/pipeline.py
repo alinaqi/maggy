@@ -260,11 +260,11 @@ def deterministic_fp_filter(findings, local_path, on_log, base_ref=None):
     lp = Path(local_path)
     en = _flat_keys(lp / "libs/shared/services/translate/src/lib/locals/en/en.json")
     de = _flat_keys(lp / "libs/shared/services/translate/src/lib/locals/de/de.json")
-    rp = lp / "apps/zenloop-app/src/Router.tsx"
+    rp = lp / "apps/platform-app/src/Router.tsx"
     router = rp.read_text(errors="replace") if rp.exists() else ""
     # the same router on the BASE branch — to tell a NEW ungated route from a
     # pre-existing one (a finding "not feature-flagged" is only real for a NEW entry point).
-    base_router = _git_show(lp, f"origin/{base_ref}", "apps/zenloop-app/src/Router.tsx") if base_ref else ""
+    base_router = _git_show(lp, f"origin/{base_ref}", "apps/platform-app/src/Router.tsx") if base_ref else ""
     kept, dropped = [], 0
     for f in findings:
         if getattr(f.severity, "value", f.severity) != "blocking":

@@ -1,7 +1,7 @@
 # Sensitive terms → public-safe replacements
 # Build in public without exposing what should stay private.
 rules:
-  zenloop: "a CX SaaS platform"
+  acme-corp: "a CX SaaS platform"
   protaige: "a brand intelligence platform"
   Protaigé: "a brand intelligence platform"
   edubites: "an ed-tech platform"
