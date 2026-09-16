@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 
 
 async def main():
-    repo = sys.argv[1] if len(sys.argv) > 1 else "zenloopGmbH/survey-backend"
+    repo = sys.argv[1] if len(sys.argv) > 1 else "example-org/survey-backend"
     token = os.environ.get("GITHUB_TOKEN", "")
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 

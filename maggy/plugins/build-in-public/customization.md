@@ -35,7 +35,7 @@
 - Coding stats (lines, files, commits — nobody cares)
 
 ## Brand Rules
-# Company names are anonymized by default (zenloop -> "a CX SaaS platform")
+# Company names are anonymized by default (acme-corp -> "a CX SaaS platform")
 # To explicitly talk about a brand:
 #   /build-in-public add brand <brand-name>
 # To add a clickout link for a project:

@@ -107,7 +107,7 @@ dashboard:
 
 ### 2. Provider abstraction for issue trackers
 
-The #1 coupling in the zenloop version is Asana. Generic Maggy defines a Protocol and all services use it:
+The #1 coupling in the original version is Asana. Generic Maggy defines a Protocol and all services use it:
 
 ```python
 class IssueTrackerProvider(Protocol):
@@ -140,7 +140,7 @@ This means the dashboard automatically benefits from iCPG upgrades. No duplicate
 
 ### 4. SQLite-first storage
 
-The zenloop version used Supabase for P2P coordination. For a single-user local install, SQLite is simpler and zero-setup. P2P and multi-user stays optional:
+The original version used Supabase for P2P coordination. For a single-user local install, SQLite is simpler and zero-setup. P2P and multi-user stays optional:
 
 - **Default (SQLite):** `~/.maggy/maggy.db`. Zero setup.
 - **Optional (Supabase):** For teams that want shared state and P2P handoff.
@@ -215,11 +215,11 @@ Should work out-of-the-box for any GitHub-based team.
 
 ## Success criteria
 
-1. Fresh install on a machine that never saw zenloop → works
+1. Fresh install on a machine that never saw the original → works
 2. Points at any GitHub org → inbox populates with issues
 3. AI prioritization runs → issues ranked
 4. Click Execute → TDD pipeline spawns `claude -p` with iCPG context injected
 5. Competitor discovery for any domain → competitors found + daily briefing
-6. No hardcoded zenloop anything anywhere in the code
+6. No hardcoded company-specific anything anywhere in the code
 
 That's the bar.

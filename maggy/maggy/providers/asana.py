@@ -1,4 +1,4 @@
-"""Asana provider — compatibility shim for teams migrating from the zenloop prototype."""
+"""Asana provider — compatibility shim for teams migrating from an earlier prototype."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ ASANA_BASE = "https://app.asana.com/api/1.0"
 class AsanaProvider:
     """IssueTrackerProvider implementation for Asana.
 
-    Simpler than the zenloop prototype — no USER_GIDS hardcoded. `list_followed`
+    Simpler than the earlier prototype — no USER_GIDS hardcoded. `list_followed`
     uses the authenticated user's GID via /users/me.
     """
 

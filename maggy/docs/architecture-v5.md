@@ -728,7 +728,7 @@ Extend the 4-dimension fatigue model with model-relative normalization:
 # ~/.maggy/projects.yaml
 projects:
   - name: zensurveys-backend
-    repo: zenloopGmbH/surveys-backend
+    repo: example-org/surveys-backend
     path: ~/Documents/protaige/projects/zensurveys
     default_branch: staging-v2
     vercel_session: vercel-session-A
@@ -736,7 +736,7 @@ projects:
     cikg: false  # not a product repo
 
   - name: zensurveys-frontend
-    repo: zenloopGmbH/main-frontend-clean
+    repo: example-org/main-frontend-clean
     path: ~/Documents/protaige/projects/main-frontend-clean
     default_branch: main
     vercel_session: vercel-session-B

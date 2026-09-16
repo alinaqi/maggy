@@ -1,4 +1,4 @@
-# Review skill — DB / migrations (zenloop-db, Alembic / SQL)
+# Review skill — DB / migrations (platform-db, Alembic / SQL)
 
 Migrations are **append-only** and high-blast-radius — scrutinize hard.
 
@@ -27,6 +27,6 @@ Migrations are **append-only** and high-blast-radius — scrutinize hard.
   separate namespaces but both must be unique within their own).
 
 ## Verify
-- Use `grep`/`read_file` against `zenloop-db` and the schema docs to confirm FK
+- Use `grep`/`read_file` against `platform-db` and the schema docs to confirm FK
   delete actions, existing migration numbers, and whether a referenced table/column
   actually exists — don't assert from the diff alone.
