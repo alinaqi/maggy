@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.62.0] - 2026-09-19
+
+### Codex dual auth — ChatGPT subscription *or* API key
+
+#### Added
+- **`scripts/model_routing.py`** — `codex_auth()` detects both Codex auth paths:
+  a ChatGPT-subscription CLI login (`~/.codex/auth.json`, `auth_mode=chatgpt`)
+  and a real OpenAI API key (`sk-…`). `codex_mode()` resolves the effective
+  path (explicit `codex_auth` pref, else auto: API key first so Codex can back
+  a Claude Code model, else subscription for CLI delegation).
+- **`codex-status` / `set-codex-auth` CLI verbs** — inspect what's available
+  and pin `auto | subscription | api_key`; stored as `codex_auth` in
+  `~/.claude/model-config.json`.
+- **`commands/model-config.md`** — documents both auth paths, what each unlocks,
+  and the hard limit that Codex-as-a-model always needs the API key.
+- **`tests/test_model_routing.py`** — coverage for subscription/api-key/none
+  detection, the `srt_` dev-key exclusion, and mode resolution/preference.
+
+#### Fixed
+- **`detect_available`** no longer marks Codex usable off a `srt_` srooter dev
+  key; it now requires a real API key or a subscription login.
+
+#### Notes
+- The ChatGPT subscription can only drive CLI delegation (`codex exec`); it
+  cannot back a Claude Code model, because OpenAI has no Anthropic endpoint and
+  the subscription OAuth is locked to OpenAI's own client.
+
+---
+
 ## [6.61.0] - 2026-09-19
 
 ### Direct-provider launchers — run Claude Code straight on DeepSeek / GLM / Kimi

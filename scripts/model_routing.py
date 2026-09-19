@@ -14,6 +14,8 @@ CLI:
     model_routing.py apply           # sync primary into srooter.yaml
     model_routing.py write-launcher deepseek  # ~/bin/claude-deepseek (direct)
     model_routing.py write-launchers          # all direct-capable launchers
+    model_routing.py codex-status             # Codex auth: subscription/api_key
+    model_routing.py set-codex-auth auto      # auto|subscription|api_key
 """
 
 from __future__ import annotations
@@ -84,6 +86,51 @@ def collect_env() -> dict:
     return merged
 
 
+def codex_auth(env: dict | None = None, auth_path: Path | None = None) -> dict:
+    """Which Codex auth paths are usable on this machine.
+
+    - ``api_key``: a real OpenAI *platform* key (``sk-...``). Required to use
+      Codex as a Claude Code *model* (via srooter's /anthropic->/v1/responses
+      translation) — OpenAI has no Anthropic endpoint, so this is the only way
+      Codex can back a Claude Code session.
+    - ``subscription``: the ``codex`` CLI signed in with ChatGPT
+      (``~/.codex/auth.json`` ``auth_mode=chatgpt``). Usable for CLI delegation
+      (``codex exec`` for review / bulk generation) on the plan's included
+      usage — no API key, and it cannot back a Claude Code model.
+
+    A ``srt_`` srooter dev key is deliberately NOT treated as an OpenAI key.
+    """
+    env = collect_env() if env is None else env
+    api_key = str(env.get("OPENAI_API_KEY", "")).startswith("sk-")
+    auth_path = auth_path or (Path.home() / ".codex" / "auth.json")
+    subscription = False
+    try:
+        d = json.loads(auth_path.read_text())
+        subscription = (d.get("auth_mode") == "chatgpt"
+                        or bool(d.get("tokens", {}).get("access_token")))
+        if not api_key and str(d.get("OPENAI_API_KEY") or "").startswith("sk-"):
+            api_key = True
+    except (OSError, ValueError):
+        pass
+    return {"api_key": api_key, "subscription": subscription}
+
+
+def codex_mode(cfg: dict | None = None, env: dict | None = None,
+               auth_path: Path | None = None) -> str:
+    """Resolve the effective Codex auth path: an explicit ``codex_auth`` pref in
+    the config wins; otherwise auto-pick — prefer ``api_key`` (so Codex can be a
+    Claude Code backend), else ``subscription``, else ``none``."""
+    pref = (cfg or {}).get("codex_auth", "auto")
+    avail = codex_auth(env, auth_path)
+    if pref in ("api_key", "subscription"):
+        return pref if avail.get(pref) else "none"
+    if avail["api_key"]:
+        return "api_key"
+    if avail["subscription"]:
+        return "subscription"
+    return "none"
+
+
 def _ollama_up(probe=None) -> bool:
     """Best-effort check that local Ollama is reachable."""
     if probe is not None:
@@ -104,6 +151,11 @@ def detect_available(env: dict | None = None, which=shutil.which,
     for name, spec in MODELS.items():
         has_key = any(env.get(k) for k in spec["env"])
         usable = has_key or _has_cli(spec["cli"], which, bin_dir)
+        if name == "codex":
+            # Codex is usable via a real API key OR a ChatGPT-subscription CLI
+            # login; a srt_ srooter dev key doesn't count.
+            ca = codex_auth(env)
+            usable = ca["api_key"] or ca["subscription"]
         if spec.get("ollama"):
             usable = usable and _ollama_up(ollama)
         out[name] = bool(usable)
@@ -294,6 +346,30 @@ def main(argv: list[str] | None = None) -> int:
         for logical in DIRECT:
             p = write_launcher(logical)
             print(f"wrote {p}")
+    elif cmd == "codex-status":
+        cfg = ensure()
+        avail = codex_auth()
+        mode = codex_mode(cfg)
+        print(json.dumps({
+            "available": avail,
+            "preference": cfg.get("codex_auth", "auto"),
+            "effective": mode,
+        }, indent=2))
+        if mode == "subscription":
+            print("note: subscription drives CLI delegation (codex exec); it "
+                  "cannot back a Claude Code model. For Codex-as-model, set a "
+                  "real OPENAI_API_KEY and use the srooter route.", file=sys.stderr)
+        elif mode == "none":
+            print("note: no Codex auth found — run `codex login` (ChatGPT) or "
+                  "set a real OPENAI_API_KEY.", file=sys.stderr)
+    elif cmd == "set-codex-auth":
+        if not rest or rest[0] not in ("auto", "subscription", "api_key"):
+            print("usage: set-codex-auth auto|subscription|api_key", file=sys.stderr)
+            return 1
+        cfg = ensure()
+        cfg["codex_auth"] = rest[0]
+        save(cfg)
+        print(f"codex_auth = {rest[0]} (effective: {codex_mode(cfg)})")
     else:
         print(__doc__)
         return 1
