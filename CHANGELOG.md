@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.63.0] - 2026-09-19
+
+### DataForSEO skill — keyword & SERP research
+
+#### Added
+- **`skills/dataforseo/`** — a user-invocable skill for grounding naming / SEO
+  decisions in real Google Ads data (monthly search volume, competition, CPC,
+  keyword ideas) via the DataForSEO API. Ships a small env-auth helper
+  (`dataforseo.py`) with `whoami` / `volume` / `ideas` subcommands, guidance on
+  reading the results for naming, cost/batching etiquette, and an endpoint map.
+  Credentials are read from the environment only — never hardcoded or logged.
+- Corrected the skill count in the README / GETTING_STARTED (67 → 70).
+
+---
+
 ## [6.62.0] - 2026-09-19
 
 ### Codex dual auth — ChatGPT subscription *or* API key
