@@ -450,9 +450,23 @@ fi
 
 **Based on project type:**
 - React Native → copy `typescript/` AND `react-native/`
-- React Web → copy `typescript/` AND `react-web/`
+- React Web → copy `typescript/`, `react-web/`, AND `demo-video/`
 - Node Backend → copy `typescript/` AND `nodejs-backend/`
-- Full Stack (Node + React) → copy `typescript/`, `nodejs-backend/`, AND `react-web/`
+- Full Stack (Node + React) → copy `typescript/`, `nodejs-backend/`, `react-web/`, AND `demo-video/`
+
+**Visual validation is a default for web projects.** Any project with a web UI
+(React Web, Full Stack, PWA) also gets `demo-video/` — the harness's default
+visual-validation skill: a captioned Playwright walkthrough that records a real
+user flow, doubles as a passing E2E test, and produces stakeholder proof video.
+It complements `visual-validation/` (screenshot-regression) and
+`playwright-testing/` (the E2E suite). Copy it alongside the web skills:
+
+```bash
+# Web UI detected (React/Vite/Next in package.json, or a PWA)
+if grep -qE '"(react|next|vite)"' package.json 2>/dev/null; then
+  cp -r ~/.claude/skills/demo-video/ .claude/skills/
+fi
+```
 
 **For Android/Flutter projects (auto-detect from project structure):**
 

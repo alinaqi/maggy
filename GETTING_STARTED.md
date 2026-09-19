@@ -12,7 +12,7 @@ You can start with A and add B later. They're designed to work together.
 
 ## Path A: Claude Bootstrap
 
-70 skills, TDD enforcement, quality gates, security rules, and agent teams. Works with Claude Code, Codex CLI, Kimi CLI, and Gemini CLI.
+71 skills, TDD enforcement, quality gates, security rules, and agent teams. Works with Claude Code, Codex CLI, Kimi CLI, and Gemini CLI.
 
 ### Install
 
@@ -36,7 +36,7 @@ Claude validates tools, asks about your stack, sets up the repo structure, and o
 
 | Layer | What it does |
 |-------|-------------|
-| **70 skills** | Python, TypeScript, React, React Native, Flutter, Android, Supabase, Firebase, Stripe, Shopify, and more |
+| **71 skills** | Python, TypeScript, React, React Native, Flutter, Android, Supabase, Firebase, Stripe, Shopify, and more |
 | **TDD hooks** | Tests run after every Claude response. Failures feed back automatically |
 | **Quality gates** | Max 20 lines/function, 3 params, 2 nesting levels. Enforced on every file |
 | **Security rules** | No secrets in code, parameterized queries, input validation at boundaries |

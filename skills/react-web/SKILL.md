@@ -506,6 +506,21 @@ test('user can login', async ({ page }) => {
 });
 ```
 
+### Visual validation (default for web)
+
+Behavior tests prove logic; they don't prove the UI actually *looks* and *flows*
+right. For any user-facing flow, close the loop visually before calling it done:
+
+- **`demo-video`** (default) — a captioned Playwright walkthrough that records the
+  real flow, doubles as a passing E2E test, and produces a stakeholder proof mp4.
+  This is the harness's default visual validation for web work; a user-facing flow
+  isn't "done" without it (see the Definition of Done in `base`).
+- **`visual-validation`** — autonomous screenshot-regression checks for pixel-level
+  UI changes.
+
+Together: `playwright-testing` proves behavior, `visual-validation` catches visual
+regressions, `demo-video` proves the whole flow the way a person sees it.
+
 ---
 
 ## Performance

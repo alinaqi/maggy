@@ -5,11 +5,11 @@
 Claude Bootstrap is an installable config pack (skills, hooks, rules, templates) for Claude Code. Maggy is the optional local server that adds multi-model routing, a web dashboard, intent-driven protocols, and plugin orchestration. Both live in this repo. Start with Bootstrap; add Maggy when you need the harness.
 
 [![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen)](maggy/tests/)
-[![Version](https://img.shields.io/badge/version-6.63.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-6.64.0-blue)](CHANGELOG.md)
 [![Stars](https://img.shields.io/github/stars/alinaqi/maggy)](https://github.com/alinaqi/maggy/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**1100+ tests. 70 skills. 15 MCP tools. Used daily across production codebases.**
+**1100+ tests. 71 skills. 15 MCP tools. Used daily across production codebases.**
 
 ---
 
@@ -28,7 +28,7 @@ Claude Bootstrap is an installable config pack (skills, hooks, rules, templates)
 | **What it is** | Skills, hooks, rules installed into `~/.claude/` | Local FastAPI server + web dashboard |
 | **Install time** | ~30 seconds | ~5 minutes (Python 3.11+, API keys) |
 | **Requires** | Claude Code (also works with Codex, Kimi, Gemini CLI) | Everything in Bootstrap + Python + optional Docker |
-| **You get** | TDD enforcement, 70 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, Cortex MCP, plugins, dashboard |
+| **You get** | TDD enforcement, 71 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, Cortex MCP, plugins, dashboard |
 
 ### Bootstrap — 30-second install
 
@@ -107,8 +107,9 @@ You're using Claude Code. It's impressive — but:
 
 | Layer | What it does |
 |-------|-------------|
-| **70 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, security, ADRs, cross-agent delegation |
+| **71 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, security, ADRs, cross-agent delegation |
 | **TDD enforcement** | Stop hooks — tests must pass before Claude considers a task done |
+| **Visual validation** | Default for web projects — `demo-video` records a captioned Playwright walkthrough (proof mp4 that doubles as a passing E2E test); `visual-validation` screenshots catch regressions. A user-facing web flow isn't "done" without it |
 | **Quality gates** | Max 20 lines/function, 3 params, 2 nesting levels. Enforced per file |
 | **iCPG** | Intent-Augmented Code Property Graph. Stores *why* code exists. 6-dimension drift detection. Prevents duplicate implementations |
 | **Mnemos** | Task-scoped memory with 4-dimension fatigue model. Survives context compaction with typed checkpoints |
@@ -230,7 +231,7 @@ A zero in any plane collapses IFS to zero. 100% test pass rate with severe archi
 
 ```
 .claude/
-  skills/       # 70 skills — Python, TS, React, security, mobile, databases
+  skills/       # 71 skills — Python, TS, React, security, mobile, databases
   hooks/        # TDD enforcement, quality gates, Mnemos lifecycle
   rules/        # Conditional rules by file glob
   templates/    # settings.json, CLAUDE.md, ADR template, PR template
@@ -262,6 +263,11 @@ cd cortex-mcp && python3 -m pytest tests/ -q       # 207 tests
 
 ---
 
+## What's New in v6.64
+
+- **Visual validation is a default for web projects** — the `demo-video` skill (captioned Playwright walkthrough → proof mp4 that doubles as a passing E2E test) now ships with the harness and is copied into every web project (React, Full Stack, PWA) at init. A user-facing web flow isn't "done" without it — it's part of the Definition of Done in `base`, alongside `visual-validation` (screenshot-regression) and `playwright-testing` (behavior).
+- **DataForSEO skill** — `skills/dataforseo/` for keyword/SERP research (search volume, competition, CPC) to ground naming/SEO decisions in real data. Env-only auth.
+
 ## What's New in v6.62
 
 - **Codex dual auth** — Codex now works via your **ChatGPT subscription** (`codex login`, for `codex exec` delegation) *or* a real **OpenAI API key** (to run Codex as a Claude Code model through srooter). `codex-status` shows what's detected; `set-codex-auth auto|subscription|api_key` pins it. (Subscription can't back a Claude Code model — OpenAI has no Anthropic endpoint — so that path is delegation-only.)
@@ -283,7 +289,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 | [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) | Intent-grounded testing spec |
 | [Cortex docs](cortex-mcp/docs/) | Code intelligence, edge types, MCP tools |
 | [Cortex benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) | Performance vs codebase-memory-mcp |
-| [Changelog](CHANGELOG.md) | Version history (current: v6.63.0) |
+| [Changelog](CHANGELOG.md) | Version history (current: v6.64.0) |
 
 ---
 
