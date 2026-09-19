@@ -462,8 +462,12 @@ It complements `visual-validation/` (screenshot-regression) and
 `playwright-testing/` (the E2E suite). Copy it alongside the web skills:
 
 ```bash
-# Web UI detected (React/Vite/Next in package.json, or a PWA)
-if grep -qE '"(react|next|vite)"' package.json 2>/dev/null; then
+# Web UI detected — a JS framework in package.json, OR a PWA (which may have
+# none of those keys: vanilla + manifest/service worker still counts).
+if grep -qE '"(react|next|vite|svelte|vue|@angular/core|astro)"' package.json 2>/dev/null \
+   || grep -qiE 'vite-plugin-pwa|workbox|service-?worker' package.json 2>/dev/null \
+   || ls public/manifest.webmanifest public/manifest.json manifest.webmanifest \
+         service-worker.* sw.js 2>/dev/null | grep -q .; then
   cp -r ~/.claude/skills/demo-video/ .claude/skills/
 fi
 ```

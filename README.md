@@ -266,6 +266,9 @@ cd cortex-mcp && python3 -m pytest tests/ -q       # 207 tests
 ## What's New in v6.64
 
 - **Visual validation is a default for web projects** — the `demo-video` skill (captioned Playwright walkthrough → proof mp4 that doubles as a passing E2E test) now ships with the harness and is copied into every web project (React, Full Stack, PWA) at init. A user-facing web flow isn't "done" without it — it's part of the Definition of Done in `base`, alongside `visual-validation` (screenshot-regression) and `playwright-testing` (behavior).
+
+## What's New in v6.63
+
 - **DataForSEO skill** — `skills/dataforseo/` for keyword/SERP research (search volume, competition, CPC) to ground naming/SEO decisions in real data. Env-only auth.
 
 ## What's New in v6.62
