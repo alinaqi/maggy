@@ -28,17 +28,18 @@ CONFIG_PATH = Path.home() / ".claude" / "model-config.json"
 MODELS: dict[str, dict] = {
     "minimax": {"env": ["MINIMAX_API_KEY"], "cli": "minimax", "srooter": "minimax-m2.5"},
     "claude": {"env": ["ANTHROPIC_API_KEY", "CLAUDE_MAX_TOKEN"], "cli": "claude", "srooter": "claude-max"},
-    "deepseek": {"env": ["DEEPSEEK_API_KEY"], "cli": "deepseek", "srooter": "deepseek"},
-    "kimi": {"env": ["MOONSHOT_API_KEY", "KIMI_API_KEY"], "cli": "kimi", "srooter": "kimi"},
+    "deepseek": {"env": ["DEEPSEEK_API_KEY"], "cli": "deepseek", "srooter": "deepseek-pro"},
+    "kimi": {"env": ["MOONSHOT_API_KEY", "KIMI_API_KEY"], "cli": "kimi", "srooter": "kimi-k3"},
+    "glm": {"env": ["GLM_API_KEY", "ZHIPUAI_API_KEY"], "cli": "glm", "srooter": "glm-5.3"},
     "gemini": {"env": ["GEMINI_API_KEY"], "cli": "gemini-api", "srooter": "gemini"},
     "grok": {"env": ["XAI_API_KEY", "GROK_API_KEY"], "cli": "grok", "srooter": "grok"},
     "qwen": {"env": [], "cli": "qwen3", "srooter": "qwen", "ollama": True},
-    "codex": {"env": ["OPENAI_API_KEY"], "cli": "codex", "srooter": None},
+    "codex": {"env": ["OPENAI_API_KEY"], "cli": "codex", "srooter": "codex"},
     "agy": {"env": [], "cli": "agy-delegate", "srooter": None},
 }
 
 # Preference order when auto-recommending (strong coding model first).
-PRIMARY_PRIORITY = ["minimax", "claude", "deepseek", "kimi", "gemini", "grok", "qwen"]
+PRIMARY_PRIORITY = ["minimax", "claude", "deepseek", "kimi", "glm", "gemini", "grok", "codex", "qwen"]
 # Classifier wants cheap/local first.
 CLASSIFIER_PRIORITY = ["qwen", "deepseek", "kimi", "gemini"]
 
@@ -154,13 +155,17 @@ def srooter_id(logical: str) -> str | None:
 
 
 def apply_to_srooter(cfg: dict, yaml_path: Path) -> bool:
-    """Point srooter's long_context route at the primary model. Best-effort."""
+    """Point srooter's real-coding routes (long_context + substantive) at the
+    primary model, so switching actually moves the model Claude Code runs on.
+    Best-effort."""
     sid = srooter_id(cfg.get("primary", ""))
     if not sid or not yaml_path.exists():
         return False
     import re
     text = yaml_path.read_text()
-    new = re.sub(r"(\n\s*long_context:\s*)\S+", rf"\g<1>{sid}", text, count=1)
+    new = text
+    for route in ("long_context", "substantive"):
+        new = re.sub(rf"(\n\s*{route}:\s*)\S+", rf"\g<1>{sid}", new, count=1)
     if new == text:
         return False
     yaml_path.write_text(new)

@@ -77,12 +77,40 @@ def test_srooter_id_mapping():
     assert mr.srooter_id("agy") is None
 
 
+def test_srooter_id_switchable_backends():
+    # The four backends Claude Code can be switched to map to real srooter aliases.
+    assert mr.srooter_id("deepseek") == "deepseek-pro"
+    assert mr.srooter_id("kimi") == "kimi-k3"
+    assert mr.srooter_id("glm") == "glm-5.3"
+    assert mr.srooter_id("codex") == "codex"
+
+
 def test_apply_to_srooter_rewrites_long_context(tmp_path):
     y = tmp_path / "srooter.yaml"
     y.write_text("anthropic_routing:\n  trivial: qwen\n  long_context: claude-max\n")
     ok = mr.apply_to_srooter({"primary": "minimax"}, y)
     assert ok is True
     assert "long_context: minimax-m2.5" in y.read_text()
+
+
+def test_apply_to_srooter_rewrites_both_coding_routes(tmp_path):
+    # Switching must move both real-coding routes, not just long_context, so
+    # substantive traffic follows the chosen backend too.
+    y = tmp_path / "srooter.yaml"
+    y.write_text(
+        "anthropic_routing:\n"
+        "  trivial: gemini\n"
+        "  long_context: claude-max\n"
+        "  substantive: claude-max\n"
+        "  think: deepseek-pro\n"
+    )
+    ok = mr.apply_to_srooter({"primary": "deepseek"}, y)
+    assert ok is True
+    out = y.read_text()
+    assert "long_context: deepseek-pro" in out
+    assert "substantive: deepseek-pro" in out
+    # trivial stays fast/cheap; think is left untouched
+    assert "trivial: gemini" in out
 
 
 def test_apply_to_srooter_skips_non_gateway_model(tmp_path):

@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.60.0] - 2026-09-19
+
+### Switch Claude Code to a pre-configured backend from within Claude Code
+
+#### Changed
+- **`scripts/model_routing.py`** — `MODELS` now maps the switchable backends to
+  their real srooter aliases: `deepseek → deepseek-pro`, `kimi → kimi-k3`,
+  `codex → codex` (was a no-op), and a new `glm → glm-5.3` entry. So
+  `/model-config <backend>` moves Claude Code onto the intended model instead of
+  a base/undefined alias.
+- **`apply_to_srooter`** now rewrites **both** real-coding routes
+  (`long_context` *and* `substantive`) in `srooter.yaml`, not just
+  `long_context` — substantive coding traffic follows the chosen backend too.
+  `trivial` and `think` are left untouched.
+- **`PRIMARY_PRIORITY`** extended to include `glm` and `codex`.
+
+#### Added
+- **`commands/model-config.md`** — documents the four pre-configured backends
+  (DeepSeek Pro, Kimi K3, GLM 5.3, Codex), their srooter aliases, the required
+  provider keys, and that a switch needs a srooter restart + fresh session.
+- **`tests/test_model_routing.py`** — coverage for the new backend→alias
+  mappings and for the dual-route (`long_context` + `substantive`) rewrite.
+
+---
+
 ## [6.59.0] - 2026-09-08
 
 ### Context shunt — cheap reads, small context (+ a tightened read gate)
