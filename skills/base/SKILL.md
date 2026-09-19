@@ -219,15 +219,17 @@ How to verify this is complete:
 │     └─ SHOW PROOF — paste the real test/lint/type output    │
 │        (pass/fail counts), never just "tests pass"          │
 │     └─ UI change? attach a screenshot / visual-diff         │
+│     └─ Web user-facing flow? record a demo-video walkthrough │
 │     └─ Generated content? show the actual artifact          │
 │     └─ Move todo to completed.md + checkpoint session state │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 > **Done = proven, not claimed.** A todo is only complete when the evidence is in
-> your response: real command output, a screenshot for any UI change, the actual
-> artifact for any generated content. No proof → not done. (See the
-> "Definition of Done — NON-NEGOTIABLE" section in CLAUDE.md.)
+> your response: real command output, a screenshot for any UI change, a
+> `demo-video` walkthrough for any user-facing web flow, the actual artifact for
+> any generated content. No proof → not done. (See the "Definition of Done —
+> NON-NEGOTIABLE" section in CLAUDE.md.)
 
 #### Execution Commands by Stack
 

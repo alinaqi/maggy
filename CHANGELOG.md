@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.64.0] - 2026-09-19
+
+### Visual validation as a default for web projects
+
+#### Added
+- **`skills/demo-video/`** — captioned Playwright walkthrough that records a real
+  user flow, doubles as a passing E2E test, and produces a stakeholder proof mp4.
+  Now ships with the harness (previously a personal skill).
+- **Web projects get it by default** — `commands/initialize-project.md` copies
+  `demo-video/` into React Web, Full Stack, and PWA projects at init, alongside
+  the web skills.
+
+#### Changed
+- **`skills/base/SKILL.md`** — the Definition of Done now requires a `demo-video`
+  walkthrough as the evidence for any user-facing web flow (next to screenshots
+  for UI changes and artifacts for generated content).
+- **`skills/react-web/SKILL.md`** — new "Visual validation (default for web)"
+  section relating `demo-video` (flow proof), `visual-validation`
+  (screenshot-regression), and `playwright-testing` (behavior).
+- Skill count 70 → 71 (README / GETTING_STARTED).
+
+---
+
 ## [6.63.0] - 2026-09-19
 
 ### DataForSEO skill — keyword & SERP research
