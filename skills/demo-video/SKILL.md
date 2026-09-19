@@ -91,12 +91,16 @@ chapter shows what it claims. Never deliver an unviewed video.
   equivalent).
 - **Naming is mandatory and identifying**: `YYYY-MM-DD-NN-<project>-<what-it-proves>.mp4`
   — the date it was recorded, then a two-digit index so several videos on the same day
-  stay ordered and every video is uniquely identifiable at a glance. Compute NN by
-  counting existing videos for that date in the archive folder:
+  stay ordered and every video is uniquely identifiable at a glance. Allocate the
+  next *free* index with a no-clobber loop — never a count (`wc -l`), which reuses
+  an index if an earlier file was deleted and silently overwrites an existing mp4:
   ```bash
-  DIR=~/Documents/updates/<project>; DATE=$(date +%F)
-  NN=$(printf '%02d' $(( $(ls "$DIR"/"$DATE"-*.mp4 2>/dev/null | wc -l) + 1 )))
-  cp out.mp4 "$DIR/$DATE-$NN-<project>-<what-it-proves>.mp4"
+  DIR=~/Documents/updates/<project>; DATE=$(date +%F); mkdir -p "$DIR"
+  NN=1
+  while printf -v F '%s/%s-%02d-<project>-<what-it-proves>.mp4' "$DIR" "$DATE" "$NN" && [ -e "$F" ]; do
+    NN=$((NN+1))
+  done
+  cp out.mp4 "$F"
   ```
   Never `video.mp4`, never a name without its date and index.
 - **Delete the temporary spec** — it is a capture script, not a test; it must not join
