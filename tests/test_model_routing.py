@@ -1,6 +1,7 @@
 """Tests for the shared model-routing source of truth."""
 
 from pathlib import Path
+import json
 import os
 import sys
 
@@ -153,3 +154,52 @@ def test_write_launcher_creates_executable(tmp_path):
 def test_write_launcher_rejects_non_direct(tmp_path):
     assert mr.write_launcher("codex", bin_dir=tmp_path) is None
     assert not (tmp_path / "claude-codex").exists()
+
+
+def _write_auth(tmp_path, data):
+    p = tmp_path / "auth.json"
+    p.write_text(json.dumps(data))
+    return p
+
+
+def test_codex_auth_detects_subscription(tmp_path):
+    p = _write_auth(tmp_path, {"auth_mode": "chatgpt",
+                               "tokens": {"access_token": "x"}})
+    a = mr.codex_auth(env={}, auth_path=p)
+    assert a == {"api_key": False, "subscription": True}
+
+
+def test_codex_auth_detects_real_api_key(tmp_path):
+    a = mr.codex_auth(env={"OPENAI_API_KEY": "sk-abc123"},
+                      auth_path=tmp_path / "missing.json")
+    assert a["api_key"] is True and a["subscription"] is False
+
+
+def test_codex_auth_ignores_srooter_dev_key(tmp_path):
+    # a srt_ srooter dev key is not a real OpenAI key
+    a = mr.codex_auth(env={"OPENAI_API_KEY": "srt_devkey"},
+                      auth_path=tmp_path / "missing.json")
+    assert a["api_key"] is False and a["subscription"] is False
+
+
+def test_codex_mode_prefers_api_key_then_subscription(tmp_path):
+    sub = _write_auth(tmp_path, {"auth_mode": "chatgpt",
+                                 "tokens": {"access_token": "x"}})
+    # both available -> api_key wins (can back a Claude Code model)
+    both = mr.codex_mode({}, env={"OPENAI_API_KEY": "sk-x"}, auth_path=sub)
+    assert both == "api_key"
+    # only subscription -> subscription
+    only_sub = mr.codex_mode({}, env={}, auth_path=sub)
+    assert only_sub == "subscription"
+    # nothing -> none
+    assert mr.codex_mode({}, env={}, auth_path=tmp_path / "none.json") == "none"
+
+
+def test_codex_mode_explicit_pref_wins_when_available(tmp_path):
+    sub = _write_auth(tmp_path, {"auth_mode": "chatgpt",
+                                 "tokens": {"access_token": "x"}})
+    cfg = {"codex_auth": "subscription"}
+    # even with an api key present, an explicit subscription pref is honored
+    assert mr.codex_mode(cfg, env={"OPENAI_API_KEY": "sk-x"}, auth_path=sub) == "subscription"
+    # but an explicit pref that isn't available falls back to none
+    assert mr.codex_mode({"codex_auth": "api_key"}, env={}, auth_path=sub) == "none"

@@ -58,6 +58,29 @@ are untouched, so you pick per terminal.
 Codex can only be reached through srooter's `/anthropic → /v1/responses`
 translation (`/model-config codex`, above). There is no `claude-codex` launcher.
 
+### Codex auth — subscription *or* API key
+
+Codex has two auth paths, and they unlock different things:
+
+| Auth | How | What it enables |
+|------|-----|-----------------|
+| **ChatGPT subscription** | `codex login` (Sign in with ChatGPT) — token in `~/.codex/auth.json` | CLI delegation only (`codex exec` for review / bulk gen) on your plan's usage. **Cannot** back a Claude Code model. |
+| **API key** | real `OPENAI_API_KEY` (`sk-…`) | Codex as a Claude Code *model* via the srooter route, and CLI use. |
+
+Inspect and choose:
+
+```bash
+MR="$(cat ~/.claude/.bootstrap-dir)/scripts/model_routing.py"
+python3 "$MR" codex-status                 # what's available + effective mode
+python3 "$MR" set-codex-auth subscription  # auto | subscription | api_key
+```
+
+`auto` (default) prefers the API key when present (so Codex can be a backend),
+else falls back to the subscription for delegation. A `srt_` srooter dev key is
+**not** treated as a real OpenAI key. Note the hard limit: making Codex your
+Claude Code *model* always needs the API key — the ChatGPT subscription OAuth is
+locked to OpenAI's own client and can't be pointed at the public API.
+
 ---
 
 ## Steps
