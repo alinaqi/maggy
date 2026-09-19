@@ -11,6 +11,24 @@ everywhere. Stored in `~/.claude/model-config.json`.
 `/model-config` — show current primary + what's available
 `/model-config <model>` — set the primary (e.g. `minimax`, `claude`, `deepseek`)
 
+### Switch Claude Code to a pre-configured backend
+
+The primary is the model Claude Code's real coding work runs on (through
+srooter). To move it to one of the pre-configured backends:
+
+| Say | Backend | srooter alias |
+|-----|---------|---------------|
+| `/model-config deepseek` | DeepSeek Pro | `deepseek-pro` |
+| `/model-config kimi` | Kimi K3 (Moonshot) | `kimi-k3` |
+| `/model-config glm` | GLM 5.3 (Z.ai) | `glm-5.3` |
+| `/model-config codex` | Codex | `codex` |
+
+The switch takes effect for new sessions (srooter reads `ANTHROPIC_BASE_URL`
+and its routes at startup — restart srooter, then start a fresh Claude Code
+session). Each backend needs its provider key set in srooter's env
+(`DEEPSEEK_API_KEY`, `MOONSHOT_API_KEY`, `GLM_API_KEY`, `OPENAI_API_KEY`);
+srooter skips any backend whose key is unset and falls back down its chain.
+
 ---
 
 ## Steps
@@ -39,7 +57,7 @@ from the machine and can be overridden.
 
 ```bash
 python3 "$MR" set-primary "<model>"     # validates against the detected set
-python3 "$MR" apply                     # sync into srooter.yaml long_context
+python3 "$MR" apply                     # sync into srooter.yaml (long_context + substantive)
 ```
 
 Then tell the user it takes effect for new sessions. If srooter is running,
