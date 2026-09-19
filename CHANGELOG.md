@@ -8,11 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [6.64.1] - 2026-09-19
 
-#### Fixed
+### Fixed
 - **`skills/demo-video/`** — the archive-naming example now allocates the next
   *free* index with a no-clobber loop instead of `wc -l + 1`, which reused an
   index (and overwrote an existing mp4) when an earlier file had been deleted.
   Addresses a CodeRabbit review finding on #64.
+- **README** — added "visual validation" to the Bootstrap skills feature list;
+  normalized the `### Fixed` changelog heading level.
 
 ---
 

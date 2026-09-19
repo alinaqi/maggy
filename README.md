@@ -107,7 +107,7 @@ You're using Claude Code. It's impressive — but:
 
 | Layer | What it does |
 |-------|-------------|
-| **71 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, security, ADRs, cross-agent delegation |
+| **71 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, visual validation, security, ADRs, cross-agent delegation |
 | **TDD enforcement** | Stop hooks — tests must pass before Claude considers a task done |
 | **Visual validation** | Default for web projects — `demo-video` records a captioned Playwright walkthrough (proof mp4 that doubles as a passing E2E test); `visual-validation` screenshots catch regressions. A user-facing web flow isn't "done" without it |
 | **Quality gates** | Max 20 lines/function, 3 params, 2 nesting levels. Enforced per file |
