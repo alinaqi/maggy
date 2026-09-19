@@ -5,7 +5,7 @@
 Claude Bootstrap is an installable config pack (skills, hooks, rules, templates) for Claude Code. Maggy is the optional local server that adds multi-model routing, a web dashboard, intent-driven protocols, and plugin orchestration. Both live in this repo. Start with Bootstrap; add Maggy when you need the harness.
 
 [![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen)](maggy/tests/)
-[![Version](https://img.shields.io/badge/version-6.64.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-6.64.1-blue)](CHANGELOG.md)
 [![Stars](https://img.shields.io/github/stars/alinaqi/maggy)](https://github.com/alinaqi/maggy/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -292,7 +292,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 | [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) | Intent-grounded testing spec |
 | [Cortex docs](cortex-mcp/docs/) | Code intelligence, edge types, MCP tools |
 | [Cortex benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) | Performance vs codebase-memory-mcp |
-| [Changelog](CHANGELOG.md) | Version history (current: v6.64.0) |
+| [Changelog](CHANGELOG.md) | Version history (current: v6.64.1) |
 
 ---
 
