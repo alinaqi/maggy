@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.61.0] - 2026-09-19
+
+### Direct-provider launchers — run Claude Code straight on DeepSeek / GLM / Kimi
+
+#### Added
+- **`scripts/model_routing.py`** — a `DIRECT` map and `direct_config()` /
+  `write_launcher()` for the three providers that expose a native
+  Anthropic-compatible endpoint (DeepSeek `api.deepseek.com/anthropic`,
+  Z.ai GLM `api.z.ai/api/anthropic`, Moonshot Kimi `api.moonshot.ai/anthropic`).
+- **`write-launcher <backend>` / `write-launchers` CLI verbs** — generate
+  `~/bin/claude-deepseek` / `claude-glm` / `claude-kimi`. Each wrapper exports
+  `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` (resolving
+  the provider key from your env) and `exec`s `claude`, so that session runs
+  directly on the provider with no srooter hop. Plain `claude` is untouched.
+- **`commands/model-config.md`** — documents `/model-config <backend> --direct`
+  and the launchers.
+- **`tests/test_model_routing.py`** — coverage for `direct_config` (incl. that
+  codex/minimax/unknown return `None`) and `write_launcher` (executable file,
+  correct endpoint/model, non-direct rejection).
+
+#### Notes
+- **Codex is not direct-capable**: OpenAI has no Anthropic Messages API, so
+  Codex stays routed through srooter's `/anthropic → /v1/responses`
+  translation. No `claude-codex` launcher is generated.
+
+---
+
 ## [6.60.0] - 2026-09-19
 
 ### Switch Claude Code to a pre-configured backend from within Claude Code

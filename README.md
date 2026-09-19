@@ -5,7 +5,7 @@
 Claude Bootstrap is an installable config pack (skills, hooks, rules, templates) for Claude Code. Maggy is the optional local server that adds multi-model routing, a web dashboard, intent-driven protocols, and plugin orchestration. Both live in this repo. Start with Bootstrap; add Maggy when you need the harness.
 
 [![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen)](maggy/tests/)
-[![Version](https://img.shields.io/badge/version-6.60.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-6.61.0-blue)](CHANGELOG.md)
 [![Stars](https://img.shields.io/github/stars/alinaqi/maggy)](https://github.com/alinaqi/maggy/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -262,11 +262,11 @@ cd cortex-mcp && python3 -m pytest tests/ -q       # 207 tests
 
 ---
 
-## What's New in v6.60
+## What's New in v6.61
 
+- **Direct-provider launchers** — `/model-config deepseek --direct` (or `glm` / `kimi`) writes `~/bin/claude-deepseek` / `claude-glm` / `claude-kimi`, each pointing Claude Code straight at the provider's native Anthropic endpoint — **no srooter hop**. Run `claude-deepseek` instead of `claude` and that session runs directly on DeepSeek Pro. Plain `claude` is untouched, so you pick per terminal. (Codex isn't direct-capable — OpenAI has no Anthropic API — so it stays routed through srooter.)
 - **Switch Claude Code's backend from inside Claude Code** — `/model-config deepseek` (or `kimi`, `glm`, `codex`) moves your real coding work onto DeepSeek Pro, Kimi K3, GLM 5.3, or Codex, routed through srooter. Restart srooter, start a fresh session, and coding runs on the chosen model while trivial asks stay on the fast local classifier.
 - **Both coding routes follow the switch** — `apply` now rewrites `long_context` *and* `substantive` in `srooter.yaml`, so substantive traffic follows the chosen backend (not just long-context).
-- **Context shunt** — `bin/bulk-read` hands large / multi-file reads to a cheap worker model and returns a cited summary; the raw files never enter Claude's context.
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
@@ -282,7 +282,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 | [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) | Intent-grounded testing spec |
 | [Cortex docs](cortex-mcp/docs/) | Code intelligence, edge types, MCP tools |
 | [Cortex benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) | Performance vs codebase-memory-mcp |
-| [Changelog](CHANGELOG.md) | Version history (current: v6.60.0) |
+| [Changelog](CHANGELOG.md) | Version history (current: v6.61.0) |
 
 ---
 

@@ -1,6 +1,7 @@
 """Tests for the shared model-routing source of truth."""
 
 from pathlib import Path
+import os
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -117,3 +118,38 @@ def test_apply_to_srooter_skips_non_gateway_model(tmp_path):
     y = tmp_path / "srooter.yaml"
     y.write_text("anthropic_routing:\n  long_context: claude-max\n")
     assert mr.apply_to_srooter({"primary": "agy"}, y) is False
+
+
+def test_direct_config_for_anthropic_compatible_providers():
+    for logical, host in (("deepseek", "api.deepseek.com"),
+                          ("glm", "api.z.ai"),
+                          ("kimi", "api.moonshot.ai")):
+        d = mr.direct_config(logical)
+        assert d is not None
+        assert host in d["base_url"] and d["base_url"].endswith("/anthropic")
+        assert d["model"] and d["token_envs"]
+
+
+def test_direct_config_none_without_anthropic_endpoint():
+    # codex (OpenAI) has no Anthropic Messages API; claude/minimax aren't direct here.
+    assert mr.direct_config("codex") is None
+    assert mr.direct_config("minimax") is None
+    assert mr.direct_config("unknown") is None
+
+
+def test_write_launcher_creates_executable(tmp_path):
+    path = mr.write_launcher("deepseek", bin_dir=tmp_path)
+    assert path is not None and path.name == "claude-deepseek"
+    assert os.access(path, os.X_OK)
+    body = path.read_text()
+    assert "https://api.deepseek.com/anthropic" in body
+    assert 'ANTHROPIC_MODEL="deepseek-v4-pro"' in body
+    assert 'ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"' in body
+    assert "DEEPSEEK_API_KEY" in body
+    assert body.startswith("#!/usr/bin/env bash")
+    assert "exec claude" in body
+
+
+def test_write_launcher_rejects_non_direct(tmp_path):
+    assert mr.write_launcher("codex", bin_dir=tmp_path) is None
+    assert not (tmp_path / "claude-codex").exists()

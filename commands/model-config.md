@@ -29,6 +29,35 @@ session). Each backend needs its provider key set in srooter's env
 (`DEEPSEEK_API_KEY`, `MOONSHOT_API_KEY`, `GLM_API_KEY`, `OPENAI_API_KEY`);
 srooter skips any backend whose key is unset and falls back down its chain.
 
+### Direct provider — bypass srooter entirely (`--direct`)
+
+DeepSeek Pro, GLM 5.3, and Kimi K3 each publish a native
+**Anthropic-compatible** endpoint, so Claude Code can talk to them *directly*
+with no srooter hop. `/model-config <backend> --direct` writes a launcher into
+`~/bin`:
+
+| Say | Launcher | Endpoint · model |
+|-----|----------|------------------|
+| `/model-config deepseek --direct` | `claude-deepseek` | `api.deepseek.com/anthropic` · `deepseek-v4-pro` |
+| `/model-config glm --direct` | `claude-glm` | `api.z.ai/api/anthropic` · `glm-5.3` |
+| `/model-config kimi --direct` | `claude-kimi` | `api.moonshot.ai/anthropic` · `kimi-k3` |
+
+```bash
+MR="$(cat ~/.claude/.bootstrap-dir)/scripts/model_routing.py"
+python3 "$MR" write-launcher deepseek   # one backend
+python3 "$MR" write-launchers           # all three at once
+```
+
+Then just run `claude-deepseek` (or `claude-glm` / `claude-kimi`) instead of
+`claude` — that session runs directly on the provider, reading its key from
+your env (`DEEPSEEK_API_KEY`, `GLM_API_KEY`/`ZHIPUAI_API_KEY`,
+`MOONSHOT_API_KEY`/`KIMI_API_KEY`). Plain `claude` and the srooter path above
+are untouched, so you pick per terminal.
+
+**Codex is not direct-capable** — OpenAI has no Anthropic Messages API, so
+Codex can only be reached through srooter's `/anthropic → /v1/responses`
+translation (`/model-config codex`, above). There is no `claude-codex` launcher.
+
 ---
 
 ## Steps
