@@ -11,7 +11,10 @@ Usage: validate_findings.py findings.json
 from __future__ import annotations
 
 import json
+import re
 import sys
+
+_ID_RE = re.compile(r"^SA-[0-9]{3,}$")
 
 CLASSES = {"injection", "authz", "authn", "secrets", "ssrf", "deserialization",
            "path-traversal", "memory-safety", "llm", "supply-chain", "cloud",
@@ -28,17 +31,38 @@ def _enum(errs: list, fid: str, field: str, val, allowed: set) -> None:
 
 
 def _check_confirmed(errs: list, fid: str, f: dict) -> None:
-    """A confirmed finding needs location, attack_scenario, finder != validator."""
+    """A confirmed finding needs location, attack_scenario, and a finder AND a
+    validator that are both named and distinct (an absent found_by must not let
+    the finder!=validator rule pass silently)."""
     loc = f.get("location") or {}
     if not (loc.get("file") and loc.get("line")):
         errs.append(f"{fid}: confirmed but missing location file:line")
     if not f.get("attack_scenario"):
         errs.append(f"{fid}: confirmed but no attack_scenario")
     found, val = f.get("found_by"), f.get("validated_by")
+    if not found:
+        errs.append(f"{fid}: confirmed but no found_by (finder must be named)")
     if not val:
-        errs.append(f"{fid}: confirmed but no validated_by (finder != validator)")
-    elif found and val == found:
+        errs.append(f"{fid}: confirmed but no validated_by (validator must be named)")
+    if found and val and val == found:
         errs.append(f"{fid}: validated_by must differ from found_by ({found})")
+
+
+def _check_schema(errs: list, fid: str, f: dict) -> None:
+    """Enforce report-schema.json shape constraints (id pattern, title length,
+    location types) so findings.json actually conforms, not just the enums."""
+    if not _ID_RE.match(str(f.get("id", ""))):
+        errs.append(f"{fid}: id must match SA-<digits> (e.g. SA-001)")
+    title = f.get("title") or ""
+    if isinstance(title, str) and 0 < len(title) < 8:
+        errs.append(f"{fid}: title too short (min 8 chars)")
+    loc = f.get("location")
+    if loc is not None:
+        line = loc.get("line") if isinstance(loc, dict) else None
+        if not isinstance(loc, dict) or not loc.get("file"):
+            errs.append(f"{fid}: location must be an object with a file")
+        elif isinstance(line, bool) or not isinstance(line, int) or line < 1:
+            errs.append(f"{fid}: location.line must be an integer >= 1")
 
 
 def _check_finding(errs: list, seen: set, f: dict) -> None:
@@ -49,6 +73,7 @@ def _check_finding(errs: list, seen: set, f: dict) -> None:
     if fid in seen:
         errs.append(f"{fid}: duplicate id")
     seen.add(fid)
+    _check_schema(errs, fid, f)
     _enum(errs, fid, "class", f.get("class"), CLASSES)
     _enum(errs, fid, "severity", f.get("severity"), SEVERITIES)
     _enum(errs, fid, "likelihood", f.get("likelihood"), LIKELIHOODS)
