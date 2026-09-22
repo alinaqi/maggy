@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.65.1] - 2026-09-22
+
+### Fixed
+- **`skills/security-audit/validate_findings.py`** — close two integrity holes
+  (CodeRabbit review on #67): a `confirmed` finding now requires **both**
+  `found_by` and `validated_by` (an absent `found_by` no longer lets the
+  finder≠validator rule pass silently), and the validator now enforces the
+  published `report-schema.json` shape (id pattern `SA-<digits>`, title length,
+  `location.line` integer ≥ 1) before the integrity checks, instead of only the
+  enums.
+
+---
+
 ## [6.65.0] - 2026-09-22
 
 ### Security audit skill — structured, adversarial, evidence-grounded
