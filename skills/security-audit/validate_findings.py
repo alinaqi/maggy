@@ -61,7 +61,7 @@ def _check_schema(errs: list, fid: str, f: dict) -> None:
         line = loc.get("line") if isinstance(loc, dict) else None
         if not isinstance(loc, dict) or not loc.get("file"):
             errs.append(f"{fid}: location must be an object with a file")
-        elif not (isinstance(line, int) and line >= 1):
+        elif isinstance(line, bool) or not isinstance(line, int) or line < 1:
             errs.append(f"{fid}: location.line must be an integer >= 1")
 
 
