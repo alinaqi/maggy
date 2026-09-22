@@ -23,6 +23,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ids, valid enums, and every `confirmed` finding has a file:line location, an
   attack scenario, and a `validated_by` that differs from `found_by`.
 
+- **Default part of the harness** — `commands/initialize-project.md` copies
+  `security-audit/` into **every** project at init (alongside `security/`), so
+  the audit methodology ships by default, not opt-in.
+
 #### Changed
 - **`skills/security/SKILL.md`** — points to `security-audit` (audit) and
   `/security-review` (quick branch pass); clarifies `security` is preventive.

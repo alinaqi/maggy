@@ -265,7 +265,7 @@ cd cortex-mcp && python3 -m pytest tests/ -q       # 207 tests
 
 ## What's New in v6.65
 
-- **Security audit skill** — `skills/security-audit/` runs a structured, adversarial, multi-phase audit (recon → coverage-led hunting → **finder≠validator** validation → machine-readable `findings.json` → target-neutral report). Reuses `council-review` (adversarial validation), `cpg-analysis` (static taint), and `agent-teams`/`polyphony` (isolated parallel hunters). Ships a JSON schema + a zero-dependency integrity validator. It's the audit counterpart to the preventive `security` skill.
+- **Security audit — a default part of the harness** — `skills/security-audit/` runs a structured, adversarial, multi-phase audit (recon → coverage-led hunting → **finder≠validator** validation → machine-readable `findings.json` → target-neutral report). It's copied into **every** project at init (like the preventive `security` skill), reuses `council-review` (adversarial validation), `cpg-analysis` (static taint), and `agent-teams`/`polyphony` (isolated parallel hunters), and ships a JSON schema + a zero-dependency integrity validator.
 
 ## What's New in v6.64
 

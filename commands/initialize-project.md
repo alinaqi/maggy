@@ -417,6 +417,7 @@ mkdir -p .agents/skills
 # Copy skill folders (not flat .md files)
 cp -r ~/.claude/skills/base/ .claude/skills/
 cp -r ~/.claude/skills/security/ .claude/skills/
+cp -r ~/.claude/skills/security-audit/ .claude/skills/
 cp -r ~/.claude/skills/project-tooling/ .claude/skills/
 cp -r ~/.claude/skills/session-management/ .claude/skills/
 cp -r ~/.claude/skills/code-graph/ .claude/skills/
@@ -425,7 +426,8 @@ cp -r ~/.claude/skills/cross-agent-delegation/ .claude/skills/
 
 **Always copy (overwrite with latest):**
 - `base/` → `.claude/skills/base/`
-- `security/` → `.claude/skills/security/`
+- `security/` → `.claude/skills/security/` (preventive patterns)
+- `security-audit/` → `.claude/skills/security-audit/` (default audit methodology — every project)
 - `project-tooling/` → `.claude/skills/project-tooling/`
 - `session-management/` → `.claude/skills/session-management/`
 - `code-graph/` → `.claude/skills/code-graph/`
