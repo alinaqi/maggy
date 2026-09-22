@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "maggy security-audit findings",
+  "type": "object",
+  "required": ["audit", "findings"],
+  "properties": {
+    "audit": {
+      "type": "object",
+      "required": ["target", "date"],
+      "properties": {
+        "target": { "type": "string" },
+        "commit": { "type": "string" },
+        "date": { "type": "string" },
+        "phases_completed": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1, "maximum": 6 }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "class", "severity", "likelihood", "verdict"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^SA-[0-9]{3,}$" },
+          "title": { "type": "string", "minLength": 8 },
+          "class": {
+            "enum": ["injection", "authz", "authn", "secrets", "ssrf",
+                     "deserialization", "path-traversal", "memory-safety",
+                     "llm", "supply-chain", "cloud", "client-side", "dos",
+                     "data-isolation", "other"]
+          },
+          "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
+          "likelihood": { "enum": ["high", "medium", "low"] },
+          "impact": { "type": "string" },
+          "location": {
+            "type": "object",
+            "required": ["file", "line"],
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "evidence": { "type": "string" },
+          "attack_scenario": { "type": "string" },
+          "verdict": { "enum": ["confirmed", "needs_validation", "rejected"] },
+          "found_by": { "type": "string" },
+          "validated_by": { "type": "string" },
+          "remediation": { "type": "string" }
+        }
+      }
+    }
+  }
+}

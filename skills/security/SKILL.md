@@ -12,6 +12,11 @@ effort: high
 
 Security best practices and automated security testing for all projects.
 
+> This skill is **preventive** — how to write and ship secure code. To *audit*
+> an existing codebase or PR for vulnerabilities, use the `security-audit` skill
+> (structured, adversarial, evidence-grounded); for a quick pass over the current
+> branch, run `/security-review`.
+
 ---
 
 ## Core Principle
