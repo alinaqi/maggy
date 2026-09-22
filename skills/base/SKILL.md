@@ -220,6 +220,7 @@ How to verify this is complete:
 │        (pass/fail counts), never just "tests pass"          │
 │     └─ UI change? attach a screenshot / visual-diff         │
 │     └─ Web user-facing flow? record a demo-video walkthrough │
+│     └─ Security-critical change? run a security-audit pass   │
 │     └─ Generated content? show the actual artifact          │
 │     └─ Move todo to completed.md + checkpoint session state │
 └─────────────────────────────────────────────────────────────┘

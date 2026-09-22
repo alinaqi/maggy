@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.65.0] - 2026-09-22
+
+### Security audit skill — structured, adversarial, evidence-grounded
+
+#### Added
+- **`skills/security-audit/`** — a full security-audit methodology (not a
+  checklist): six phases (recon → coverage-led hunting → finder≠validator
+  validation → machine-readable findings → record verification → target-neutral
+  report), a vuln-class taxonomy, and anti-patterns. Reuses `council-review`
+  (adversarial validation), `cpg-analysis` (Joern/CodeQL static taint), and
+  `agent-teams`/`polyphony` (isolated parallel hunters). Methodology inspired by
+  Cloudflare's public security-audit-skill, rebuilt on maggy's own pieces.
+- **`report-schema.json` + `validate_findings.py`** — a findings schema and a
+  zero-dependency integrity validator that enforces the honest-audit rules: unique
+  ids, valid enums, and every `confirmed` finding has a file:line location, an
+  attack scenario, and a `validated_by` that differs from `found_by`.
+
+- **Default part of the harness** — `commands/initialize-project.md` copies
+  `security-audit/` into **every** project at init (alongside `security/`), so
+  the audit methodology ships by default, not opt-in.
+
+#### Changed
+- **`skills/security/SKILL.md`** — points to `security-audit` (audit) and
+  `/security-review` (quick branch pass); clarifies `security` is preventive.
+- **`skills/base/SKILL.md`** — Definition of Done now calls for a security-audit
+  pass on security-critical changes.
+- Skill count 71 → 72 (README / GETTING_STARTED).
+
+---
+
 ## [6.64.1] - 2026-09-19
 
 ### Fixed
