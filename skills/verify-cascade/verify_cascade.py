@@ -58,17 +58,23 @@ def build_questions(record: dict, schema: dict | None = None) -> dict[str, dict]
     schema = schema or {}
     props = schema.get("properties", {})
     required = set(schema.get("required", []))
-    names = list(dict.fromkeys([*record.keys(), *props.keys()]))  # ordered union
+    # ordered union of record keys, declared properties, AND required names (a required
+    # name need not appear in `properties` per JSON Schema, but must still be checked).
+    names = list(dict.fromkeys([*record.keys(), *props.keys(), *required]))
     qs: dict[str, dict] = {}
     for name in names:
         p = props.get(name, {})
-        spec = {
-            "path": name,
-            "type": p.get("type", "unknown"),
-            "description": p.get("description", ""),
-            "constraints": {k: p[k] for k in _CONSTRAINT_KEYS if k in p},
-            "required": name in required,
-        }
+        if isinstance(p, bool):  # JSON Schema allows a boolean property schema (true/false)
+            spec = {"path": name, "type": "unknown", "description": "",
+                    "constraints": {}, "boolean_schema": p, "required": name in required}
+        else:
+            spec = {
+                "path": name,
+                "type": p.get("type", "unknown"),
+                "description": p.get("description", ""),
+                "constraints": {k: p[k] for k in _CONSTRAINT_KEYS if k in p},
+                "required": name in required,
+            }
         value = record.get(name)
         if name not in record or _is_empty(value):
             qs[f"{name}::absence_wrong"] = {"field": spec, "value": value, "question": ABSENCE}
@@ -110,17 +116,26 @@ class LocalVerifier:
     """
 
     def __init__(self, judge: Callable[[str], str] | None = None,
-                 max_source_chars: int = 40000, batch: int = 40):
+                 max_source_chars: int = 40000, batch: int = 40,
+                 raise_on_oversize: bool = False):
         self.judge = judge or _default_judge
         self.max_source_chars = max_source_chars
         self.batch = max(1, batch)
+        self.raise_on_oversize = raise_on_oversize
 
     def _source(self, state: dict) -> str:
+        """Return the source. Over-length handling is EXPLICIT: raise if
+        ``raise_on_oversize`` (caller must chunk), else warn loudly and verify the prefix —
+        never a silent truncation. For full coverage of a long source, split it into
+        bounded calls and take ``max`` P(wrong) per question across chunks."""
         src = str(state.get("source_text", ""))
         if len(src) > self.max_source_chars:
-            print(f"verify-cascade: WARNING source is {len(src)} chars > "
-                  f"max_source_chars={self.max_source_chars}; verifying against a prefix only. "
-                  f"Split the source into bounded calls for full coverage.", file=sys.stderr)
+            msg = (f"source is {len(src)} chars > max_source_chars={self.max_source_chars}; "
+                   f"evidence beyond the cutoff is not checked — split the source into "
+                   f"bounded calls for full coverage.")
+            if self.raise_on_oversize:
+                raise ValueError(f"verify-cascade: {msg}")
+            print(f"verify-cascade: WARNING {msg}", file=sys.stderr)
             src = src[:self.max_source_chars]
         return src
 
