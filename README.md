@@ -5,11 +5,11 @@
 Claude Bootstrap is an installable config pack (skills, hooks, rules, templates) for Claude Code. Maggy is the optional local server that adds multi-model routing, a web dashboard, intent-driven protocols, and plugin orchestration. Both live in this repo. Start with Bootstrap; add Maggy when you need the harness.
 
 [![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen)](maggy/tests/)
-[![Version](https://img.shields.io/badge/version-6.65.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-6.66.0-blue)](CHANGELOG.md)
 [![Stars](https://img.shields.io/github/stars/alinaqi/maggy)](https://github.com/alinaqi/maggy/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**1100+ tests. 72 skills. 15 MCP tools. Used daily across production codebases.**
+**1100+ tests. 73 skills. 15 MCP tools. Used daily across production codebases.**
 
 ---
 
@@ -28,7 +28,7 @@ Claude Bootstrap is an installable config pack (skills, hooks, rules, templates)
 | **What it is** | Skills, hooks, rules installed into `~/.claude/` | Local FastAPI server + web dashboard |
 | **Install time** | ~30 seconds | ~5 minutes (Python 3.11+, API keys) |
 | **Requires** | Claude Code (also works with Codex, Kimi, Gemini CLI) | Everything in Bootstrap + Python + optional Docker |
-| **You get** | TDD enforcement, 72 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, Cortex MCP, plugins, dashboard |
+| **You get** | TDD enforcement, 73 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, Cortex MCP, plugins, dashboard |
 
 ### Bootstrap — 30-second install
 
@@ -107,7 +107,7 @@ You're using Claude Code. It's impressive — but:
 
 | Layer | What it does |
 |-------|-------------|
-| **72 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, visual validation, security & audit, ADRs, cross-agent delegation |
+| **73 skills** | Python, TypeScript, React, React Native, Flutter, Supabase, Firebase, Stripe, Playwright, visual validation, security & audit, ADRs, cross-agent delegation |
 | **TDD enforcement** | Stop hooks — tests must pass before Claude considers a task done |
 | **Visual validation** | Default for web projects — `demo-video` records a captioned Playwright walkthrough (proof mp4 that doubles as a passing E2E test); `visual-validation` screenshots catch regressions. A user-facing web flow isn't "done" without it |
 | **Quality gates** | Max 20 lines/function, 3 params, 2 nesting levels. Enforced per file |
@@ -231,7 +231,7 @@ A zero in any plane collapses IFS to zero. 100% test pass rate with severe archi
 
 ```
 .claude/
-  skills/       # 72 skills — Python, TS, React, security, mobile, databases
+  skills/       # 73 skills — Python, TS, React, security, mobile, databases
   hooks/        # TDD enforcement, quality gates, Mnemos lifecycle
   rules/        # Conditional rules by file glob
   templates/    # settings.json, CLAUDE.md, ADR template, PR template
@@ -296,7 +296,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 | [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) | Intent-grounded testing spec |
 | [Cortex docs](cortex-mcp/docs/) | Code intelligence, edge types, MCP tools |
 | [Cortex benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) | Performance vs codebase-memory-mcp |
-| [Changelog](CHANGELOG.md) | Version history (current: v6.65.1) |
+| [Changelog](CHANGELOG.md) | Version history (current: v6.66.0) |
 
 ---
 

@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.66.0] - 2026-09-24
+
+### Verify-cascade — verification-gated model escalation (optional TypeSafe)
+
+#### Added
+- **`skills/verify-cascade/`** — makes maggy's routing output-aware: run a cheap model,
+  verify its output with a decomposed per-field battery (narrow "bad = true" questions,
+  aggregated with `max`), and escalate to a strong model only when a flag fires. The
+  cheap rung handles easy items for near-free; only flagged items pay for the strong model.
+- **Pluggable verifier** (`verify_cascade.py`): `LocalVerifier` is the **default and runs
+  entirely on a cheap local/CLI model — no data leaves the machine**; `TypeSafeVerifier`
+  is an **opt-in** adapter for TypeSafe's hosted `jev` model.
+
+#### Notes / privacy
+- TypeSafe support is **off by default**: `TypeSafeVerifier` will not construct without
+  `TYPESAFE_API_KEY`, and when used it **sends `source_text` + `schema` + `extraction` to
+  api.typesafe.ai** (a third party). Documented in the skill. Nothing is sent unless you
+  set the key and select the `typesafe` verifier.
+- Pattern adapted from TypeSafe's public SDE-cascade cookbook; rebuilt so the verifier is
+  pluggable with a private local default.
+- Skill count 72 -> 73.
+
+---
+
 ## [6.65.1] - 2026-09-22
 
 ### Fixed
