@@ -23,6 +23,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from typing import Any, Callable, Protocol
 
 # Per-field checks, framed so TRUE = something is wrong (escalate). Empty fields get
@@ -42,17 +43,34 @@ def _is_empty(v: Any) -> bool:
     return v is None or (isinstance(v, (str, list, dict)) and len(v) == 0)
 
 
+_CONSTRAINT_KEYS = ("enum", "pattern", "format", "minimum", "maximum", "minLength", "maxLength")
+
+
 def build_questions(record: dict, schema: dict | None = None) -> dict[str, dict]:
-    """Decompose a record into per-field ``field::metric`` yes/no questions (bad = true)."""
-    props = (schema or {}).get("properties", {})
+    """Decompose a record into per-field ``field::metric`` yes/no questions (bad = true).
+
+    Iterates the UNION of record keys and schema fields, so a **required schema field
+    missing from the record** still gets an ``absence_wrong`` question (otherwise an empty
+    or partial extraction would produce no scores and be accepted without escalation).
+    The field spec carries schema ``constraints`` (enum/pattern/format/bounds) so the
+    ``format_violation`` check can actually test them.
+    """
+    schema = schema or {}
+    props = schema.get("properties", {})
+    required = set(schema.get("required", []))
+    names = list(dict.fromkeys([*record.keys(), *props.keys()]))  # ordered union
     qs: dict[str, dict] = {}
-    for name, value in record.items():
+    for name in names:
+        p = props.get(name, {})
         spec = {
             "path": name,
-            "type": props.get(name, {}).get("type", "unknown"),
-            "description": props.get(name, {}).get("description", ""),
+            "type": p.get("type", "unknown"),
+            "description": p.get("description", ""),
+            "constraints": {k: p[k] for k in _CONSTRAINT_KEYS if k in p},
+            "required": name in required,
         }
-        if _is_empty(value):
+        value = record.get(name)
+        if name not in record or _is_empty(value):
             qs[f"{name}::absence_wrong"] = {"field": spec, "value": value, "question": ABSENCE}
             continue
         for metric, q in METRICS.items():
@@ -67,11 +85,15 @@ class Verifier(Protocol):
 # --- Local verifier (default; no external egress) -------------------------
 
 def _default_judge(prompt: str) -> str:
-    """Run the local judge command (default `deepseek --flash`) on a prompt."""
-    cmd = os.environ.get("MAGGY_JUDGE_CMD", "deepseek --flash")
-    proc = subprocess.run(
-        [*cmd.split(), prompt], capture_output=True, text=True, timeout=120
-    )
+    """Run the local judge command (default `deepseek --flash`) on a prompt.
+
+    The prompt is passed on **stdin**, never as an argv element: no shell, list args, and
+    the (possibly large) prompt is data the OS never interprets as a command — so this
+    stays local and avoids ARG_MAX limits. The command named by ``MAGGY_JUDGE_CMD`` must
+    read its input from stdin (most model CLIs do).
+    """
+    cmd = os.environ.get("MAGGY_JUDGE_CMD", "deepseek --flash").split()
+    proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=120)
     if proc.returncode != 0:
         raise RuntimeError(f"judge command failed: {proc.stderr[:200]}")
     return proc.stdout
@@ -80,26 +102,43 @@ def _default_judge(prompt: str) -> str:
 class LocalVerifier:
     """Decomposed verification through a cheap local/CLI model. Nothing leaves the box.
 
-    ``judge`` is a callable(prompt)->text; the default shells to ``MAGGY_JUDGE_CMD``. One
-    call scores every question (cheap), returning ``{qid: P(wrong)}``. A parse failure
-    scores 1.0 (escalate) — the safe direction.
+    ``judge`` is a callable(prompt)->text; the default runs ``MAGGY_JUDGE_CMD`` with the
+    prompt on stdin. Questions are scored in **complete batches** (never truncated — a
+    dropped question would default to 1.0 and force a spurious escalation), and an
+    over-long source is truncated only with a **visible stderr warning**, never silently.
+    A missing/unparsable score defaults to 1.0 (escalate) — the safe direction.
     """
 
-    def __init__(self, judge: Callable[[str], str] | None = None):
+    def __init__(self, judge: Callable[[str], str] | None = None,
+                 max_source_chars: int = 40000, batch: int = 40):
         self.judge = judge or _default_judge
+        self.max_source_chars = max_source_chars
+        self.batch = max(1, batch)
+
+    def _source(self, state: dict) -> str:
+        src = str(state.get("source_text", ""))
+        if len(src) > self.max_source_chars:
+            print(f"verify-cascade: WARNING source is {len(src)} chars > "
+                  f"max_source_chars={self.max_source_chars}; verifying against a prefix only. "
+                  f"Split the source into bounded calls for full coverage.", file=sys.stderr)
+            src = src[:self.max_source_chars]
+        return src
 
     def verify(self, state: dict, questions: dict[str, dict]) -> dict[str, float]:
-        prompt = (
-            "You are a strict verifier. For each question, the value was extracted from the "
-            "SOURCE below. Answer each question with P(wrong): the probability the answer to "
-            "the question is TRUE (i.e. something is wrong). Return ONLY a JSON object "
-            "mapping each id to a float 0..1.\n\n"
-            f"SOURCE:\n{str(state.get('source_text',''))[:12000]}\n\n"
-            f"QUESTIONS (id -> {{field, value, question}}):\n{json.dumps(questions)[:8000]}\n\n"
-            "JSON only, e.g. {\"field::hallucinated\": 0.95, ...}"
-        )
-        scores = _parse_scores(self.judge(prompt))
-        # A missing/unparsable score defaults to 1.0 (escalate) — the safe direction.
+        source = self._source(state)
+        items = list(questions.items())
+        scores: dict[str, float] = {}
+        for i in range(0, len(items), self.batch):  # every question is scored — no truncation
+            chunk = dict(items[i:i + self.batch])
+            prompt = (
+                "You are a strict verifier. Each value was extracted from the SOURCE below. "
+                "For each question return P(wrong): the probability its answer is TRUE (i.e. "
+                "something is wrong). Return ONLY a JSON object mapping each id to a float 0..1.\n\n"
+                f"SOURCE:\n{source}\n\n"
+                f"QUESTIONS (id -> {{field, value, question}}):\n{json.dumps(chunk)}\n\n"
+                "JSON only, e.g. {\"field::hallucinated\": 0.95, ...}"
+            )
+            scores.update(_parse_scores(self.judge(prompt)))
         return {qid: _clamp(scores.get(qid, 1.0)) for qid in questions}
 
 
