@@ -127,7 +127,11 @@ class LocalVerifier:
         """Return the source. Over-length handling is EXPLICIT: raise if
         ``raise_on_oversize`` (caller must chunk), else warn loudly and verify the prefix —
         never a silent truncation. For full coverage of a long source, split it into
-        bounded calls and take ``max`` P(wrong) per question across chunks."""
+        bounded calls and combine per question with a **metric-aware** rule: for
+        evidence-presence checks (``hallucinated``/``off_target``/``absence_wrong``/
+        ``incomplete``) take the **min** P(wrong) across chunks (supported by ANY chunk =
+        not wrong); intrinsic checks (``format_violation``/``type``/``unreasonable``) are
+        source-independent, so any chunk's score applies."""
         src = str(state.get("source_text", ""))
         if len(src) > self.max_source_chars:
             msg = (f"source is {len(src)} chars > max_source_chars={self.max_source_chars}; "
