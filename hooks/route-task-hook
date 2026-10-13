@@ -1,8 +1,10 @@
 #!/bin/bash
-# UserPromptSubmit hook — classifies each prompt via qwen3 and
-# injects routing instructions into Claude's context.
+# UserPromptSubmit hook — classifies each prompt (local Ollama model, then
+# cheaper fallbacks) and injects routing instructions into Claude's context.
 #
-# Routing: QWEN → FLASH_TIER → PRO_TIER → KIMI → CODEX → CLAUDE
+# Routing: FLASH_TIER → PRO_TIER → KIMI → CODEX → CLAUDE
+# A tier is only emitted when its delegation binary is installed; otherwise the
+# hook falls back to CLAUDE handling the task directly (no plan ceremony).
 # Flash/Pro providers are resolved from ~/.maggy/routing.yaml
 # Sovereignty modes: us (default) | local | any
 #
@@ -118,7 +120,7 @@ _log_skip() {
     >> "$LOG_FILE" 2>/dev/null || true
 }
 # Is the session mid-tool-use? A short follow-up then means "continue" and must
-# NOT be handed to a tool-less delegate (groq/qwen), which narrates and stops.
+# NOT be handed to a tool-less delegate (groq/ollama), which narrates and stops.
 _session_is_agentic() {
   [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] || return 1
   tail -n 80 "$TRANSCRIPT" 2>/dev/null | grep -q '"type":"tool_use"' || return 1
@@ -150,8 +152,7 @@ CLASSIFIER_USED=""
 CLASSIFY_PROMPT="Classify this task into exactly ONE tier. Reply ONLY with the tier name followed by a colon and a short reason. No thinking tags.
 
 Tiers:
-- QWEN: grep, find, regex, shell one-liners, syntax lookups, log reading, short summaries, file search, simple explanations, git status/log/diff
-- DEEPSEEK_FLASH: simple code tasks, boilerplate, CRUD endpoints, test writing, small bug fixes, config changes, single-file additions, formatting
+- DEEPSEEK_FLASH: simple code tasks, boilerplate, CRUD endpoints, test writing, small bug fixes, config changes, single-file additions, formatting, shell one-liners, syntax lookups, log reading, short summaries
 - GEMINI_FLASH_LITE: bulk extraction, classification pipelines, CIG data processing, large-scale cheap summarization, non-code batch tasks
 - DEEPSEEK_PRO: multi-file features, refactors, debugging, medium-complexity coding, API endpoints, database queries, test suites, documentation writing
 - GEMINI_FLASH: multimodal tasks, image screenshots analysis, video content processing, brand asset analysis, audio transcription review
@@ -164,11 +165,13 @@ Tiers:
 
 Task: ${PROMPT}"
 
+TIERS_RE='DEEPSEEK_FLASH|GEMINI_FLASH_LITE|DEEPSEEK_PRO|GEMINI_FLASH|GEMINI_CLI|KIMI|GROK|GEMINI_PRO_SEARCH|CODEX|CLAUDE'
+
 # Parse tier from raw classifier output
 _classify_parse() {
   local raw="$1"
   [ -z "$raw" ] && return 1
-  TIER=$(echo "$raw" | grep -oE '^(QWEN|DEEPSEEK_FLASH|GEMINI_FLASH_LITE|DEEPSEEK_PRO|GEMINI_FLASH|GEMINI_CLI|KIMI|GROK|GEMINI_PRO_SEARCH|CODEX|CLAUDE)' || echo "")
+  TIER=$(echo "$raw" | grep -oE "^($TIERS_RE)" || echo "")
   [ -z "$TIER" ] && return 1
   REASON=$(echo "$raw" | sed 's/^[A-Z_]*:\s*//')
   return 0
@@ -217,6 +220,11 @@ if [ -z "$TIER" ]; then
     TIER=$(cat "$CACHE_FILE" 2>/dev/null | jq -r '.tier // "CLAUDE"' 2>/dev/null || echo "CLAUDE")
     REASON="cached from $(cat "$CACHE_FILE" 2>/dev/null | jq -r '.ts // "?"' 2>/dev/null || echo "?")"
     CLASSIFIER_USED="cache"
+    # A cached tier from an older hook version (e.g. a removed tier) must not leak through.
+    if ! echo "$TIER" | grep -qxE "$TIERS_RE"; then
+      REASON="cached tier '$TIER' is no longer supported"
+      TIER="CLAUDE"
+    fi
   else
     TIER="CLAUDE"
     REASON="all classifiers unavailable"
@@ -231,7 +239,6 @@ echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tier\":\"$TIER\",\"classifier
 # ── Log routing decision ─────────────────────────────────────────────────
 SAVED=0
 case "$TIER" in
-  QWEN)              SAVED=4000 ;;
   DEEPSEEK_FLASH)    SAVED=3500 ;;
   GEMINI_FLASH_LITE) SAVED=3600 ;;
   DEEPSEEK_PRO)      SAVED=2500 ;;
@@ -262,7 +269,7 @@ if [ -f "$ESCALATION_FLAG" ]; then
   if [ "$ESCALATION_COUNT" -gt 0 ] 2>/dev/null; then
     # Force premium tier — escalate from current tier
     case "$TIER" in
-      QWEN|DEEPSEEK_FLASH|GEMINI_FLASH_LITE) TIER="DEEPSEEK_PRO" ;;  # escalate flash→pro
+      DEEPSEEK_FLASH|GEMINI_FLASH_LITE) TIER="DEEPSEEK_PRO" ;;  # escalate flash→pro
       DEEPSEEK_PRO|GEMINI_FLASH) TIER="CLAUDE" ;;
       KIMI) TIER="CLAUDE" ;;
     esac
@@ -275,10 +282,32 @@ if [ -f "$ESCALATION_FLAG" ]; then
   fi
 fi
 
+# ── Delegation target must exist, else handle the task directly ──────────
+# FLASH_BIN / PRO_BIN may carry flags ("…/deepseek --flash"); test the executable only.
+_tier_bin() {
+  case "$1" in
+    DEEPSEEK_FLASH)                                   echo "${FLASH_BIN%% *}" ;;
+    DEEPSEEK_PRO)                                     echo "${PRO_BIN%% *}" ;;
+    GEMINI_FLASH_LITE|GEMINI_FLASH|GEMINI_PRO_SEARCH) echo "$HOME/bin/gemini-api" ;;
+    GEMINI_CLI)                                       echo "$HOME/bin/gemini-cli" ;;
+    KIMI)                                             echo "$HOME/bin/kimi" ;;
+    GROK)                                             echo "$HOME/bin/grok" ;;
+    CODEX)                                            command -v codex 2>/dev/null || echo "codex" ;;
+    *)                                                echo "" ;;
+  esac
+}
+FALLBACK_FROM=""
+REQUIRED_BIN=$(_tier_bin "$TIER")
+if [ -n "$REQUIRED_BIN" ] && [ ! -x "$REQUIRED_BIN" ]; then
+  FALLBACK_FROM="$TIER"
+  REASON="${FALLBACK_FROM} needs ${REQUIRED_BIN}, which is not installed on this machine"
+  TIER="CLAUDE_DIRECT"
+fi
+
 # ── Build context based on tier ──────────────────────────────────────────
 case "$TIER" in
-  QWEN)
-    CTX="ROUTING DECISION: QWEN (local, free). Reason: ${REASON}. You MUST delegate this task — run ~/bin/qwen3 \"<prompt>\", return its output exactly as-is. Do NOT process, think about, or execute this prompt yourself. Your only job is to run the delegation command and relay the result.${TOOLS_HINT}"
+  CLAUDE_DIRECT)
+    CTX="ROUTING DECISION: CLAUDE (fallback from ${FALLBACK_FROM}). Reason: ${REASON}. Handle this task directly yourself and do not delegate. To restore the ${FALLBACK_FROM} tier, install its wrapper with maggy's install.sh.${TOOLS_HINT}"
     ;;
   DEEPSEEK_FLASH)
     CTX="ROUTING DECISION: FLASH_TIER (provider=${FLASH_PROVIDER}, $(_flash_cost)). Reason: ${REASON}. You MUST delegate this task — run ${FLASH_BIN} \"<prompt>\", return its output exactly as-is. Do NOT process this yourself — delegate to ${FLASH_PROVIDER}.${TOOLS_HINT}"
@@ -326,10 +355,10 @@ if [ -n "$PRIMARY_MODEL" ]; then
 fi
 
 # Delegation contract: a text reply is NOT task completion. Delegating tiers
-# (flash/pro/qwen/kimi/etc.) can only classify or narrate — if the delegate just
+# (flash/pro/kimi/etc.) can only classify or narrate — if the delegate just
 # describes intent or the task needs tools/files it can't reach, do it yourself.
 case "$TIER" in
-  CLAUDE|CODEX) : ;;  # not delegated — no contract needed
+  CLAUDE|CLAUDE_DIRECT|CODEX) : ;;  # not delegated — no contract needed
   *) CTX="${CTX} CONTRACT: a text reply from the delegate is NOT task completion. If it only narrates intent (\"I'll…\", \"please stand by\"), returns nothing actionable, or the task needs tools/files/session context the delegate can't reach, do the task yourself — do NOT relay its narration as if done." ;;
 esac
 

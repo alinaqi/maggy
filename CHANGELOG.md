@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [6.67.0] - 2026-10-13
+
+### Routing hook: no more qwen3 tier, missing tools fall back to Claude
+
+#### Changed
+- **`hooks/route-task-hook`** — the QWEN delegation tier is gone. Trivial
+  lookups now classify as the flash tier or are handled directly; nothing
+  routes to `~/bin/qwen3` any more.
+- **`hooks/route-task-hook`** — before emitting a delegation instruction the
+  hook checks that the tier's wrapper exists (the resolved flash/pro binary,
+  `~/bin/gemini-api`, `~/bin/gemini-cli`, `~/bin/kimi`, `~/bin/grok`, `codex`
+  on PATH). A missing wrapper yields `ROUTING DECISION: CLAUDE (fallback from
+  <tier>)` telling Claude to do the task itself, without the PLAN FIRST
+  ceremony or the delegation contract. Previously the hook ordered delegation
+  to a binary that was not installed and Claude had to notice the failure.
+- A cached tier the current hook no longer knows (for example `QWEN` left in
+  `~/.claude/routing-cache.json` by an older version) is discarded instead of
+  being replayed.
+
+#### Added
+- `tests/test_route_task_hook.py` — runs the real bash hook with a fake HOME
+  and dead Ollama endpoint to cover the fallback, the stale cache and the
+  installed-wrapper paths.
+
 ## [6.66.0] - 2026-09-24
 
 ### Verify-cascade — verification-gated model escalation (optional TypeSafe)

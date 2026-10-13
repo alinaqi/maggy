@@ -51,7 +51,6 @@ If a PR diff shows untested code paths, flag them before continuing.
 
 | Tier | Model | Cost (in/out per M) | Role |
 |------|-------|---------------------|------|
-| 0 | Qwen3 (local) | $0 | File reads, quick edits, boilerplate, offline |
 | 1 | Gemini 2.5 Flash-Lite | $0.10 / $0.40 | Bulk extraction, classification, CIG pipelines |
 | 2 | DeepSeek V4 Flash | $0.14 / $0.28 | Sub-agents, cheap internal calls |
 | 3 | Gemini 2.5 Flash | $0.15 / $0.60 | Multimodal, video analysis, brand assets |
@@ -63,13 +62,6 @@ If a PR diff shows untested code paths, flag them before continuing.
 | 9 | Grok 4.3 (xAI) | $5 / $15 | Competitor intel, CKG, deep reasoning |
 | 10 | Codex | varies | Code review, bulk generation |
 | 11 | Claude Sonnet/Opus | $3-5 / $15-25 | Quality-critical, security, architecture |
-
-### Use qwen3 (local) for:
-- grep, find, awk, sed, jq questions
-- Shell one-liners and regex
-- Quick syntax lookups, log reading, file search
-
-Invoke: qwen3 ""
 
 ### Use Gemini Flash-Lite (Tier 1) for:
 - Bulk extraction and classification pipelines
@@ -189,7 +181,7 @@ Before any PR is considered done:
 5. Write a clear PR description: what, why, how
 
 ## Routing heuristic:
-- Lookup / one-liner → qwen3
+- Lookup / one-liner → handle directly (no delegation)
 - Bulk extraction / classification → Gemini Flash-Lite
 - Simple code / boilerplate → DeepSeek Flash
 - Multimodal / video / images → Gemini Flash

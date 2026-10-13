@@ -40,7 +40,6 @@ Claude delegates to the right model or handles directly
 
 | Tier | Model | Input (per M) | Output (per M) | Handles |
 |------|-------|---------------|----------------|---------|
-| 0 | **Qwen3** (local) | $0 | $0 | grep, find, shell, syntax, log reading |
 | 1 | **Gemini 2.5 Flash-Lite** | $0.10 | $0.40 | Bulk extraction, classification, CIG pipelines |
 | 2 | **DeepSeek V4 Flash** | $0.14 | $0.28 | Simple code, CRUD, test writing, small fixes |
 | 3 | **DeepSeek V4 Pro** | $0.44 | $0.87 | Multi-file features, refactors, debugging (~80% of work) |
@@ -55,8 +54,6 @@ Claude delegates to the right model or handles directly
 When the hook says "delegate to X", run the matching command and return its output:
 
 ```bash
-# Tier 0 — Qwen3
-~/bin/qwen3 "prompt"
 
 # Tier 1 — Gemini Flash-Lite
 ~/bin/gemini --flash-lite "prompt"
@@ -117,6 +114,15 @@ The classifier itself can fail. When it does, cascading fallback kicks in:
 | 4 | **Cached tier** | $0 | From `~/.claude/routing-cache.json` |
 
 The cache (`~/.claude/routing-cache.json`) saves the last successful tier and timestamp. After compaction, when Ollama may be briefly unreachable, the cache ensures routing continues without dropping to CLAUDE by default.
+
+## Missing Wrapper Fallback
+
+Before the hook emits a delegation instruction it checks that the tier's wrapper
+exists (the resolved flash/pro binary, `~/bin/gemini-api`, `~/bin/gemini-cli`,
+`~/bin/kimi`, `~/bin/grok`, or `codex` on PATH). If it is missing, the decision
+becomes `ROUTING DECISION: CLAUDE (fallback from <tier>)` and Claude handles the
+task directly, without the PLAN FIRST step. A cached tier the hook no longer
+knows is discarded the same way. There is no qwen3 delegation tier any more.
 
 ## Tool Fallback Protocol
 
