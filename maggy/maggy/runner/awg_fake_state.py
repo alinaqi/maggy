@@ -26,6 +26,7 @@ class FakeItem:
     annotations: list[dict] = field(default_factory=list)
     evidence: list[dict] = field(default_factory=list)
     attributes: dict = field(default_factory=dict)
+    validations: list[dict] = field(default_factory=list)
 
 
 class FakeAwgState:

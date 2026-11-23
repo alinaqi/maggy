@@ -1,12 +1,13 @@
 """After the worker: fence, spec version, commit-bound evidence, then block/give back/submit.
 
 Every side effect is preceded by `session.verify()` (STOP + live fence). Evidence goes
-through the ci credential, bound to the candidate SHA, with spec_version and check name.
+through the ci credential, bound to the candidate SHA, with spec_version and check name
+(`runner.evidence`).
 """
 
 from __future__ import annotations
 
-from maggy.runner.awg_types import EvidenceSpec
+from maggy.runner.evidence import attach_evidence
 from maggy.runner.session import RunReport, Session
 from maggy.worker.models import WorkerResult
 
@@ -16,7 +17,7 @@ def conclude(session: Session, result: WorkerResult) -> RunReport:
     drift = _spec_drift(session)
     if drift:
         return session.give_back("spec_review", drift)
-    _attach_evidence(session, result)
+    attach_evidence(session, result)
     if result.blocker is not None:
         return _block(session, result.blocker.question)
     problem = _not_ready(result)
@@ -32,26 +33,6 @@ def _spec_drift(session: Session) -> str | None:
         return None
     return (f"spec version changed from {claimed} to {current} during the run; "
             "returned for spec review")
-
-
-def _attach_evidence(session: Session, result: WorkerResult) -> None:
-    """Attach each check's evidence once: a roll-forward skips records already attached."""
-    attached = _attached(session)
-    for check in result.checks:
-        meta = {"spec_version": str(session.claim.version), "check": check.name}
-        if (check.name, check.sha, meta["spec_version"]) in attached:
-            continue
-        session.verify()
-        spec = EvidenceSpec(kind=check.name, verdict="PASS" if check.passed else "FAIL",
-                            commit_sha=check.sha, meta=meta)
-        session.awg.evidence(session.claim, spec)
-        session.log("evidence", {"check": check.name, "passed": check.passed, "sha": check.sha})
-
-
-def _attached(session: Session) -> set[tuple[str, str, str]]:
-    records = session.awg.show(session.claim.ref).get("evidence") or []
-    return {(str(r.get("kind")), str(r.get("commit_sha")),
-             str((r.get("meta") or {}).get("spec_version"))) for r in records}
 
 
 def _block(session: Session, question: str) -> RunReport:

@@ -53,11 +53,21 @@ def build_runner(opts: RunCliOptions) -> Runner:
     return Runner(client, config)
 
 
-def _awg_config(state: Path, awg_bin: Path | None) -> AwgCliConfig:
-    """The runner's agent token (lifecycle) and ci token (evidence), as separate files."""
-    agent, ci = state / "runner" / "agent.token", state / "runner" / "ci.token"
+def runner_token_files(state: Path) -> tuple[Path, Path]:
+    """<state>/tokens/runner-agent.token (lifecycle) and runner-ci.token (evidence only),
+    as minted by `maggy harness init`; Refused naming whichever is missing."""
+    agent, ci = (state / "tokens" / f"{name}.token" for name in ("runner-agent", "runner-ci"))
     missing = [str(path) for path in (agent, ci) if not path.is_file()]
     if missing:
-        raise Refused(f"missing AWG token file(s): {', '.join(missing)}")
-    binary = awg_bin or Path(shutil.which("awg") or "awg")
-    return AwgCliConfig(binary=binary, agent_token_file=agent, ci_token_file=ci)
+        raise Refused(f"missing AWG token file(s): {', '.join(missing)} "
+                      "(run `maggy harness init`)")
+    return agent, ci
+
+
+def awg_binary(awg_bin: Path | None) -> Path:
+    return awg_bin or Path(shutil.which("awg") or "awg")
+
+
+def _awg_config(state: Path, awg_bin: Path | None) -> AwgCliConfig:
+    agent, ci = runner_token_files(state)
+    return AwgCliConfig(binary=awg_binary(awg_bin), agent_token_file=agent, ci_token_file=ci)

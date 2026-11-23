@@ -12,9 +12,9 @@ from maggy.runner.awg_types import Claim, EvidenceSpec, claim_from_lease
 
 class CliAwgClient(CliBase):
     def next_claim(self, capabilities: list[str]) -> Claim | None:
-        wanted = [f"--capabilities={cap}" for cap in capabilities]
+        wanted = f"--capabilities={','.join(capabilities)}"
         try:
-            lease = self._agent(["next", "--claim", *wanted, "--json"])
+            lease = self._agent(["next", "--claim", wanted, "--json"])
         except AwgError as exc:
             if exc.code == "conflict":
                 return None
@@ -51,9 +51,15 @@ class CliAwgClient(CliBase):
 
     def evidence(self, claim: Claim, spec: EvidenceSpec) -> dict:
         meta = [f"--meta={key}={value}" for key, value in sorted(spec.meta.items())]
+        bound = [f"--validation={spec.validation}"] if spec.validation else []
         options = [f"--kind={spec.kind}", f"--verdict={spec.verdict}",
-                   f"--commit-sha={spec.commit_sha}", *meta]
+                   f"--commit-sha={spec.commit_sha}", *bound, *meta]
         return cast(dict, self._ci(command("evidence", options, claim.ref)))
 
     def show(self, ref: str) -> dict:
-        return cast(dict, self._agent(command("show", [], ref)))
+        """`awg show`, plus the validations from `awg proof` and the comment thread."""
+        shown = cast(dict, self._agent(command("show", [], ref)))
+        proof = cast(dict, self._agent(command("proof", [], ref)))
+        comments = cast(dict, self._agent(command("comments", [], ref)))
+        return {**shown, "validations": list(proof.get("validations") or []),
+                "comments": list(comments.get("items") or [])}
