@@ -58,8 +58,8 @@ def test_lifecycle_calls_carry_fence_and_agent_token(awg) -> None:
     assert argvs[1] == ["--token-file", str(agent), "submit", *fence, "--summary=did it",
                         "--sha=abc123", "--json", "--", "AWG-7"]
     assert argvs[2][-4:] == ["--reason=-gave up", "--json", "--", "AWG-7"]
-    assert argvs[3][2:] == ["block", *fence, "--reason=which db?", "--human", "--json",
-                            "--", "AWG-7"]
+    assert argvs[3][2:] == ["block", "--reason=which db?", "--human", "--question=which db?",
+                            "--json", "--", "AWG-7"]
     assert argvs[4][2:] == ["comment", "--json", "--", "AWG-7",
                             "[handoff att-1] -resume from branch maggy/AWG-7"]
     assert all(argv[:2] == ["--token-file", str(agent)] for argv in argvs)

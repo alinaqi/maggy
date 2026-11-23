@@ -52,7 +52,8 @@ class Runner:
         return self._claim_and_drive()
 
     def _claim_and_drive(self) -> RunReport:
-        claim = self.awg.next_claim(*claim_capabilities(self.config.project))
+        claim = self.awg.next_claim(*claim_capabilities(
+            self.config.project, self.config.profile.worker.stages))
         if claim is None:
             return RunReport("idle")
         held = state_for(self.config)

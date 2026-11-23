@@ -12,9 +12,10 @@ from maggy.worker.adapter_spec import AdapterSpec
 from maggy.worker.models import WorkerResult
 
 PrStep = Callable[[Claim, WorkerResult], object]
-CAPABILITIES = ["maggy-runner", "stage:build"]
-STAGES = ["stage:spec", "stage:plan"]  # stages held beyond build
-REQUIRED = ["maggy-runner"]  # opt-in: untagged items are never claimed (RFC §2.4)  # later stages arrive in Phase 4
+RUNNER = "maggy-runner"
+STAGES = ("spec", "plan", "build")  # every stage the runner can drive, in flow order
+CAPABILITIES = [RUNNER, "stage:spec"]  # what intake tags new items with: they start at spec
+REQUIRED = [RUNNER]  # opt-in: untagged items are never claimed (RFC §2.4)
 
 
 def project_capability(project: str) -> str:
@@ -22,10 +23,13 @@ def project_capability(project: str) -> str:
     return f"project:{project}"
 
 
-def claim_capabilities(project: str) -> tuple[list[str], list[str]]:
-    """(held, required) for a runner bound to `project`: it only claims that project's items."""
+def claim_capabilities(project: str, stages: list[str] | tuple[str, ...] = STAGES
+                       ) -> tuple[list[str], list[str]]:
+    """(held, required) for a runner bound to `project`: it only claims that project's items,
+    and only those whose `stage:<name>` is one of `stages` (`worker.stages` in the profile)."""
     tag = project_capability(project)
-    return [*CAPABILITIES, *STAGES, tag], [*REQUIRED, tag]
+    held = [f"stage:{stage}" for stage in STAGES if stage in stages]
+    return [RUNNER, *held, tag], [*REQUIRED, tag]
 
 
 @dataclass(frozen=True)

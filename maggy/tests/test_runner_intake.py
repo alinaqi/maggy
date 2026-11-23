@@ -38,7 +38,7 @@ def test_intake_wraps_awg_sync_with_label_and_runner_capabilities(awg, tmp_path:
     assert result.exit_code == 0, result.output
     [call] = awg.calls()
     assert call["argv"] == ["sync", "github", "--label=factory", "--capability=maggy-runner",
-                            "--capability=stage:build",
+                            "--capability=stage:spec",
                             f"--capability=project:{tmp_path.name}", "--json", "--", "acme/shop"]
     assert "created 1" in result.output and "AWG-3" in result.output
 

@@ -88,7 +88,7 @@ class Intake(Strict):
     source: Literal["github", "awg", "none"] = "none"
     label: str | None = None
     status: str = "open"
-    capabilities: list[str] | None = None  # None: the runner's (maggy-runner, stage:build)
+    capabilities: list[str] | None = None  # None: maggy-runner, stage:spec (start at spec)
 
 
 class Worker(Strict):
@@ -97,6 +97,7 @@ class Worker(Strict):
     timeout_minutes: int = Field(30, gt=0)
     isolation: Literal["worktree", "container"] = "worktree"
     allow_host_execution: bool = False  # personal profile only (loader enforces)
+    stages: list[Literal["spec", "plan", "build"]] = ["spec", "plan", "build"]  # claimable
 
 
 class RiskRule(Strict):

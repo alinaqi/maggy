@@ -58,7 +58,10 @@ def test_cli_update_node_and_decision_argv(tmp_path: Path) -> None:
     client.decision(_claim(), "spec-approved", {"spec_version": 5})
     argvs = [call["argv"][2:] for call in fake.calls()]
     assert argvs[0] == ["update", "--ac=a b", "--capability=c", "--json", "--", "AWG-7"]
-    assert argvs[1] == ["node", "create", "--type=REQUIREMENT", "--parent=AWG-7",
-                        '--data={"k": 1}', "--json", "--", "-t"]
-    assert argvs[2] == ["decision", "--key=spec-approved", '--data={"spec_version": 5}',
-                        "--json", "--", "AWG-7"]
+    fence = ["--attempt=att-1", "--fencing-token=4"]
+    # real awg: the title is an option (`--title=-t` is never read as a flag), the data rides
+    # in --description, and both writes are fenced by the item's lease
+    assert argvs[1] == ["node", "create", "--type=REQUIREMENT", "--title=-t",
+                        '--description={"k": 1}', "--parent-work=AWG-7", *fence, "--json"]
+    assert argvs[2] == ["decision", "--title=spec-approved", "--key=spec-approved",
+                        '--data={"spec_version": 5}', *fence, "--json", "--", "AWG-7"]

@@ -11,6 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 4)
 
 #### Added
+- **Stage dispatch and the Phase 4 exit test** (RFC §2.4/§2.5). The runner claims with
+  `[maggy-runner, stage:spec, stage:plan, stage:build, project:*]`; the new profile key
+  `worker.stages` (default all three) restricts which stages a runner holds. `maggy run
+  intake` now tags new issues `stage:spec` (was `stage:build`), so tickets start at the spec
+  stage; `intake.capabilities` still overrides. `tests/test_runner_phase4_exit.py` drives an
+  ambiguous ticket against the real awg CLI: exactly one question and WAITING_HUMAN, a human
+  answer, spec approval (criteria, REQUIREMENT nodes, `spec-approved` DECISION), the plan
+  graph with VALIDATIONs, and the first child built to a draft PR with CI-trust evidence.
+  `docs/runner.md` describes the stage flow.
+
 - **Plan stage: structured plan, task DAG, per-criterion VALIDATIONs, high-risk approval**
   (`maggy/runner/stages/plan*.py`, RFC §2.4/§2.5). The runner now holds `stage:plan`. The
   stage first checks the `spec-approved` DECISION still matches the item's criteria (it now
@@ -49,6 +59,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   (AGENTS.md, file list) stay inside one delimited untrusted-data block. `AwgClient` gains
   `update`, `create_node` and `decision` (FakeAwg in memory; CLI via `awg update`,
   `awg node create`, `awg decision`). Legacy spec/planner code is untouched (Phase 6 deletion).
+
+#### Fixed
+- **Runner CLI calls now match the real awg** (`maggy/runner/awg_cli.py`,
+  `awg_cli_graph.py`), found by the Phase 4 exit test. `awg block` takes no fence flags
+  (the runner fences it with `session.verify()` just before) and now passes `--question`,
+  so the spec question lands as the item's one comment. `awg node create` takes `--title`
+  and `--parent-work` (criterion data rides in `--description`), and `awg decision` needs
+  `--title`; both are now fenced by the item's lease.
 
 ### Maggy: Personal Harness (Phase 3)
 

@@ -33,7 +33,7 @@ def test_intake_tags_items_with_the_given_project(awg, tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert awg.calls()[0]["argv"] == [
         "sync", "github", "--label=factory", "--capability=maggy-runner",
-        "--capability=stage:build", "--capability=project:SHOP", "--project=SHOP", "--json",
+        "--capability=stage:spec", "--capability=project:SHOP", "--project=SHOP", "--json",
         "--", "acme/shop"]
 
 
