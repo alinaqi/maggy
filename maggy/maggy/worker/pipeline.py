@@ -31,6 +31,8 @@ class Attempt:
     state_dir: Path
     model: str | None = None
     path_prefix: Path | None = None  # dir searched first for the CLI (replay fakes)
+    interrupt_file: Path | None = None  # the runner's per-attempt kill signal (lease loss)
+    pid_file: Path | None = None  # where the worker's process-group id is registered
 
     @property
     def attempt_dir(self) -> Path:
@@ -40,16 +42,20 @@ class Attempt:
     def stop_file(self) -> Path:
         return self.state_dir / "STOP"
 
+    def halted(self) -> bool:
+        interrupt = self.interrupt_file
+        return self.stop_file.exists() or (interrupt is not None and interrupt.exists())
+
 
 def run_attempt(attempt: Attempt) -> WorkerResult:
     """Launch (Refused/BudgetRefused propagate), then commit, check and flag protected paths.
 
-    STOP is re-checked before the commit and before the checks (RFC §2.6.8): once it is
-    pulled, nothing more runs and the attempt is reported as failed.
+    STOP (and the runner's per-attempt interrupt) is re-checked before the commit and before
+    the checks (RFC §2.6.3, §2.6.8): once pulled, nothing more runs and the attempt fails.
     """
     _refuse_unbounded_checks(attempt)
     run = run_budgeted(_job(attempt), _ledger(attempt), _reservation(attempt))
-    stopped = attempt.stop_file.exists
+    stopped = attempt.halted
     candidate = Candidate(None) if stopped() else commit_candidate(attempt.spec)
     checks = [] if stopped() else _checks(attempt, candidate)
     if stopped():
@@ -89,7 +95,8 @@ def _job(attempt: Attempt) -> Job:
                     **plan.env},
                attempt_dir=attempt.attempt_dir, deadline_s=spec.deadline_s,
                parser=adapter.output, cost_limit_usd=cost_limit_usd(adapter, _budget(attempt)),
-               stop_file=attempt.stop_file)
+               stop_file=attempt.stop_file, interrupt_file=attempt.interrupt_file,
+               pid_file=attempt.pid_file)
 
 
 def _checks(attempt: Attempt, candidate: Candidate) -> list[CheckResult]:

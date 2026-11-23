@@ -26,8 +26,15 @@ class Job:
     parser: str = "text"
     cost_limit_usd: float | None = None
     stop_file: Path = field(default_factory=default_stop_file)
+    interrupt_file: Path | None = None  # per-attempt kill signal (runner lease loss)
+    pid_file: Path | None = None  # registry entry so `maggy run stop` can kill the group
     grace_s: float = 5.0
     poll_s: float = 0.1
+
+    def halted(self) -> bool:
+        """STOP pulled, or this attempt interrupted (§2.6.3, §2.6.8)."""
+        interrupted = self.interrupt_file is not None and self.interrupt_file.exists()
+        return interrupted or self.stop_file.exists()
 
     @property
     def stdout_log(self) -> Path:

@@ -16,20 +16,29 @@ Verdict = tuple[Outcome, str]
 
 def supervise(job: Job) -> Supervised:
     """Run the job to completion or until a deadline, STOP file or cost cap kills it."""
-    if job.stop_file.exists():
+    if job.halted():
         return _result(job, ("failed", "stopped"), None)
     started = time.monotonic()
     proc = launch(job)
+    try:
+        verdict = _watch_and_reap(job, proc, started)
+    finally:
+        if job.pid_file is not None:
+            job.pid_file.unlink(missing_ok=True)
+    code = proc.returncode
+    verdict = verdict or (("succeeded", "exit code 0") if code == 0
+                          else ("failed", f"exit code {code}"))
+    return _result(job, verdict, (proc, time.monotonic() - started))
+
+
+def _watch_and_reap(job: Job, proc: subprocess.Popen, started: float) -> Verdict | None:
     try:
         verdict = _watch(job, proc, started)
     except BaseException:
         kill_group(proc, 0.0)
         raise
     kill_group(proc, 0.0 if verdict is None else job.grace_s)
-    code = proc.returncode
-    verdict = verdict or (("succeeded", "exit code 0") if code == 0
-                          else ("failed", f"exit code {code}"))
-    return _result(job, verdict, (proc, time.monotonic() - started))
+    return verdict
 
 
 def _watch(job: Job, proc: subprocess.Popen, started: float) -> Verdict | None:
@@ -45,7 +54,7 @@ def _watch(job: Job, proc: subprocess.Popen, started: float) -> Verdict | None:
 def _limit_tripped(job: Job, elapsed_s: float) -> Verdict | None:
     if elapsed_s >= job.deadline_s:
         return "timeout", "deadline"
-    if job.stop_file.exists():
+    if job.halted():
         return "failed", "stopped"
     limit = job.cost_limit_usd
     if limit is not None and (_cost(job) or 0.0) > limit:

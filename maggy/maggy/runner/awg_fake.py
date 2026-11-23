@@ -62,6 +62,7 @@ class FakeAwg(FakeAwgState):
         item = self._item(ref)
         work = {"display_id": item.ref, "state": item.state, "version": item.version,
                 "acceptance_criteria": list(item.acceptance_criteria),
-                "revision_sha": item.revision_sha}
+                "revision_sha": item.revision_sha, "attributes": dict(item.attributes),
+                "execution_policy": {"capabilities": sorted(item.capabilities)}}
         return {"work": work, "comments": list(item.comments),
                 "annotations": self.annotations(ref), "evidence": list(item.evidence)}

@@ -11,6 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 3)
 
 #### Added
+- **Runner loop `maggy run [--once] [--project KEY] [--adapter X]`** (`maggy/runner/loop.py`,
+  `drive.py`, `conclude.py`; RFC personal-harness §2.4, §2.6.1/3/5/8). Per item: STOP and
+  per-project pause checked before every claim; claim with `[maggy-runner, stage:build]`
+  (spec/plan stages are released as "not supported yet"); stable worktree on `maggy/<ref>`,
+  resumed from an existing branch; WorkerSpec from the context bundle (ticket text delimited
+  as data, permission/deadline/budget from the repo profile) run through Phase 2's
+  `run_attempt`. A heartbeat thread at lease/3 touches a per-attempt interrupt file on any
+  failure so the supervisor kills the worker's process group; lease loss or a stale fence
+  then skips every side effect, keeps the worktree and gives the item back as interrupted
+  with a handoff. After the worker the fence and spec version are re-checked (a changed
+  version returns the item for spec review), one evidence per check is attached via the ci
+  credential bound to the candidate SHA with `spec_version`/`check` meta, blockers and
+  protected-path edits go to `WAITING_HUMAN` with the question, and only then the PR step
+  (task 3.3 hook) and `submit` run. Every decision is appended to
+  `<state>/attempts/<attempt>/runner.jsonl`.
+- **Kill switch and pause** (`maggy/runner/control.py`): `maggy run stop` creates `STOP` and
+  SIGKILLs the worker process groups registered in `<state>/runner/pids/*.pid` (written by
+  the worker launcher, removed after the run); `maggy run pause|resume --project K`.
+  Worker `Job`/`Attempt` gain `interrupt_file` and `pid_file`.
 - **`AwgClient` protocol, CLI-backed client and in-memory fake** (`maggy/runner/`, RFC
   personal-harness §2.4, §2.6.1, §2.6.3). The runner's one interface to AWG: `next_claim`
   (capability-filtered), `heartbeat`, `submit`, `release`, `block`, `handoff`, keyed
