@@ -77,6 +77,7 @@ maggy = [
     "static/**/*",
     "prompt/*.md",
     "harness/emitters/assets/*.md",
+    "harness/presets/*.md",
     "**/*.yaml",
     "**/*.yml",
 ]

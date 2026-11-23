@@ -2,6 +2,7 @@
 
 Includes (e.g. `rules/tdd.md`) and skills (`skills/<name>/SKILL.md`) resolve
 against EmitterSources.root: the Maggy repo by default, or MAGGY_HARNESS_SOURCES.
+`preset:<file>` includes resolve to the shipped presets (maggy/harness/presets).
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from pathlib import Path
 
 from maggy.harness.emitters.base import EmitterSources
 from maggy.harness.errors import HarnessConfigError
+from maggy.harness.presets import include_path as preset_include
 from maggy.harness.schema import HarnessProfile
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -34,6 +36,9 @@ def safe_name(key: str, name: str) -> str:
 
 
 def _resolve(sources: EmitterSources, include: str) -> Path:
+    shipped = preset_include(include)
+    if shipped is not None:
+        return shipped
     root = sources.root.resolve()
     path = (root / include).resolve()
     if not path.is_relative_to(root):

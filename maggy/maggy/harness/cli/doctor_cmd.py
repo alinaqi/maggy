@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from maggy.harness.cli.doctor_checks import awg_checks, capability_rows
+from maggy.harness.cli.doctor_checks import awg_checks, capability_gaps, capability_rows
 from maggy.harness.cli.env import get_env
 from maggy.harness.cli.options import REPO, config_errors, load, selected_agents
 
@@ -21,7 +21,7 @@ def doctor(ctx: typer.Context, repo: Path = REPO) -> None:
     for row in capability_rows(env, agents, found):
         typer.echo(row)
     typer.echo("")
-    lines = [*found.info, *(f"WARN {w}" for w in found.warnings), *(f"ERROR {e}" for e in found.errors)]
+    lines = [*capability_gaps(env, agents), *found.info, *(f"WARN {w}" for w in found.warnings), *(f"ERROR {e}" for e in found.errors)]
     for line in lines:
         typer.echo(line)
     if found.errors:
