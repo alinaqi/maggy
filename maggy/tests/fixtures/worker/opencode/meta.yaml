@@ -1,0 +1,34 @@
+cli: opencode
+version: 1.19.6
+parser: opencode-json
+help: help.txt
+quota_patterns: [rate limit, '429']
+note: Synthetic; built from the opencode 1.19.6 'run --format json' emitter (step_start, text, tool_use, step_finish, error events). Not recorded live because opencode has no configured provider here.
+cases:
+  success:
+    file: success.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [opencode, run, --format, json, -m, anthropic/claude-haiku-4-5, 'Create hello.txt containing OK']
+    exit_code: 0
+    stderr: ''
+    expect: {final_text: done, cost_usd: 0.002, model: null, error: null, quota_hit: false,
+             session_ref: ses_scrubbed, usage: {input_tokens: 1860, output_tokens: 43, cache_read_tokens: 900}}
+  error:
+    file: error.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [opencode, run, --format, json, -m, anthropic/no-such-model, 'Reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: null, model: null, error: 'Model not found', quota_hit: false,
+             session_ref: ses_scrubbed}
+  quota:
+    file: quota.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [opencode, run, --format, json, 'Reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: null, model: null, error: Rate limit exceeded, quota_hit: true,
+             session_ref: ses_scrubbed}

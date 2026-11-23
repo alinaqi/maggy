@@ -1,0 +1,7 @@
+{"type":"session","version":3,"id":"00000000-0000-0000-0000-000000000000","timestamp":"2026-11-23T12:00:00.000Z","cwd":"/workspace/repo"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":2000,"errorMessage":"429 rate_limit_error: Number of request tokens has exceeded your per-minute rate limit"}
+{"type":"auto_retry_end","success":false,"attempt":3,"finalError":"429 rate_limit_error: Number of request tokens has exceeded your per-minute rate limit"}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"anthropic-messages","provider":"anthropic","model":"claude-haiku-4-5","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","errorMessage":"429 rate_limit_error: Number of request tokens has exceeded your per-minute rate limit","timestamp":1763900000100}}
+{"type":"agent_end","messages":[]}

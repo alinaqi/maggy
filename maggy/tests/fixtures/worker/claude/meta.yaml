@@ -1,0 +1,37 @@
+cli: claude
+version: 2.1.330 (Claude Code)
+parser: claude-json
+help: help.txt
+quota_patterns: [rate limit, rate_limit, usage limit, '429']
+cases:
+  success:
+    file: success.json
+    synthetic: false
+    date: '2026-11-23'
+    command: [claude, -p, --output-format, json, --permission-mode, acceptEdits, --max-budget-usd, '0.25',
+              --no-session-persistence, --setting-sources, project, --strict-mcp-config, --model, haiku,
+              'Create a file hello.txt containing exactly OK. Then reply with just: done']
+    exit_code: 0
+    stderr: ''
+    expect: {final_text: done, cost_usd: 0.00192536, model: claude-haiku-5-5, error: null,
+             quota_hit: false, session_ref: 00000000-0000-0000-0000-000000000000, usage: {input_tokens: 4, output_tokens: 106}}
+  error:
+    file: error.json
+    synthetic: false
+    date: '2026-11-23'
+    command: [claude, -p, --output-format, json, --permission-mode, acceptEdits, --max-budget-usd, '0.0001',
+              --no-session-persistence, --setting-sources, project, --strict-mcp-config, --model, haiku,
+              'Create a file bye.txt containing exactly OK. Then reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: 0.00171252, model: claude-haiku-5-5, error: Reached maximum budget,
+             quota_hit: false, session_ref: 00000000-0000-0000-0000-000000000000}
+  quota:
+    file: quota.json
+    synthetic: true
+    date: '2026-11-23'
+    command: [claude, -p, --output-format, json, --model, haiku, 'Reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: 0.0, model: null, error: rate_limit_error, quota_hit: true,
+             session_ref: 00000000-0000-0000-0000-000000000000}

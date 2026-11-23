@@ -1,0 +1,19 @@
+# codex exec --help excerpt, codex-cli 0.163.0
+  -m, --model <MODEL>
+          Model the agent should use
+
+--
+  -s, --sandbox <SANDBOX_MODE>
+          Select the sandbox policy to use when executing model-generated shell commands
+          
+--
+      --ephemeral
+          Run without persisting session files to disk
+
+--
+      --json
+          Print events to stdout as JSONL
+
+  -o, --output-last-message <FILE>
+          Specifies file where the last message from the agent should be written
+

@@ -1,0 +1,34 @@
+cli: pi
+version: 0.73.1
+parser: pi-jsonl
+help: help.txt
+quota_patterns: [rate limit, rate_limit, '429']
+note: Synthetic; built from pi 0.73.1 docs/json.md (AgentSessionEvent) and pi-ai AssistantMessage/Usage types. Not recorded live because pi has no configured provider here.
+cases:
+  success:
+    file: success.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [pi, -p, --mode, json, --no-session, 'Create hello.txt containing OK']
+    exit_code: 0
+    stderr: ''
+    expect: {final_text: done, cost_usd: 0.00021, model: claude-haiku-4-5, error: null, quota_hit: false,
+             session_ref: 00000000-0000-0000-0000-000000000000, usage: {input_tokens: 20, output_tokens: 10}}
+  error:
+    file: error.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [pi, -p, --mode, json, --no-session, --model, no-such-model, 'Reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: 0.0, model: claude-haiku-4-5, error: no-such-model, quota_hit: false,
+             session_ref: 00000000-0000-0000-0000-000000000000}
+  quota:
+    file: quota.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [pi, -p, --mode, json, --no-session, 'Reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: 0.0, model: claude-haiku-4-5, error: rate_limit_error, quota_hit: true,
+             session_ref: 00000000-0000-0000-0000-000000000000}

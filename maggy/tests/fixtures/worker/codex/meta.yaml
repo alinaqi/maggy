@@ -1,0 +1,34 @@
+cli: codex
+version: codex-cli 0.163.0
+parser: codex-jsonl
+help: help.txt
+quota_patterns: [rate limit, usage limit, '429']
+cases:
+  success:
+    file: success.jsonl
+    synthetic: false
+    date: '2026-11-23'
+    command: [codex, exec, --json, -s, workspace-write, --ephemeral,
+              'Create a file codex.txt containing exactly OK. Then reply with just: done']
+    exit_code: 0
+    stderr: "Reading additional input from stdin...\n"
+    expect: {final_text: done, cost_usd: null, model: null, error: null, quota_hit: false,
+             session_ref: 00000000-0000-0000-0000-000000000000, usage: {input_tokens: 39750, output_tokens: 54, cache_read_tokens: 31872}}
+  error:
+    file: error.jsonl
+    synthetic: false
+    date: '2026-11-23'
+    command: [codex, exec, --json, -s, read-only, --ephemeral, -m, no-such-model-xyz, 'Reply with just: done']
+    exit_code: 1
+    stderr: "Reading additional input from stdin...\n"
+    expect: {final_text: '', cost_usd: null, model: null, error: model is not supported, quota_hit: false,
+             session_ref: 00000000-0000-0000-0000-000000000000}
+  quota:
+    file: quota.jsonl
+    synthetic: true
+    date: '2026-11-23'
+    command: [codex, exec, --json, -s, read-only, --ephemeral, 'Reply with just: done']
+    exit_code: 1
+    stderr: ''
+    expect: {final_text: '', cost_usd: null, model: null, error: 429 Too Many Requests, quota_hit: true,
+             session_ref: 00000000-0000-0000-0000-000000000000}
