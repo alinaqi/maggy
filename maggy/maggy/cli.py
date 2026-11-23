@@ -298,3 +298,5 @@ def execute(
 
 # Register analytics/reporting commands (route, budget, models, etc.)
 _register_analytics(app, _client, _ensure)
+from maggy.harness.cli import app as _harness_app  # noqa: E402
+app.add_typer(_harness_app, name="harness")

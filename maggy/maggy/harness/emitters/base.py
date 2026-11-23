@@ -7,7 +7,7 @@ from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
-from maggy.harness.changes import FileChange, HarnessContext
+from maggy.harness.changes import FileChange, HarnessContext, ManagedFile, Resolution
 from maggy.harness.schema import HarnessProfile
 
 Level = Literal["native", "partial", "none"]
@@ -41,11 +41,12 @@ class Scope(BaseModel):
     kind: Literal["user", "project"]
     root: Path
     home: Path
+    resolution: Resolution | None = None
 
     def context(self) -> HarnessContext:
         state = self.home / ".maggy"
         return HarnessContext(root=self.root, lock_path=state / "harness.lock",
-                              backups_dir=state / "backups")
+                              backups_dir=state / "backups", resolution=self.resolution)
 
 
 @runtime_checkable
@@ -55,3 +56,5 @@ class Emitter(Protocol):
     def capabilities(self) -> Capabilities: ...
 
     def plan(self, profile: HarnessProfile, scope: Scope) -> list[FileChange]: ...
+
+    def managed_files(self, profile: HarnessProfile, scope: Scope) -> list[ManagedFile]: ...
