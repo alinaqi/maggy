@@ -129,6 +129,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   quality gates, changelog, PR workflow); personal routing lives in the preset.
 
 #### Fixed
+- `maggy harness init` now always includes the generic engineering rules (TDD, quality gates, security, changelog) in the profile; presets add to them instead of being the only rules source. Previously a no-preset init emitted no instructions to any agent.
 - **First apply never loosens existing settings.** A managed key with no
   harness.lock entry whose on-disk value differs from the profile (e.g. Codex
   `sandbox_mode = "read-only"`, OpenCode `permission.bash = "deny"`) is now a

@@ -61,7 +61,8 @@ def test_init_without_preset_has_no_personal_rules(tmp_path: Path) -> None:
     env = make_env(tmp_path, FakeTools({"codex": TESTED["codex"]}))
     invoke(env, ["init", "--yes"])
     profile = yaml.safe_load((env.home / ".maggy" / "harness.yaml").read_text())
-    assert "instructions" not in profile
+    include = profile["instructions"]["include"]
+    assert include and not any(rule.startswith("preset:") for rule in include)
 
 
 def test_init_unknown_preset_fails_and_names_choices(tmp_path: Path) -> None:

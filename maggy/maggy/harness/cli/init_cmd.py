@@ -18,6 +18,8 @@ from maggy.harness.loader import read_layer
 from maggy.harness.presets import load_preset
 
 STRATEGIES = ["cost", "quality", "speed", "custom"]
+# Generic engineering policy every profile starts from; presets add to it.
+BASE_RULES = ["rules/tdd-workflow.md", "rules/quality-gates.md", "rules/security.md", "rules/changelog.md"]
 
 
 @dataclass
@@ -61,10 +63,19 @@ def _write_profile(env: ToolEnv, agents: list[str], opts: InitOptions) -> dict:
     with config_errors():
         preset = load_preset(opts.preset) if opts.preset else {}
     data = deep_merge(preset, _interview(agents, opts.yes))
+    data["instructions"] = _with_base_rules(preset)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False))
     typer.echo(f"wrote {path}")
     return data
+
+
+def _with_base_rules(preset: dict) -> dict:
+    """Instructions block: BASE_RULES first, then the preset's own includes."""
+    block = dict(preset.get("instructions") or {})
+    extra = [rule for rule in block.get("include", []) if rule not in BASE_RULES]
+    block["include"] = [*BASE_RULES, *extra]
+    return block
 
 
 @options_command(InitOptions)
