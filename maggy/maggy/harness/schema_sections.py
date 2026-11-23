@@ -113,3 +113,4 @@ class Risk(Strict):
 class Validation(Strict):
     required: list[str] = []
     visual_for: list[str] = []
+    check_timeout_s: int = Field(600, gt=0)  # per required check run by the runner

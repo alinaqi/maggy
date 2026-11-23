@@ -11,6 +11,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Runner-side commit, diff and checks, plus `maggy worker run`** (RFC personal-harness
+  §2.3, §2.6.2, §2.6.5, §2.6.7). `maggy/worker/worktree.py` creates each attempt's
+  worktree on branch `maggy/<awg-ref>` from `base_commit` (an existing branch is refused,
+  never reset; the legacy `orchestrator/isolation.py` helpers are not reused).
+  `maggy/worker/commit.py`: after the worker exits, the runner stages everything
+  (`git add -A`, untracked non-ignored files included) and commits as `Maggy
+  <maggy@localhost>` (author and committer forced via env) with a message naming the
+  awg_ref and attempt_id; `candidate_commit` and `changed_files` come from
+  `git diff base..candidate`, and no change gives `candidate_commit: null`. All runner
+  git calls disable repo hooks, fsmonitor and signing, so nothing the agent planted runs
+  with the runner's environment. `maggy/worker/checks.py` runs `validation.required`
+  (mapped to `commands.*`) in a fresh detached worktree at the candidate SHA, each as
+  `shlex.split` argv (no shell) with `build_check_env` (no credentials, throwaway HOME)
+  and the new `validation.check_timeout_s` (default 600); a missing command or timeout
+  fails the check; the check worktree is removed afterwards and logs stay in the attempt
+  dir. `maggy/worker/protected.py` flags edits to `risk.high` paths, `.github/**` and
+  `.maggy/**`: the result gets a blocker asking to move the item to `WAITING_HUMAN` and
+  a successful run becomes outcome `blocked`. Nothing is pushed. `maggy/worker/pipeline.py`
+  chains launch policy, budget reservation, supervisor, parser, commit, checks and the
+  protected-path flag into one `WorkerResult`. New CLI `maggy worker run --adapter X
+  --repo R --prompt-file F [--permission P] [--deadline S] [--budget U]` builds a local
+  WorkerSpec (dummy `local-*` awg_ref, fencing token `local`; no AWG claim yet), checks
+  the launch policy before creating any worktree, and prints the WorkerResult as JSON
+  (exit 2 with the reason when refused).
 - **Worker process supervisor and daily budget ledger** (RFC personal-harness
   §2.6.3, §2.6.4, §2.6.8). `maggy/worker/supervisor.py`: `supervise(job)` launches
   the adapter argv (no shell) as the leader of a new session, streams stdout/stderr
