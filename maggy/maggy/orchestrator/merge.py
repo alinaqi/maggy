@@ -3,13 +3,16 @@
 The patch covers everything since the workspace's base commit (the
 merge-base with the repo's HEAD): every commit, plus uncommitted and
 untracked (non-ignored) files. Any git failure reports False so callers
-keep the workspace instead of deleting unmerged work.
+keep the workspace instead of deleting unmerged work. False also means the
+repo is untouched: a conflicting 3-way apply is rolled back (see merge_rollback).
 """
 from __future__ import annotations
 
 import logging
 import subprocess
 from pathlib import Path
+
+from . import merge_rollback
 
 logger = logging.getLogger(__name__)
 
@@ -32,24 +35,35 @@ def merge_changes(repo_dir: Path, ws_dir: Path) -> bool:
 
 
 def _generate_patch(repo_dir: Path, ws_dir: Path) -> bytes:
-    """Diff the workspace (index incl. untracked) against its base commit."""
+    """Diff the workspace (index incl. untracked) against its base commit.
+
+    No rename detection: a rename is a delete plus an add, so every path the
+    patch touches is listed by ``git apply --numstat`` for rollback.
+    """
     head = _git_ok(["-C", str(repo_dir), "rev-parse", "HEAD"]).strip()
     base = _git_ok(["-C", str(ws_dir), "merge-base", "HEAD", head.decode()])
     _git_ok(["-C", str(ws_dir), "add", "-A"])
     return _git_ok([
-        "-C", str(ws_dir), "diff", "--cached", "--binary",
+        "-C", str(ws_dir), "diff", "--cached", "--binary", "--no-renames",
         base.strip().decode(),
     ])
 
 
 def _apply_patch(repo_dir: Path, patch: bytes) -> bool:
-    """Apply patch to repo with 3-way merge."""
+    """Apply patch with 3-way merge; on failure restore the repo and say False."""
+    try:
+        paths = merge_rollback.touched_paths(repo_dir, patch)
+        snap = merge_rollback.take_snapshot(repo_dir, paths)
+    except (subprocess.CalledProcessError, OSError) as exc:
+        logger.warning("Cannot snapshot repo before merge: %s", exc)
+        return False
     result = _run_git(
         ["git", "-C", str(repo_dir), "apply", "--3way", "-"],
         input_data=patch,
     )
     if result.returncode != 0:
-        logger.warning("Patch apply failed: %s", result.stderr)
+        logger.warning("Patch apply failed, rolling back: %s", result.stderr)
+        merge_rollback.restore(snap)
         return False
     return True
 

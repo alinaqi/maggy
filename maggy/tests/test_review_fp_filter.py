@@ -1,4 +1,7 @@
-"""Deterministic FP filter is driven by a per-repo .maggy/review.yaml (no hardcoded paths)."""
+"""Deterministic FP filter is driven by a per-repo .maggy/review.yaml (no hardcoded paths).
+
+The config is trusted only from the base branch (origin/<base>), never the PR head.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +12,7 @@ import pytest
 
 from maggy.review.models import Finding, Severity
 from maggy.review.pipeline import deterministic_fp_filter
-from maggy.review.repo_config import RepoReviewConfig, load_review_config
+from maggy.review.repo_config import CONFIG_PATH, RepoReviewConfig, load_review_config
 
 GENERIC_CONFIG = """\
 translation_locales:
@@ -66,7 +69,22 @@ I18N = "Missing translation key"
 FLAG = "Not feature-flagged"
 
 
-def _run(root, findings, base_ref=None):
+def _git(root, *args):
+    base = ["git", "-C", str(root), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*base, *args], check=True, capture_output=True)
+
+
+def publish_base(root, *paths):
+    """Commit ``paths`` (default: only the review config) as origin/main."""
+    _git(root, "init", "-q", "-b", "main")
+    _git(root, "add", "-f", *(paths or [CONFIG_PATH]))
+    _git(root, "commit", "-qm", "base", "--allow-empty")
+    _git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+
+def _run(root, findings, base_ref="main"):
+    if not (root / ".git").exists() and (root / CONFIG_PATH).exists():
+        publish_base(root)
     return deterministic_fp_filter(findings, str(root), lambda _m: None, base_ref)
 
 
@@ -91,18 +109,21 @@ class TestNoConfig:
 
 class TestConfigLoading:
     def test_missing_file_returns_none(self, tmp_path):
-        assert load_review_config(tmp_path) is None
+        publish_base(tmp_path, ".")
+        assert load_review_config(tmp_path, "main") is None
 
     def test_parses_keys(self, tmp_path):
         _write(tmp_path, ".maggy/review.yaml", GENERIC_CONFIG)
-        cfg = load_review_config(tmp_path)
+        publish_base(tmp_path)
+        cfg = load_review_config(tmp_path, "main")
         assert cfg == RepoReviewConfig(translation_locales=["locales/en.json", "locales/de.json"],
                                        translation_key_prefix="app.", router_files=["src/Router.tsx"])
 
     @pytest.mark.parametrize("text", ["::not yaml: [", "- a list\n", "translation_locales: 5\n"])
     def test_invalid_config_is_ignored(self, tmp_path, text):
         _write(tmp_path, ".maggy/review.yaml", text)
-        assert load_review_config(tmp_path) is None
+        publish_base(tmp_path)
+        assert load_review_config(tmp_path, "main") is None
 
 
 class TestI18nWithConfig:
@@ -150,11 +171,7 @@ class TestFlagWithConfig:
 
     def test_route_on_base_branch_dropped(self, tmp_path):
         _repo(tmp_path)
-        git = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
-        subprocess.run([*git, "init", "-q", "-b", "main"], check=True)
-        subprocess.run([*git, "add", "."], check=True)
-        subprocess.run([*git, "commit", "-qm", "base"], check=True)
-        subprocess.run([*git, "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        publish_base(tmp_path, ".")
         assert _run(tmp_path, [_blocking("src/New.tsx", FLAG)], base_ref="main") == ([], 1)
 
 
