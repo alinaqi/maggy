@@ -19,7 +19,8 @@ def _flags(adapter) -> set[str]:
     lists = [adapter.argv, adapter.model_flags, adapter.budget_flags,
              adapter.disable_awg.flags,
              *adapter.permissions.values()]
-    return {item for items in lists for item in items if item.startswith("-")}
+    # '--' (end of options) is not a flag; meta.yaml `verified` records each CLI's behaviour.
+    return {item for items in lists for item in items if item.startswith("-") and item != "--"}
 
 
 @pytest.mark.parametrize("name", SHIPPED)
@@ -70,6 +71,7 @@ def test_claude_awg_off_skips_mcp_config_and_denies_awg_plugin_tools():
     assert "--strict-mcp-config" in argv
     assert argv[argv.index("--mcp-config") + 1] == '{"mcpServers":{}}'
     assert argv[argv.index("--disallowedTools") + 1] == "mcp__awg"
+
 
 
 def test_codex_awg_off_disables_the_awg_mcp_server():

@@ -5,9 +5,10 @@ tested_version: 2.1.330
 version_range: '>=2.1,<3'
 detect: [claude, --version]
 # Variadic flags (--tools, --mcp-config, --disallowedTools) are always followed by
-# another flag, so the prompt is never swallowed as a list value.
+# another flag, and '--' ends options, so the prompt is one positional even when it starts
+# with '-' (verified: `-- --version` starts a session instead of printing the version).
 argv: [claude, -p, --no-session-persistence, '{permission_flags}', '{awg_off_flags}',
-       '{model_flags}', '{budget_flags}', --output-format, json, '{prompt}']
+       '{model_flags}', '{budget_flags}', --output-format, json, '--', '{prompt}']
 cwd: '{workspace}'
 model_flags: [--model, '{model}']
 # Claude stops itself once a run has spent budget.per_run_usd (dropped when unset).
@@ -33,9 +34,15 @@ env:
   provider_keys: [ANTHROPIC_API_KEY]
   auth_files: []
 disable_awg:
-  # --strict-mcp-config ignores .mcp.json/~/.claude.json servers but NOT plugin MCP
-  # servers (verified live), so the awg server's tools are also denied by name.
-  flags: [--strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg]
+  # --setting-sources '' loads no user/project/local settings file, so no enabledPlugins
+  # (awg's lease heartbeat and TodoWrite/Task* mirroring hooks, clawalkietalkie) and no
+  # settings hooks run; verified from the stream-json init event, including a project
+  # .claude/settings.json that enables awg@awg and a SessionStart hook (see meta.yaml).
+  # --settings (the workspace sandbox) still applies. --strict-mcp-config ignores
+  # .mcp.json/~/.claude.json servers but NOT plugin MCP servers (verified live), so the
+  # awg server's tools are also denied by name as a second line.
+  flags: [--setting-sources, '', --strict-mcp-config, --mcp-config, '{"mcpServers":{}}',
+          --disallowedTools, mcp__awg]
   env: {}
 cost:
   streams: false

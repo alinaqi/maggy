@@ -6,40 +6,40 @@ launches:
     read_only:
       argv: [claude, -p, --no-session-persistence,
              --permission-mode, plan, --tools, 'Read,Grep,Glob',
-             --strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg,
-             --model, MODEL, --output-format, json, Do the task]
+             --setting-sources, '', --strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg,
+             --model, MODEL, --output-format, json, '--', Do the task]
       env: {}
       host_execution: false
     workspace:
       argv: [claude, -p, --no-session-persistence,
              --permission-mode, acceptEdits, --settings,
              '{"sandbox":{"enabled":true,"failIfUnavailable":true,"autoAllowBashIfSandboxed":true,"allowUnsandboxedCommands":false}}',
-             --strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg,
-             --model, MODEL, --output-format, json, Do the task]
+             --setting-sources, '', --strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg,
+             --model, MODEL, --output-format, json, '--', Do the task]
       env: {}
       host_execution: false
   codex:
     read_only:
       argv: [codex, exec, --json, --ephemeral,
              -c, mcp_servers.awg.enabled=false, -c, 'mcp_servers.awg.command="awg"',
-             --sandbox, read-only, -m, MODEL, Do the task]
+             --sandbox, read-only, -m, MODEL, '--', Do the task]
       env: {}
       host_execution: false
     workspace:
       argv: [codex, exec, --json, --ephemeral,
              -c, mcp_servers.awg.enabled=false, -c, 'mcp_servers.awg.command="awg"',
-             --sandbox, workspace-write, -m, MODEL, Do the task]
+             --sandbox, workspace-write, -m, MODEL, '--', Do the task]
       env: {}
       host_execution: false
   opencode:
     read_only:
-      argv: [opencode, run, --format, json, --pure, -m, MODEL, Do the task]
+      argv: [opencode, run, --format, json, --pure, -m, MODEL, '--', Do the task]
       env:
         OPENCODE_CONFIG_CONTENT: '{"mcp":{"awg":{"type":"local","command":["awg"],"enabled":false}}}'
         OPENCODE_PERMISSION: '{"edit":"deny","bash":"deny","webfetch":"deny","websearch":"deny","task":"deny","external_directory":"deny"}'
       host_execution: false
     workspace:
-      argv: [opencode, run, --format, json, --pure, -m, MODEL, Do the task]
+      argv: [opencode, run, --format, json, --pure, -m, MODEL, '--', Do the task]
       env:
         OPENCODE_CONFIG_CONTENT: '{"mcp":{"awg":{"type":"local","command":["awg"],"enabled":false}}}'
         OPENCODE_PERMISSION: '{"edit":"allow","bash":"allow","webfetch":"deny","websearch":"deny","external_directory":"deny"}'

@@ -11,6 +11,16 @@ verified:
     permissionMode plan; result OK'
   - 'sandbox settings keys (enabled, failIfUnavailable, autoAllowBashIfSandboxed, allowUnsandboxedCommands)
     found in the 2.1.330 settings schema; not exercised live'
+  - 'settings sources, no model call (ANTHROPIC_BASE_URL pointed at a closed local port, stream-json
+    init event): default argv loaded the user-enabled plugins awg and clawalkietalkie and ran a
+    SessionStart hook; --setting-sources project dropped them, but a project .claude/settings.json
+    enabling awg@awg plus a SessionStart hook loaded awg and ran the hook; --setting-sources with an
+    empty value loaded neither (built-in plugins only) and ran no hook. --safe-mode still loaded awg.'
+  - 'end of options, no model call: `-- --version` starts a session (init event) while `--version`
+    prints the version'
+  - 'live read_only run of the shipped argv on 2026-11-24 (scratch git repo, haiku, --max-budget-usd 0.25,
+    stream-json): subscription auth works with --setting-sources empty; init plugins were built-ins only,
+    mcp_servers empty, tools Glob, Grep, Read, permissionMode plan, no hook events; result done'
 cases:
   success:
     file: success.json

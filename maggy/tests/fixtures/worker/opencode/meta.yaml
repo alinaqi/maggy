@@ -9,6 +9,9 @@ verified:
   - 'opencode debug config with a scratch HOME holding user and project configs that enable an awg MCP
     server and allow edit/bash: OPENCODE_CONFIG_CONTENT set mcp.awg.enabled false and OPENCODE_PERMISSION
     replaced the permission rules in the resolved config'
+  - 'end of options, no model call (scratch HOME, provider pointed at a closed local port): `run --pure
+    --format json -- --version` starts a run like a plain message; `run --version` prints 1.19.6;
+    `run` with no message errors (You must provide a message or a command)'
 cases:
   success:
     file: success.jsonl

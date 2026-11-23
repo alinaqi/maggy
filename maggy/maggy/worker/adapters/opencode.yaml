@@ -5,8 +5,10 @@ name: opencode
 tested_version: 1.19.6
 version_range: '>=1.19,<2'
 detect: [opencode, --version]
+# '--' ends options (yargs), so a prompt starting with '-' is the message (verified:
+# `run -- --version` starts a run; `run --version` prints the version).
 argv: [opencode, run, --format, json, '{awg_off_flags}', '{permission_flags}',
-       '{model_flags}', '{prompt}']
+       '{model_flags}', '--', '{prompt}']
 cwd: '{workspace}'
 model_flags: [-m, '{model}']
 permissions:

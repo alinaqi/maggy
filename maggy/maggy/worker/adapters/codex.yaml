@@ -4,9 +4,10 @@ name: codex
 tested_version: 0.163.0
 version_range: '>=0.163,<0.200'
 detect: [codex, --version]
-# No --skip-git-repo-check: workspaces are git worktrees.
+# No --skip-git-repo-check: workspaces are git worktrees. '--' ends options (clap), so a
+# prompt starting with '-' is the positional prompt (verified: `-- --version` starts a turn).
 argv: [codex, exec, --json, --ephemeral, '{awg_off_flags}', '{permission_flags}',
-       '{model_flags}', '{prompt}']
+       '{model_flags}', '--', '{prompt}']
 cwd: '{workspace}'
 model_flags: [-m, '{model}']
 permissions:

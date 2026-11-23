@@ -8,6 +8,9 @@ verified:
   - 'codex mcp list with a scratch CODEX_HOME: -c mcp_servers.awg.enabled=false shows awg disabled
     when configured but errors (invalid transport) when it is not; adding -c mcp_servers.awg.command="awg"
     gives awg disabled in both cases; -c mcp_servers={} has no effect (merge, not replace)'
+  - 'end of options, no model call (model provider pointed at a closed local port): `exec --json --
+    --version` emits thread.started and turn.started (prompt taken as positional), while `--version`
+    prints codex-cli-exec 0.163.0'
 cases:
   success:
     file: success.jsonl

@@ -1,7 +1,9 @@
 """Safe argv templating: placeholders only as whole argv elements.
 
 Values are inserted verbatim and never re-scanned, so prompt text (braces,
-quotes, `$(...)`, `--flags`) is always exactly one literal argv element.
+quotes, `$(...)`, `--flags`) is always exactly one literal argv element. A prompt that
+starts with '-' would still be parsed as an option by the CLI, so it is only rendered
+after an end-of-options marker ('--' right before '{prompt}'); otherwise it is refused.
 """
 
 from __future__ import annotations
@@ -36,8 +38,20 @@ def placeholder_problem(element: str, allowed: frozenset[str]) -> str | None:
     return None
 
 
+def prompt_problem(adapter, prompt: str) -> str | None:
+    """Why `prompt` cannot be passed to this adapter's CLI, or None if it can."""
+    index = adapter.argv.index("{prompt}")
+    if not prompt.startswith("-") or (index and adapter.argv[index - 1] == "--"):
+        return None
+    return (f"prompt starts with '-' and adapter {adapter.name} has no '--' before "
+            "{prompt}; the CLI would parse it as an option")
+
+
 def render_argv(adapter, values: ArgvValues) -> list[str]:
     """Expand the adapter's argv template for one run."""
+    problem = prompt_problem(adapter, values.prompt)
+    if problem:
+        raise ValueError(problem)
     argv: list[str] = []
     for element in adapter.argv:
         argv.extend(_expand(adapter, element, values))
