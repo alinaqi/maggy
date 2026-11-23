@@ -14,7 +14,9 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .repo_config import RepoReviewConfig, load_review_config
 
@@ -79,7 +81,7 @@ def _i18n_reason(blob, fpath, ctx):
         return None
     used = {k for k in _RE_KEY.findall(fpath.read_text(errors="replace")) if k.startswith(ctx["prefix"])}
     if used and all(_resolves(k, ks) for k in used for ks in locales):
-        return f"i18n FP dropped: {{}} ({len(used)} keys all resolve in every locale)"
+        return "i18n", f"{len(used)} keys all resolve in every locale"
     return None
 
 
@@ -88,11 +90,11 @@ def _flag_reason(blob, comp, ctx):
     if not (router and _RE_FLAG.search(blob)):
         return None
     if not _routed(comp, router):
-        return f"flag FP dropped: {{}} ({comp} is a sub-component, not a route)"
+        return "flag", f"{comp} is a sub-component, not a route"
     if base and _routed(comp, base):
-        return f"flag FP dropped: {{}} ({comp} route pre-exists on base)"
+        return "flag", f"{comp} route pre-exists on base"
     if _gated(comp, router):
-        return f"flag FP dropped: {{}} ({comp} is already behind a feature flag)"
+        return "flag", f"{comp} is already behind a feature flag"
     return None
 
 
@@ -103,18 +105,28 @@ def _fp_reason(f, lp, ctx):
     return _i18n_reason(blob, lp / f.file, ctx) or _flag_reason(blob, Path(f.file).stem, ctx)
 
 
-def deterministic_fp_filter(findings, local_path, on_log, base_ref=None):
+@dataclass(frozen=True)
+class FPFilterRun:
+    """Where and how one filter pass runs: the repo checkout, a logger, the PR base branch."""
+
+    local_path: str | None
+    on_log: Callable[[str], None]
+    base_ref: str | None = None
+
+
+def deterministic_fp_filter(findings, run: FPFilterRun):
     """Drop mechanically-disproved blocking findings; a no-op without repo config."""
-    cfg = load_review_config(local_path, base_ref) if local_path else None
+    cfg = load_review_config(run.local_path, run.base_ref) if run.local_path else None
     if cfg is None:
         return findings, 0
-    lp = Path(local_path)
-    ctx = _context(lp, cfg, base_ref)
+    lp = Path(run.local_path)
+    ctx = _context(lp, cfg, run.base_ref)
     kept = []
     for f in findings:
         reason = _fp_reason(f, lp, ctx)
         if reason:
-            on_log("[det-fp] " + reason.format(f.title[:55]))
+            kind, why = reason  # untrusted text (file names, titles) is never a format template
+            run.on_log(f"[det-fp] {kind} FP dropped: {f.title[:55]} ({why})")
         else:
             kept.append(f)
     return kept, len(findings) - len(kept)

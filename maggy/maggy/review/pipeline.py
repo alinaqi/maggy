@@ -17,7 +17,7 @@ from pydantic_ai.usage import UsageLimits
 
 from .agents import build_chair, build_planner, build_refuter, build_reviewer
 from .config import CHAIR, PRICING_KEY, available, cost_usd, load_env, load_skill
-from .fp_filter import deterministic_fp_filter
+from .fp_filter import FPFilterRun, deterministic_fp_filter
 from .github import get_pr, get_pr_files, post_review
 from .languages import detect_languages
 from .models import ReviewChunk, Verdict
@@ -324,7 +324,7 @@ async def run_review(owner, repo, num, dry_run=True, repo_path=None, on_log=prin
 
     # 4b) DETERMINISTIC FP FILTER — kill mechanically-checkable false positives (no LLM)
     base_ref = (pr.get("base") or {}).get("ref")
-    final.findings, det_dropped = deterministic_fp_filter(final.findings, deps.local_path, on_log, base_ref)
+    final.findings, det_dropped = deterministic_fp_filter(final.findings, FPFilterRun(deps.local_path, on_log, base_ref))
     if det_dropped:
         on_log(f"[det-fp] dropped {det_dropped} mechanically-verified false positive(s)")
         if not any(f.severity.value == "blocking" for f in final.findings):
