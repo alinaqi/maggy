@@ -11,6 +11,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Worker and check env scrubbing** (RFC personal-harness §2.6.1, §2.6.7).
+  `maggy/worker/env.py`: `build_worker_env(adapter, base_env)` keeps only an
+  allowlist (`PATH`, `HOME`, `LANG`, `LC_*`, `TERM`, `TMPDIR`, `SHELL`, `USER`) plus
+  the adapter's declared provider key(s) when present. Everything else is dropped,
+  including `AWG_*`, `GITHUB_*`, `GH_*`, `GITLAB_*`, `AWS_*`, `SSH_*`, `MAGGY_*`,
+  `*_TOKEN`/`*_SECRET` and other providers' keys. Secret-looking names are dropped
+  even when they match the allowlist (e.g. `LC_*_TOKEN`). The worker keeps the real
+  HOME so the CLI can read its own login. `build_check_env(base_env, home)` returns
+  the allowlist with no credentials at all and HOME set to a throwaway dir.
+  `auth_file_refs` resolves an adapter's auth files as read-only references in
+  place; the runner never copies them into the workspace. Adapter schema now
+  rejects provider keys with a forbidden prefix (an adapter cannot smuggle
+  `GITHUB_TOKEN` or `AWG_TOKEN` in), provider keys that are not valid env names,
+  and auth files that are not `~/` or absolute paths, or that contain `..`.
 - **Shipped worker adapters and fail-closed launch policy** (RFC personal-harness
   §2.3, §2.6.1, §2.6.7). `maggy/worker/adapters/{claude,codex,opencode,pi}.yaml`
   with headless argv verified against each CLI's recorded `--help` excerpt
