@@ -68,3 +68,57 @@ def test_conflict_reports_failure(repo, tmp_path):
 
 def test_missing_workspace_reports_failure(repo, tmp_path):
     assert merge_changes(repo, tmp_path / "nope") is False
+
+
+def _three_line_repo(repo: Path) -> None:
+    (repo / "a.txt").write_text("1\n2\n3\n")
+    _git(repo, "commit", "-qam", "three lines")
+
+
+def test_content_conflict_leaves_repo_untouched(repo, tmp_path):
+    _three_line_repo(repo)
+    ws1 = create_worktree(repo, "c1", tmp_path / "ws")
+    ws2 = create_worktree(repo, "c2", tmp_path / "ws")
+    (ws1 / "a.txt").write_text("1\nONE\n3\n")
+    (ws2 / "a.txt").write_text("1\nTWO\n3\nextra\n")
+    (ws2 / "b.txt").write_text("new from ws2\n")
+    assert merge_changes(repo, ws1) is True
+    before = _git(repo, "status", "--porcelain")
+    assert merge_changes(repo, ws2) is False
+    assert (repo / "a.txt").read_text() == "1\nONE\n3\n"
+    assert not (repo / "b.txt").exists()
+    assert _git(repo, "status", "--porcelain") == before
+    assert _git(repo, "ls-files", "-u") == ""
+
+
+def test_non_overlapping_sibling_edits_still_merge(repo, tmp_path):
+    (repo / "a.txt").write_text("1\n2\n3\n4\n5\n6\n7\n8\n")
+    _git(repo, "commit", "-qam", "eight lines")
+    ws1 = create_worktree(repo, "n1", tmp_path / "ws")
+    ws2 = create_worktree(repo, "n2", tmp_path / "ws")
+    (ws1 / "a.txt").write_text("ONE\n2\n3\n4\n5\n6\n7\n8\n")
+    (ws2 / "a.txt").write_text("1\n2\n3\n4\n5\n6\n7\nEIGHT\n")
+    assert merge_changes(repo, ws1) is True
+    assert merge_changes(repo, ws2) is True
+    assert (repo / "a.txt").read_text() == "ONE\n2\n3\n4\n5\n6\n7\nEIGHT\n"
+
+
+def test_failed_rename_merge_restores_both_paths(repo, tmp_path):
+    _three_line_repo(repo)
+    ws1 = create_worktree(repo, "r1", tmp_path / "ws")
+    ws2 = create_worktree(repo, "r2", tmp_path / "ws")
+    (ws1 / "a.txt").write_text("1\nONE\n3\n")
+    _git(ws2, "mv", "a.txt", "moved.txt")
+    (ws2 / "moved.txt").write_text("1\nTWO\n3\n")
+    assert merge_changes(repo, ws1) is True
+    before = _git(repo, "status", "--porcelain")
+    assert merge_changes(repo, ws2) is False
+    assert (repo / "a.txt").read_text() == "1\nONE\n3\n"
+    assert not (repo / "moved.txt").exists()
+    assert _git(repo, "status", "--porcelain") == before
+
+
+def test_numstat_parser_keeps_spaces_and_tabs_in_names():
+    from maggy.orchestrator.merge_rollback import _parse_numstat_z
+    out = "1\t0\ta b.txt\0" "2\t1\told\tname\0" "-\t-\tbin.png\0"
+    assert _parse_numstat_z(out) == ["a b.txt", "old\tname", "bin.png"]

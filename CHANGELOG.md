@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
+
+#### Fixed
+- **`maggy/orchestrator/merge.py`, new `merge_rollback.py`** — when `git apply --3way`
+  hit a content conflict, `merge_changes` returned False but had already written
+  conflict markers and unmerged (`UU`) index entries into the user's checkout. This
+  happened for example when `OrchestratorService._settle` merged two sibling subtasks
+  that edit the same lines. The paths the patch touches and the index are now
+  snapshotted before the apply and restored on failure, so False always means the
+  repo is untouched. Workspace patches are built with `--no-renames` so every touched
+  path (both sides of a rename) is listed and restored.
+
+#### Security
+- **`maggy/review/repo_config.py`, `fp_filter.py`** — `.maggy/review.yaml` was read
+  from the local checkout, which is the PR head. A PR could add a config pointing
+  `router_files` at any file and so silently drop its own blocking findings (e.g. a
+  SQL-injection finding mentioning "unconditionally"). The config is now read only
+  from the trusted base branch (`git show origin/<base>:.maggy/review.yaml`). With no
+  base ref the filter is a no-op. Locale and router paths must be relative and inside
+  the repo: absolute, drive-letter and `..` paths make the config invalid.
+
 ### Maggy: test suite and ruff run in CI
 
 #### Added

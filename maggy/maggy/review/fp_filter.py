@@ -6,7 +6,8 @@ verify them in code instead of relying on a per-finding LLM (which is inconsiste
      file uses resolves in ALL locales, the claim is false.
   2. "not feature-flagged" on a sub-component: flag gating is an ENTRY-POINT concern;
      a component that isn't a routed entry point doesn't get its own flag.
-Where locales and routers live comes from ``.maggy/review.yaml`` (see repo_config).
+Where locales and routers live comes from ``.maggy/review.yaml`` on the base branch
+(see repo_config); a config only present in the PR under review is ignored.
 """
 from __future__ import annotations
 
@@ -104,7 +105,7 @@ def _fp_reason(f, lp, ctx):
 
 def deterministic_fp_filter(findings, local_path, on_log, base_ref=None):
     """Drop mechanically-disproved blocking findings; a no-op without repo config."""
-    cfg = load_review_config(local_path) if local_path else None
+    cfg = load_review_config(local_path, base_ref) if local_path else None
     if cfg is None:
         return findings, 0
     lp = Path(local_path)

@@ -1,7 +1,11 @@
-"""Per-repo review config, read from ``.maggy/review.yaml`` in the reviewed repo.
+"""Per-repo review config: ``.maggy/review.yaml`` on the reviewed repo's BASE branch.
 
 It tells the deterministic false-positive filter where a repo keeps its locale
-files and router. When there is no config (or it is invalid) the filter is a no-op.
+files and router. The config is read from ``origin/<base>`` only, never from the
+checkout: the checkout is the PR head, and a PR must not be able to switch the
+filter on (or repoint it) to drop its own blocking findings. Paths must be
+relative and stay inside the repo. Without a base ref, or with no or an invalid
+config, the filter is a no-op.
 
 Example::
 
@@ -11,12 +15,21 @@ Example::
 """
 from __future__ import annotations
 
-from pathlib import Path
+import re
+import subprocess
+from pathlib import Path, PurePosixPath
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 CONFIG_PATH = ".maggy/review.yaml"
+_DRIVE = re.compile(r"^[A-Za-z]:")
+
+
+def _inside_repo(path: str) -> bool:
+    parts = PurePosixPath(path.replace("\\", "/")).parts
+    absolute = path.startswith(("/", "\\")) or bool(_DRIVE.match(path))
+    return bool(parts) and not absolute and ".." not in parts
 
 
 class RepoReviewConfig(BaseModel):
@@ -26,12 +39,32 @@ class RepoReviewConfig(BaseModel):
     translation_key_prefix: str = ""
     router_files: list[str] = []
 
+    @field_validator("translation_locales", "router_files")
+    @classmethod
+    def _relative_paths(cls, paths: list[str]) -> list[str]:
+        bad = [p for p in paths if not _inside_repo(p)]
+        if bad:
+            raise ValueError(f"paths must be relative and inside the repo: {bad}")
+        return paths
 
-def load_review_config(repo_root: str | Path) -> RepoReviewConfig | None:
-    """Parse the repo's review config; None when it is absent or invalid."""
-    path = Path(repo_root) / CONFIG_PATH
+
+def parse_review_config(text: str) -> RepoReviewConfig | None:
+    """Parse config YAML; None when it is not a valid config mapping."""
     try:
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(text)
         return RepoReviewConfig.model_validate(data) if isinstance(data, dict) else None
-    except (OSError, yaml.YAMLError, ValidationError):
+    except (yaml.YAMLError, ValidationError):
         return None
+
+
+def load_review_config(repo_root: str | Path, base_ref: str | None) -> RepoReviewConfig | None:
+    """Read the config from ``origin/<base_ref>``; None without a trusted base."""
+    if not base_ref:
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "show", f"origin/{base_ref}:{CONFIG_PATH}"],
+            check=False, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return parse_review_config(result.stdout) if result.returncode == 0 else None
