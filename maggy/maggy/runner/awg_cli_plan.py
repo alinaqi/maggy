@@ -8,6 +8,7 @@ from typing import cast
 
 from maggy.runner.awg_cli_base import command, fence
 from maggy.runner.awg_cli_graph import GraphCli
+from maggy.runner.awg_errors import AwgError
 from maggy.runner.awg_types import ChildSpec, Claim, EdgeSpec, ValidationSpec
 
 REASON = "--reason=maggy plan stage"
@@ -15,16 +16,32 @@ REASON = "--reason=maggy plan stage"
 
 class PlanCli(GraphCli):
     def create_child(self, claim: Claim, child: ChildSpec) -> dict:
-        """create (fenced by the parent's lease) -> BACKLOG -> `task-plan` annotation."""
+        """create (fenced by the parent's lease) -> BACKLOG -> `task-plan` annotation. `awg
+        create` makes the child READY, so a later failure cancels it before re-raising: the
+        caller never learns its ref and could not roll it back."""
         options = [f"--parent={claim.ref}", *(f"--capability={c}" for c in child.capabilities),
                    *fence(claim)]
         made = cast(dict, self._agent(command("create", options, child.title)))
         ref = str(made["display_id"])
+        try:
+            self._shelve(ref, child.plan)
+        except Exception:
+            self._abandon(ref)
+            raise
+        return {**made, "state": "BACKLOG"}
+
+    def _shelve(self, ref: str, plan: dict) -> None:
         self.set_state(ref, "BACKLOG")
         note = ["--kind=custom", "--title=task-plan", "--key=task-plan",
-                f"--data={json.dumps(child.plan)}"]
+                f"--data={json.dumps(plan)}"]
         self._agent(command("annotate", note, ref))
-        return {**made, "state": "BACKLOG"}
+
+    def _abandon(self, ref: str) -> None:
+        """Best effort: the original failure is what the caller must see."""
+        try:
+            self.set_state(ref, "CANCELLED")
+        except AwgError:
+            pass
 
     def link(self, claim: Claim, edge: EdgeSpec) -> dict:
         options = [f"--lease={claim.ref}", *fence(claim)]
