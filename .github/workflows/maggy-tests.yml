@@ -1,0 +1,35 @@
+name: Maggy Tests
+
+# Runs the maggy test suite and ruff on every push and pull request.
+# Hermetic: no secrets; tests/conftest.py isolates HOME and drops provider keys.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install maggy with test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "maggy[test]"
+
+      - name: Run maggy test suite
+        run: cd maggy && python -m pytest tests -q
+
+      - name: Ruff
+        run: ruff check maggy/maggy

@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: test suite and ruff run in CI
+
+#### Added
+- **`.github/workflows/maggy-tests.yml`** — runs on every push and pull request:
+  Python 3.12, `pip install -e "maggy[test]"`, `cd maggy && python -m pytest tests -q`,
+  then `ruff check maggy/maggy`. Hermetic: no secrets, read-only token. Nothing ran
+  the maggy suite in CI before.
+- **`maggy/pyproject.toml`** — new `test` extra (pytest, pytest-asyncio, ruff, plus
+  the `review` extra because review-pipeline tests import `pydantic_ai`), and a pinned
+  `[tool.ruff.lint]` baseline (`E9`, `F63`, `F7`, `F82`: syntax errors and undefined
+  names). Ruff's newer default rule set flags ~490 pre-existing style issues; widen
+  the selection as that backlog is cleaned up.
+- **`maggy/tests/test_ci_workflow.py`** — parses the workflow YAML and checks
+  triggers, Python version, install/pytest/ruff commands and hermeticity.
+
 ### Maggy: PR-review false-positive filter is configured per repo
 
 #### Changed
