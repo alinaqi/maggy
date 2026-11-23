@@ -28,6 +28,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   re-scanned, so prompt text is always one literal argv element.
   `assemble_prompt`/`wrap_untrusted` put ticket text in an
   `<untrusted_ticket>` data section and defuse delimiter copies inside it.
+- **`maggy/worker/parsers/`** — output parsers turning a CLI run's stdout/stderr
+  into `ParsedRun(final_text, cost_usd, model, usage, error, quota_hit,
+  session_ref)`: `claude-json` (result object; model = highest-cost entry of
+  `modelUsage`), `codex-jsonl` (thread/turn/item events; nested API error JSON
+  unwrapped), `opencode-json` (step/text/error events; cost and tokens summed
+  from `step_finish`), `pi-jsonl` (pi 0.73.1 `AgentSessionEvent`s; assistant
+  `message_end` usage/cost, `stopReason` error/aborted, failed auto-retries) and
+  `text`. Parsers never raise: malformed lines are reported by line number,
+  unknown events are ignored, streams without a terminal event are reported as
+  truncated, and non-finite numbers are dropped. `parse_run` adds an
+  `exit code N: <stderr tail>` error when a non-zero exit left none, and sets
+  `quota_hit` from the adapter's quota patterns over stderr and error text only.
+  Contract-tested against fixtures in `tests/fixtures/worker/<cli>/` with a
+  `meta.yaml` (version, command, date, `synthetic`) and versioned `--help`
+  excerpts: claude and codex success/error cases are real scrubbed recordings;
+  quota cases and all opencode/pi fixtures are synthetic. A hygiene test rejects
+  home paths, emails, token-like strings and non-zero UUIDs in fixtures.
 
 ### Maggy: Personal Harness (Phase 1)
 

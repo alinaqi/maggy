@@ -1,0 +1,33 @@
+cli: text
+version: any
+parser: text
+quota_patterns: [rate limit, '429']
+note: Synthetic; the text parser is the fallback for CLIs without structured output.
+cases:
+  success:
+    file: success.txt
+    synthetic: true
+    date: '2026-11-23'
+    command: [agent, 'Create hello.txt containing OK']
+    exit_code: 0
+    stderr: ''
+    expect: {final_text: "Created hello.txt containing OK.\ndone", cost_usd: null, model: null, error: null,
+             quota_hit: false, session_ref: null}
+  error:
+    file: error.txt
+    synthetic: true
+    date: '2026-11-23'
+    command: [agent, --bogus, 'Reply with just: done']
+    exit_code: 2
+    stderr: "error: unknown option '--bogus'\n"
+    expect: {final_text: '', cost_usd: null, model: null, error: unknown option, quota_hit: false,
+             session_ref: null}
+  quota:
+    file: quota.txt
+    synthetic: true
+    date: '2026-11-23'
+    command: [agent, 'Reply with just: done']
+    exit_code: 1
+    stderr: "Error: 429 Too Many Requests (rate limit exceeded)\n"
+    expect: {final_text: partial output, cost_usd: null, model: null, error: 429 Too Many Requests,
+             quota_hit: true, session_ref: null}
