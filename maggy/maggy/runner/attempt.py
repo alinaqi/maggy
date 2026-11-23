@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from maggy.runner.control import pid_dir
-from maggy.runner.prompt import build_prompt
+from maggy.runner.prompt import build_prompt, task_plan_of
 from maggy.runner.session import Session
 from maggy.runner.workspace import safe_name
 from maggy.worker.models import WorkerSpec
@@ -31,7 +31,12 @@ def build_attempt(session: Session, base: str) -> Attempt:
                       base_commit=base, spec_version=claim.version,
                       workspace=workspace_for(session), permission=worker.permission,
                       deadline_s=worker.timeout_minutes * 60,
-                      budget_usd=profile.budget.per_run_usd or 0.0, prompt=build_prompt(claim, session.handoff))
+                      budget_usd=profile.budget.per_run_usd or 0.0, prompt=_prompt(session))
     return Attempt(spec=spec, adapter=config.adapter, profile=profile,
                    state_dir=config.state_dir, interrupt_file=session.attempt_dir / "INTERRUPT",
                    pid_file=pid_dir(config.state_dir) / f"{attempt_id}.pid")
+
+
+def _prompt(session: Session) -> str:
+    plan = task_plan_of(session.awg.annotations(session.claim.ref))
+    return build_prompt(session.claim, session.handoff, plan)

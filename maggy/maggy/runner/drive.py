@@ -16,12 +16,16 @@ from maggy.runner.conclude import conclude
 from maggy.runner.heartbeat import Heartbeat
 from maggy.runner.retry import block_after_failures, trailing_failures
 from maggy.runner.session import RunReport, Session, Stopped
+from maggy.runner.stages.plan import run_plan
 from maggy.runner.stages.spec import run_spec
 from maggy.runner.stages.worker import heartbeat_interval
 from maggy.runner.state import latest_handoff, state_for
 from maggy.runner.workspace import prepare_workspace
 from maggy.worker.models import WorkerResult
 from maggy.worker.pipeline import run_attempt
+
+
+STAGE_RUNNERS = {"spec": run_spec, "plan": run_plan}
 
 
 class Interrupted(LeaseLost):
@@ -51,8 +55,8 @@ def _drive(session: Session) -> RunReport:
     if failures >= session.config.max_failures:
         return block_after_failures(session, failures)
     stage = item_stage(shown)
-    if stage == "spec":
-        return run_spec(session, shown)
+    if stage in STAGE_RUNNERS:
+        return STAGE_RUNNERS[stage](session, shown)
     if stage != "build":
         return session.give_back("unsupported", f"stage {stage!r} is not supported yet")
     session.handoff = latest_handoff(shown)

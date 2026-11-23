@@ -41,15 +41,15 @@ class SpecContext:
 
 
 def author_prompt(ctx: SpecContext) -> str:
-    return assemble_prompt(AUTHOR, _data(ctx, _section("Earlier drafts", _drafts(ctx.shown))))
+    return assemble_prompt(AUTHOR, ticket_data(ctx, _section("Earlier drafts", _drafts(ctx.shown))))
 
 
 def review_prompt(ctx: SpecContext, draft: SpecDraft) -> str:
     under_review = _section("Draft under review", draft.model_dump_json(indent=2))
-    return assemble_prompt(REVIEWER, _data(ctx, under_review))
+    return assemble_prompt(REVIEWER, ticket_data(ctx, under_review))
 
 
-def _data(ctx: SpecContext, extra: str) -> str:
+def ticket_data(ctx: SpecContext, extra: str) -> str:
     claim = ctx.claim
     criteria = "\n".join(f"- {line}" for line in claim.acceptance_criteria) or "- (none yet)"
     return "\n\n".join([f"Title: {claim.title}", f"Description:\n{claim.description}",

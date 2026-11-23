@@ -11,6 +11,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 4)
 
 #### Added
+- **Plan stage: structured plan, task DAG, per-criterion VALIDATIONs, high-risk approval**
+  (`maggy/runner/stages/plan*.py`, RFC §2.4/§2.5). The runner now holds `stage:plan`. The
+  stage first checks the `spec-approved` DECISION still matches the item's criteria (it now
+  records `criteria_sha` and the spec's `risk_paths`; AWG bumps the WORK version on every
+  claim, so the fingerprint stands in for the version) and otherwise re-tags the item
+  `stage:spec` (`spec_stale`). A read-only planner returns one fenced json `Plan` (tasks with
+  key/title/files/depends_on; a test plan entry per criterion naming its task, fixture,
+  action, expected, evidence and `regression_test_name`), checked as an acyclic DAG with
+  known deps, full criterion coverage and repo-relative files (one retry with the problems,
+  then fail before any mutation). Children are created in BACKLOG with
+  `[maggy-runner, stage:build, project:*]` and a `task-plan` annotation, linked DEPENDS_ON,
+  then given one VALIDATION per entry (automated evidence: kind test, min trust 3; manual:
+  kind acceptance, min trust 2) linked to the criterion's REQUIREMENT node; only then are
+  they made READY and the parent parked as `stage:planned` (`planned`). A failure mid-build
+  cancels the children made so far. Plans touching `risk.high`/always-protected paths or
+  the spec's risk paths wait in WAITING_HUMAN with a summary until a human `plan-approved`
+  DECISION names the plan; re-claims never re-plan (`plan-<sha>` annotation). The build
+  prompt now carries the task's test plan and regression test names. `AwgClient` gains
+  `decisions`, `requirements`, `create_child`, `link`, `add_validation` and `set_state`
+  (FakeAwg in memory with dependency-gated claims and cycle errors; CLI via `awg create
+  --parent`, `state`, `link --lease`, `validation add`, `decisions`, `show` context).
+  Legacy `DualPlanner` is not reused (free-text output, no DAG); it stays for Phase 6
+  deletion.
 - **Spec stage: author + independent reviewer, one-question round-trip**
   (`maggy/runner/stages/`, RFC §2.4/§2.5). Items claimed with `stage:spec` (the runner now
   holds it) get a read-only author run (`agents.default`) that must return one fenced json

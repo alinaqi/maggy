@@ -85,3 +85,38 @@ class NodeSpec(BaseModel):
     type: str = Field(pattern=r"^[A-Z_]+$")
     title: str = Field(min_length=1)
     data: dict = Field(default_factory=dict)
+
+
+class ChildSpec(BaseModel):
+    """A child WORK item the plan stage creates under the claimed item (BACKLOG first).
+
+    `plan` (description, files, test plan) is kept on the child as its `task-plan`
+    annotation, which the build stage puts in the worker prompt."""
+
+    model_config = ConfigDict(frozen=True)
+
+    title: str = Field(min_length=1)
+    capabilities: list[str] = Field(default_factory=list)
+    plan: dict = Field(default_factory=dict)
+
+
+class EdgeSpec(BaseModel):
+    """A typed edge, e.g. `AWG-9 DEPENDS_ON AWG-8` (AWG-9 waits for AWG-8)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str = Field(min_length=1)
+    type: str = Field(pattern=r"^[A-Z_]+$")
+    target: str = Field(min_length=1)
+
+
+class ValidationSpec(BaseModel):
+    """A required validation on `work`, proving the REQUIREMENT node `requirement`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    work: str = Field(min_length=1)
+    kind: str = Field(min_length=1, max_length=40)
+    title: str = Field(min_length=1)
+    min_trust: int = Field(ge=0, le=4)
+    requirement: str | None = None

@@ -31,3 +31,15 @@ class FakeGraph(FakeAwgState):
         record = {"id": f"N-{len(self.nodes) + 1}", **node, "parent": parent}
         self.nodes.append(record)
         return dict(record)
+
+    def decisions(self, ref: str) -> list[dict]:
+        """Current decisions: a later one with the same key supersedes the earlier."""
+        mine = [n for n in self.nodes if n["type"] == "DECISION" and n["parent"] == ref]
+        current = [n for i, n in enumerate(mine)
+                   if not any(later.get("key") == n.get("key") for later in mine[i + 1:])]
+        return [{"id": n["id"], "key": n.get("key"), "data": dict(n.get("data") or {})}
+                for n in current]
+
+    def requirements(self, ref: str) -> list[dict]:
+        return [{"id": n["id"], "title": n["title"], "criterion": (n.get("data") or {}).get("id")}
+                for n in self.nodes if n["type"] == "REQUIREMENT" and n["parent"] == ref]
