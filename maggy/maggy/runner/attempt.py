@@ -31,7 +31,7 @@ def build_attempt(session: Session, base: str) -> Attempt:
                       base_commit=base, spec_version=claim.version,
                       workspace=workspace_for(session), permission=worker.permission,
                       deadline_s=worker.timeout_minutes * 60,
-                      budget_usd=profile.budget.per_run_usd or 0.0, prompt=build_prompt(claim))
+                      budget_usd=profile.budget.per_run_usd or 0.0, prompt=build_prompt(claim, session.handoff))
     return Attempt(spec=spec, adapter=config.adapter, profile=profile,
                    state_dir=config.state_dir, interrupt_file=session.attempt_dir / "INTERRUPT",
                    pid_file=pid_dir(config.state_dir) / f"{attempt_id}.pid")

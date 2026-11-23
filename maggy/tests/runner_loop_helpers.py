@@ -64,7 +64,8 @@ class Rig:
 
 
 def make_rig(tmp_path: Path, agent: str, **options) -> Rig:
-    """`options`: awg, heartbeat_s, project, pr_step, capabilities, attributes, check_exit."""
+    """`options`: awg, heartbeat_s, project, pr_step, capabilities, attributes, check_exit,
+    state_file."""
     awg = options.get("awg") or FakeAwg(lease_seconds=900)
     ref = awg.add_item("Add feature", capabilities=options.get("capabilities", CAPS),
                        acceptance_criteria=["feature.txt exists"])
@@ -80,7 +81,7 @@ def make_rig(tmp_path: Path, agent: str, **options) -> Rig:
                           profile=profile(commands={"test": check}, required=["test"]),
                           project=options.get("project", "demo"),
                           heartbeat_s=options.get("heartbeat_s", 30.0),
-                          pr_step=options.get("pr_step"))
+                          pr_step=options.get("pr_step"), state_file=options.get("state_file"))
     return Rig(Runner(awg, config), awg, ref, repo, state, out)
 
 

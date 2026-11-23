@@ -11,8 +11,11 @@ TASK = ("You are implementing one work item in this repository, test first: writ
         "commit, push or open pull requests; the runner does that. " + BLOCKER_INSTRUCTIONS)
 
 
-def build_prompt(claim: Claim) -> str:
+def build_prompt(claim: Claim, handoff: str = "") -> str:
     criteria = "\n".join(f"- {line}" for line in claim.acceptance_criteria) or "- (none)"
     ticket = (f"Title: {claim.title}\n\nDescription:\n{claim.description}\n\n"
               f"Acceptance criteria:\n{criteria}\n\nContext bundle:\n{claim.context}")
+    if handoff:
+        ticket += ("\n\nPrevious attempt handoff (the worktree resumes from its branch):\n"
+                   f"{handoff}")
     return assemble_prompt(TASK, ticket)

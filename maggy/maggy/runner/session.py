@@ -42,6 +42,7 @@ class Session:
     claim: Claim
     config: RunnerConfig
     events: list[str] = field(default_factory=list)
+    handoff: str = ""  # the previous attempt's handoff, passed to the worker prompt
 
     @property
     def attempt_dir(self) -> Path:
@@ -58,6 +59,12 @@ class Session:
     def verify(self) -> None:
         """Before any side effect: STOP not pulled and our fence still live (raises)."""
         verify_live(self.awg, self.claim, self.config.state_dir)
+
+    def settle_intents(self) -> None:
+        """Let the PR step record results for intents a crashed runner left dangling."""
+        settle = getattr(self.config.pr_step, "settle", None)
+        if callable(settle):
+            settle(self.claim)
 
     def give_back(self, outcome: str, reason: str) -> RunReport:
         """Release the item with a handoff; an AWG failure here is logged, not raised."""

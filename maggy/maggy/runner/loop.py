@@ -8,7 +8,9 @@ from maggy.runner.awg_client import AwgClient
 from maggy.runner.config import CAPABILITIES, RunnerConfig
 from maggy.runner.control import is_paused, stop_file
 from maggy.runner.drive import drive
+from maggy.runner.recovery import reconcile
 from maggy.runner.session import RunReport, Session
+from maggy.runner.state import state_for
 
 __all__ = ["CAPABILITIES", "RunReport", "Runner", "RunnerConfig"]
 
@@ -18,19 +20,30 @@ class Runner:
         self.awg, self.config = awg, config
 
     def run_once(self) -> RunReport:
-        """At most one item: nothing is claimed while STOP exists or the project is paused."""
+        """Reconcile leases a crashed run left, else at most one item: nothing is claimed
+        (or reconciled) while STOP exists, and nothing is claimed while the project is paused."""
         state = self.config.state_dir
         if stop_file(state).exists():
             return RunReport("stopped")
+        recovered = reconcile(self.awg, self.config)
+        if recovered:
+            return recovered[-1]
         if is_paused(state, self.config.project):
             return RunReport("paused")
+        return self._claim_and_drive()
+
+    def _claim_and_drive(self) -> RunReport:
         claim = self.awg.next_claim(list(CAPABILITIES))
         if claim is None:
             return RunReport("idle")
+        held = state_for(self.config)
+        held.hold(claim)
         session = Session(self.awg, claim, self.config)
         session.log("claimed", {"attempt": claim.attempt_id, "spec_version": claim.version,
                                 "fencing_token": claim.fencing_token})
-        return drive(session)
+        report = drive(session)
+        held.drop(claim.ref)  # not in a finally: a killed runner must leave the lease recorded
+        return report
 
     def run(self, once: bool = False, idle_s: float = 30.0) -> list[RunReport]:
         """Loop until STOP (or after one pass with `once`); sleeps when idle or paused."""
