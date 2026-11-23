@@ -48,6 +48,9 @@ visual = ["playwright>=1.40", "pillow>=10.0", "numpy>=1.24"]
 # roster: google-genai (Gemini chair/reviewer) + openai (GPT, and the
 # OpenAI-compatible DeepSeek/Grok seats). Add groq/anthropic for those seats.
 review = ["pydantic-ai>=1.0", "google-genai>=2.0", "openai>=1.40"]
+# Test runner + linter used by .github/workflows/maggy-tests.yml. Pulls in the
+# review extra because the review-pipeline tests import pydantic_ai.
+test = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.6", "maggy-harness[review]"]
 all = [
     "openpyxl>=3.1", "python-docx>=1.0", "pymupdf>=1.24",
     "asyncpraw>=7.7", "playwright>=1.40", "pillow>=10.0", "numpy>=1.24",
@@ -81,3 +84,8 @@ testpaths = ["tests"]
 # Repo-level scripts/ (skill_lint, mnemos, icpg, ...) importable without PYTHONPATH.
 pythonpath = ["../scripts"]
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff.lint]
+# CI baseline: hard errors only (syntax errors, invalid comparisons/statements,
+# undefined names). Ratchet wider as the existing backlog is cleaned up.
+select = ["E9", "F63", "F7", "F82"]
