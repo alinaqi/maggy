@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: isolated workspaces no longer lose agent work
+
+#### Fixed
+- **`maggy/orchestrator/merge.py`** — the patch diffed `HEAD@{1}..HEAD`, so
+  only the last commit was merged and uncommitted edits were dropped. It now
+  diffs everything since the workspace's base commit (merge-base with the
+  repo HEAD), including uncommitted and untracked non-ignored files, and
+  returns `False` on any git failure instead of claiming success.
+- **`maggy/services/executor.py`** — parallel mode backgrounded a team, then
+  the `finally` block deleted the workspace and released locks while the
+  team still ran. Parallel mode is disabled (logged warning, sequential TDD
+  path) until the AWG runner replaces it. The merge result is now checked:
+  a workspace is deleted only after a successful merge; otherwise it is kept
+  and its path recorded as `preserved_workspace` (status `merge_failed` when
+  a completed run could not be merged).
+- **`maggy/services/orchestrator.py`** — `_run_one` deleted subtask
+  workspaces without merging. Successful subtasks are merged first and
+  cleaned only when the merge succeeds; failed or unmerged subtasks keep
+  their workspace, reported in `Result.artifacts["workspace"]`.
+
+#### Added
+- **`maggy/services/workspace_guard.py`** — merge-or-keep decision for
+  executor sessions.
+- **`tests/test_merge_capture.py`**, **`tests/test_workspace_safety.py`**.
+
 ### Maggy: council default models are no longer routing tiers
 
 #### Fixed

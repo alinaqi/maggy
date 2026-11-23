@@ -20,6 +20,7 @@ from maggy.services import executor_helpers as H
 from maggy.services import executor_prompts as P
 from maggy.services.executor_types import SessionCtx, StepSpec
 from maggy.services.planner import DualPlanner
+from maggy.services.workspace_guard import merge_workspace
 
 logger = logging.getLogger(__name__)
 
@@ -90,22 +91,14 @@ class ExecutorService:
             ctx.icpg = await H.build_icpg_context(self.cfg, ctx.task)
             if mode == "plan":
                 await self._run_plan(ctx)
-            elif self._should_parallel(ctx):
-                await self._run_parallel(ctx)
             else:
+                self._warn_if_parallel(ctx)
                 await self._run_tdd(ctx)
         except Exception as e:
             logger.exception("Execution failed")
             ctx.session["status"], ctx.session["error"] = "failed", str(e)
         finally:
-            repo_dir = ctx.session.get("repo_dir", ctx.wd)
-            isolated = ctx.session.get("working_dir", ctx.wd)
-            if isolated != repo_dir:
-                if ctx.session["status"] == "completed":
-                    from maggy.orchestrator.merge import merge_changes
-                    merge_changes(Path(repo_dir), Path(isolated))
-                from maggy.orchestrator.isolation import cleanup_workspace
-                cleanup_workspace(self._isolation, Path(repo_dir), isolated)
+            self._settle_workspace(ctx.session, ctx.wd)
             self._locks.release_all(ctx.session["id"])
             self._checkpoint.delete(ctx.task.id.replace("/", "-"))
 
@@ -249,6 +242,24 @@ class ExecutorService:
         except Exception as exc:
             logger.warning("DualPlanner failed: %s", exc)
 
+    def _settle_workspace(self, session: dict, wd: str) -> None:
+        """Merge a completed isolated workspace; keep it unless merged."""
+        repo_dir = session.get("repo_dir", wd)
+        isolated = session.get("working_dir", wd)
+        if isolated == repo_dir:
+            return
+        if merge_workspace(session, Path(repo_dir), Path(isolated)):
+            from maggy.orchestrator.isolation import cleanup_workspace
+            cleanup_workspace(self._isolation, Path(repo_dir), isolated)
+
+    def _warn_if_parallel(self, ctx: SessionCtx) -> None:
+        """Parallel mode is disabled until the AWG runner replaces it."""
+        if not self._should_parallel(ctx):
+            return
+        logger.warning("Parallel mode disabled; running %s sequentially",
+                       ctx.task.id)
+        ctx.session["output"] += "\n=== PARALLEL DISABLED: sequential TDD ===\n"
+
     def _should_parallel(self, ctx: SessionCtx) -> bool:
         """Check if task warrants parallel container execution."""
         if not self._orchestrator:
@@ -260,13 +271,3 @@ class ExecutorService:
         files = H.int_value(raw.get("file_count", 0))
         fatigue = self._fatigue.composite()
         return H.select_strategy(blast, files, fatigue) == "parallel"
-
-    async def _run_parallel(self, ctx: SessionCtx) -> None:
-        """Decompose task and run subtasks via orchestrator."""
-        ctx.session["output"] += "\n=== PARALLEL MODE ===\n"
-        desc = ctx.task.description[:1500]
-        subtasks = await self._orchestrator.decompose(ctx.task.title, desc)
-        ctx.session["output"] += f"Decomposed into {len(subtasks)} subtasks\n"
-        session = await self._orchestrator.spawn_team(ctx.task.id, subtasks)
-        ctx.session["team_id"] = session.team_id
-        ctx.session["status"] = "parallel_running"

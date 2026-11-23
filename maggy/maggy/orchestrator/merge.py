@@ -1,4 +1,10 @@
-"""Merge changes from isolated workspace back to original repo."""
+"""Merge changes from isolated workspace back to original repo.
+
+The patch covers everything since the workspace's base commit (the
+merge-base with the repo's HEAD): every commit, plus uncommitted and
+untracked (non-ignored) files. Any git failure reports False so callers
+keep the workspace instead of deleting unmerged work.
+"""
 from __future__ import annotations
 
 import logging
@@ -8,37 +14,52 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+class MergeError(RuntimeError):
+    """A git step needed to build or apply the patch failed."""
+
+
 def merge_changes(repo_dir: Path, ws_dir: Path) -> bool:
-    """Generate patch from workspace and apply to repo."""
-    patch = _generate_patch(ws_dir)
+    """Apply all workspace changes to repo. True only when nothing is lost."""
+    try:
+        patch = _generate_patch(repo_dir, ws_dir)
+    except (MergeError, OSError) as exc:
+        logger.warning("Cannot build patch from %s: %s", ws_dir, exc)
+        return False
     if not patch:
         logger.info("No changes to merge from %s", ws_dir)
         return True
     return _apply_patch(repo_dir, patch)
 
 
-def _generate_patch(ws_dir: Path) -> bytes:
-    """Generate a diff of all changes in workspace."""
-    result = _run_git([
-        "git", "-C", str(ws_dir),
-        "diff", "HEAD@{1}..HEAD",
+def _generate_patch(repo_dir: Path, ws_dir: Path) -> bytes:
+    """Diff the workspace (index incl. untracked) against its base commit."""
+    head = _git_ok(["-C", str(repo_dir), "rev-parse", "HEAD"]).strip()
+    base = _git_ok(["-C", str(ws_dir), "merge-base", "HEAD", head.decode()])
+    _git_ok(["-C", str(ws_dir), "add", "-A"])
+    return _git_ok([
+        "-C", str(ws_dir), "diff", "--cached", "--binary",
+        base.strip().decode(),
     ])
-    return result.stdout
 
 
 def _apply_patch(repo_dir: Path, patch: bytes) -> bool:
     """Apply patch to repo with 3-way merge."""
     result = _run_git(
-        [
-            "git", "-C", str(repo_dir),
-            "apply", "--3way", "-",
-        ],
+        ["git", "-C", str(repo_dir), "apply", "--3way", "-"],
         input_data=patch,
     )
     if result.returncode != 0:
         logger.warning("Patch apply failed: %s", result.stderr)
         return False
     return True
+
+
+def _git_ok(args: list[str]) -> bytes:
+    """Run git; raise MergeError on a non-zero exit."""
+    result = _run_git(["git", *args])
+    if result.returncode != 0:
+        raise MergeError(result.stderr.decode(errors="replace").strip())
+    return result.stdout
 
 
 def _run_git(
