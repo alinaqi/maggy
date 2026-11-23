@@ -60,9 +60,12 @@ def _apply_one(change: FileChange, ctx: HarnessContext, state: tuple[HarnessLock
         return
     if change.kind != "unchanged":
         _write(change, (target, ctx.root), report)
-    elif change.references_token:
+    elif change.references_token and target.exists():
         os.chmod(target, 0o600)
-    lock.record(change.path, change.region_texts)
+    if change.lock_entries is not None:
+        lock.set_file(change.path, change.lock_entries)
+    else:
+        lock.record(change.path, change.region_texts)
 
 
 def _delete(path: Path, where: tuple[Path, ApplyReport]) -> None:

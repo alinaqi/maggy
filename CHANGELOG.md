@@ -117,6 +117,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Repo `CLAUDE.md` now holds project-generic engineering policy only (TDD,
   quality gates, changelog, PR workflow); personal routing lives in the preset.
 
+#### Fixed
+- **Dropped regions are removed.** harness.lock now records each region's
+  format, scope root and owning agents, and keeps (merges) entries for regions
+  outside the current run. A region the profile no longer emits (for example AWG
+  wiring after `work.provider: none`, in `~/.codex/config.toml`, `AGENTS.md` and
+  `~/.claude.json`) is removed from disk once every agent owning it is in the
+  run; an edited one is a conflict. `--agent claude` no longer makes the lock
+  forget other agents' regions, so edits to them stay conflicts.
+- **User list entries are not conflicts.** Claude `permissions.allow/deny` and
+  `hooks.<Event>`, OpenCode `instructions`/`plugin`/`skills.paths` and pi
+  `skills` are list regions (`<key>[]`) holding only Maggy's entries; the user's
+  own entries beside them are kept and never block apply.
+- **Tightening permissions takes effect.** Maggy's earlier Claude rules (tracked
+  in harness.lock) are replaced, so switching shell/network/write from `true`
+  to allowlist/registries/workspace removes `Bash`, `WebFetch`, `WebSearch`.
+- **`--take-mine` is durable.** The lock remembers the profile text the user
+  chose over (`base`); later plain applies keep the edit until the profile
+  changes, which is then a conflict. `--take-profile` ends the pin. Same for
+  skill and pi extension copies.
+- **Copies are deleted only with a lock entry.** A user's copy of a managed
+  skill (marker included, e.g. `skills/my-python`) is never removed.
+- **JSON outside managed keys is byte for byte.** JSON regions are edited in
+  place (`harness/json_edit.py`) instead of re-serializing the file, so inline
+  arrays, escapes and spacing in the user's keys survive.
+- **Installed packages find skills and rules.** `setup.py` bundles the repo's
+  `skills/` and `rules/` into `maggy/harness/library` (shipped as package data,
+  also through the sdist); `default_sources()` uses the checkout when present,
+  else the bundled library.
+
 ### Maggy: Phase 0 hardening (review leftovers)
 
 #### Fixed

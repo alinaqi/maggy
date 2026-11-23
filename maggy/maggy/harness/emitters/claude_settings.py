@@ -1,9 +1,10 @@
 """Claude settings.json managed keys: hooks per event and permission rules.
 
-Each managed key holds the user's own entries plus Maggy's. Maggy hook
-entries are recognised by their command prefix, so dropping a hook from the
-profile removes only Maggy's entry. Permission rules are added, never removed
-(an emitted rule cannot be told apart from one the user wrote).
+Each is a list region (region_lists): the region holds only Maggy's entries
+and harness.lock remembers them, so the user's own hooks and rules in the same
+lists are kept and never conflict, and Maggy's earlier entries are replaced
+when the profile changes (tightening a permission profile drops its broad
+rules; dropping a hook drops its entry).
 """
 
 from __future__ import annotations
@@ -27,7 +28,6 @@ EVENTS = {
     "before_compact": ("PreCompact", None),
     "session_end": ("SessionEnd", None),
 }
-ORDER = list(dict.fromkeys(event for event, _ in EVENTS.values()))
 
 
 def load_settings(path: Path) -> dict:
@@ -54,31 +54,13 @@ def maggy_hooks(hooks: Hooks) -> dict[str, list[dict]]:
     return out
 
 
-def _is_maggy(entry: object) -> bool:
-    cmds = entry.get("hooks") if isinstance(entry, dict) else None
-    return bool(cmds) and all(str(c.get("command", "")).startswith(HOOK_PREFIX)
-                              for c in cmds if isinstance(c, dict))
+def hook_regions(hooks: Hooks) -> dict[str, list]:
+    return {f"hooks.{event}[]": entries for event, entries in maggy_hooks(hooks).items()}
 
 
-def hook_regions(hooks: Hooks, settings: dict) -> dict[str, list]:
-    ours = maggy_hooks(hooks)
-    disk = settings.get("hooks") if isinstance(settings.get("hooks"), dict) else {}
-    current = {e: v for e, v in disk.items() if isinstance(v, list)}
-    events = [e for e in ORDER if e in ours or any(map(_is_maggy, current.get(e, [])))]
-    return {f"hooks.{e}": [x for x in current.get(e, []) if not _is_maggy(x)] + ours.get(e, [])
-            for e in events}
+def permission_regions(profile: HarnessProfile) -> dict[str, list]:
+    return {f"permissions.{key}[]": rules for key, rules in claude_rules(profile).items() if rules}
 
 
-def permission_regions(profile: HarnessProfile, settings: dict) -> dict[str, list]:
-    perms = settings.get("permissions") if isinstance(settings.get("permissions"), dict) else {}
-    out = {}
-    for key, rules in claude_rules(profile).items():
-        have = perms.get(key) if isinstance(perms.get(key), list) else []
-        if rules:
-            out[f"permissions.{key}"] = have + [r for r in rules if r not in have]
-    return out
-
-
-def settings_regions(profile: HarnessProfile, path: Path) -> dict[str, list]:
-    settings = load_settings(path)
-    return {**hook_regions(profile.hooks, settings), **permission_regions(profile, settings)}
+def settings_regions(profile: HarnessProfile) -> dict[str, list]:
+    return {**hook_regions(profile.hooks), **permission_regions(profile)}

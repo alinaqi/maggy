@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 
 from maggy.harness.region_errors import RegionError
+from maggy.harness.region_keys import REMOVE
 
 MARKERS = {
     "markdown": ("<!-- maggy:begin {} -->", "<!-- maggy:end {} -->"),
@@ -43,8 +44,20 @@ def render_text(fmt: str, content: str | None, regions: dict[str, str]) -> str:
     """Replace (or append) each managed block; never touch other bytes."""
     text = content or ""
     for rid, body in regions.items():
-        text = _upsert(fmt, text, (rid, str(body)))
+        text = _remove(fmt, text, rid) if body is REMOVE else _upsert(fmt, text, (rid, str(body)))
     return text
+
+
+def _remove(fmt: str, text: str, rid: str) -> str:
+    """Drop the block, its line break and the blank line that separated it."""
+    found = _find(fmt, text, rid)
+    if found is None:
+        return text
+    head, tail = text[: found.start()], text[found.end():]
+    tail = tail[2:] if tail.startswith("\r\n") else tail[1:] if tail.startswith("\n") else tail
+    if head.endswith("\n\n") and (not tail or tail.startswith("\n")):
+        return head[:-1] + tail if not tail else head + tail[1:]
+    return head + tail
 
 
 def _upsert(fmt: str, text: str, region: tuple[str, str]) -> str:

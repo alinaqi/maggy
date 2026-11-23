@@ -32,8 +32,9 @@ CAPABILITIES = Capabilities(
         "AWG as mcpServers.awg (awg mcp --token-file ~/.maggy/tokens/claude.token) in ~/.claude.json "
         "or .mcp.json; the AWG Claude mod is not enabled: it acts with the stored owner login")),
     permissions=Capability(level="partial", notes=(
-        "worker.permission profile -> settings.json permissions.allow/deny, merged with user rules "
-        "and never removed; network=registries has no Claude rule")),
+        "worker.permission profile -> settings.json permissions.allow/deny beside the user's rules; "
+        "Maggy's earlier rules (tracked in harness.lock) are replaced when the profile changes; "
+        "network=registries has no Claude rule")),
 )
 
 
@@ -61,7 +62,7 @@ class ClaudeEmitter:
             files += [markdown(base / "AGENTS.md", {"instructions": body}),
                       markdown(base / "CLAUDE.md", {"agents-import": "@AGENTS.md"})]
         settings = claude_dir / "settings.json"
-        regions = settings_regions(profile, settings)
+        regions = settings_regions(profile)
         if regions:
             files.append(ManagedFile(path=settings, format="json", regions=regions))
         if profile.work.provider == "awg":

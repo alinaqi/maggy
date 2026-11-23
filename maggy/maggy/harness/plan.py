@@ -1,14 +1,20 @@
-"""plan: what applying the managed regions would change, without writing."""
+"""plan: what applying the managed regions would change, without writing.
+
+Each region (in the profile, or stale: in harness.lock but dropped from the
+profile) gets an action from plan_regions; any conflict skips the whole file.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from maggy.harness.changes import FileChange, HarnessContext, ManagedFile
-from maggy.harness.conflict import find_conflicts, region_diff
+from maggy.harness.conflict import region_diff
 from maggy.harness.fs_safe import inside_root, read_text
 from maggy.harness.lock import load_lock
-from maggy.harness.regions import RegionError, extract, parse_region, region_text, render
+from maggy.harness.plan_regions import Region, decide, lock_entry, regions_of, render_value
+from maggy.harness.region_keys import REMOVE
+from maggy.harness.regions import RegionError, render
 
 
 def plan_files(specs: list[ManagedFile], ctx: HarnessContext) -> list[FileChange]:
@@ -22,6 +28,10 @@ def _skip(spec: ManagedFile, before: str | None, **update: Any) -> FileChange:
         managed_ids=list(spec.regions), references_token=spec.references_token,
     )
     return change.model_copy(update=update)
+
+
+def _diff3(conflicts: list[Region]) -> str:
+    return "\n".join(region_diff(r.rid, (r.entry.content or "", r.disk, r.profile or "")) for r in conflicts)
 
 
 class _Planner:
@@ -39,31 +49,18 @@ class _Planner:
             return _skip(spec, before, status="invalid", reason=str(exc))
 
     def _plan(self, spec: ManagedFile, before: str | None) -> FileChange:
-        on_disk = extract(spec.format, before, list(spec.regions))
-        conflicts = find_conflicts(spec, on_disk, self.lock) if before is not None else []
-        if conflicts and self.ctx.resolution is None:
-            return _skip(spec, before, status="conflict", conflicts=conflicts,
-                         reason="managed region edited on disk",
-                         diff3=self._diff3(spec, on_disk, conflicts))
-        regions = self._resolved(spec, on_disk, conflicts)
-        after = render(spec.format, before, regions)
-        texts = {k: v for k, v in extract(spec.format, after, list(regions)).items() if v is not None}
+        entries = self.lock.entries(spec.path) if before is not None else {}
+        decided = [(r, decide(r, self.ctx)) for r in regions_of(spec, before, entries)]
+        conflicts = [r for r, action in decided if action == "conflict"]
+        if conflicts:
+            return _skip(spec, before, status="conflict", conflicts=[r.rid for r in conflicts],
+                         reason="managed region edited on disk", diff3=_diff3(conflicts))
+        values = dict(v for v in (render_value(spec, before, d) for d in decided) if v is not None)
+        if before is None and all(v is REMOVE for v in values.values()):
+            return _skip(spec, None, lock_entries={})
+        after = render(spec.format, before, values)
+        found = {r.rid: lock_entry(spec, after, (r, a, self.ctx)) for r, a in decided}
+        entries = {rid: e for rid, e in found.items() if e is not None}
         kind = "create" if before is None else "unchanged" if after == before else "update"
-        update = {"kind": kind, "after": after, "region_texts": texts}
-        return _skip(spec, before, **update)
-
-    def _resolved(self, spec: ManagedFile, on_disk: dict, conflicts: list[str]) -> dict:
-        if self.ctx.resolution != "take_mine":
-            return dict(spec.regions)
-        mine = {rid: on_disk[rid] for rid in conflicts}
-        kept = {rid: v for rid, v in spec.regions.items() if rid not in conflicts}
-        adopted = {rid: parse_region(spec.format, t) for rid, t in mine.items() if t is not None}
-        return {**kept, **adopted}
-
-    def _diff3(self, spec: ManagedFile, on_disk: dict, conflicts: list[str]) -> str:
-        parts = []
-        for rid in conflicts:
-            last = self.lock.get(spec.path, rid).content
-            profile = region_text(spec.format, spec.regions[rid])
-            parts.append(region_diff(rid, (last, on_disk[rid], profile)))
-        return "\n".join(parts)
+        texts = {rid: e.content for rid, e in entries.items() if e.content is not None}
+        return _skip(spec, before, kind=kind, after=after, region_texts=texts, lock_entries=entries)

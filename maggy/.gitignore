@@ -6,3 +6,6 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .coverage
+
+# Build-time copy of ../skills and ../rules (setup.py sync_library)
+maggy/harness/library/

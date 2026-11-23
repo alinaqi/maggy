@@ -1,22 +1,34 @@
-"""Conflict detection and the 3-way diff shown to the user."""
+"""Region states against harness.lock, and the 3-way diff shown on conflicts."""
 
 from __future__ import annotations
 
 import difflib
 
-from maggy.harness.changes import ManagedFile
-from maggy.harness.lock import HarnessLock, region_hash
+from maggy.harness.lock import LockEntry
 
 
-def find_conflicts(spec: ManagedFile, on_disk: dict, lock: HarnessLock) -> list[str]:
-    """Regions whose on-disk text no longer matches what Maggy last wrote."""
-    out = []
-    for rid in spec.regions:
-        entry = lock.get(spec.path, rid)
-        disk = on_disk.get(rid)
-        if entry and (disk is None or region_hash(disk) != entry.sha256):
-            out.append(rid)
-    return out
+def classify(entry: LockEntry | None, disk: str | None, profile: str | None) -> str:
+    """new (never written), clean, pinned (user's text kept via --take-mine and
+    the profile has not moved since) or edited (a conflict). profile None means
+    the profile no longer has the region."""
+    if entry is None:
+        return "new"
+    if not entry.matches(disk):
+        return "edited"
+    if entry.base is None:
+        return "clean"
+    return "pinned" if profile == entry.base else "edited"
+
+
+def resolve(state: str, resolution: str | None, stale: bool) -> str:
+    """Action for a region: write, keep, remove, forget or conflict.
+    --take-profile also ends a pin: the profile text is written again."""
+    if state == "edited" or (state == "pinned" and resolution == "take_profile"):
+        actions = {"take_mine": "forget" if stale else "keep", "take_profile": "remove" if stale else "write"}
+        return actions.get(resolution, "conflict")
+    if stale:
+        return "remove"
+    return "keep" if state == "pinned" else "write"
 
 
 def _diff(old: str, new: str, names: tuple[str, str]) -> list[str]:

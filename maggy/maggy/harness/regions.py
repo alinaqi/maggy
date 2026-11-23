@@ -13,12 +13,12 @@ from functools import partial
 from typing import Any
 
 from maggy.harness.region_errors import RegionError
-from maggy.harness.region_keys import canonical
+from maggy.harness.region_keys import REMOVE, canonical
 from maggy.harness.regions_json import extract_json, render_json
 from maggy.harness.regions_text import extract_text, render_text
 from maggy.harness.regions_toml import extract_toml, render_toml
 
-__all__ = ["RegionError", "extract", "parse_region", "region_text", "render"]
+__all__ = ["REMOVE", "RegionError", "extract", "parse_region", "region_text", "render"]
 
 _ENGINES = {
     "markdown": (partial(render_text, "markdown"), partial(extract_text, "markdown")),
