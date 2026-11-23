@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, Field, model_validator
 
 from maggy.harness.schema_sections import Strict
+from maggy.worker.env_rules import auth_file_problem, provider_key_problem
 from maggy.worker.templating import SPLATS, WHOLE, placeholder_problem
 
 Parser = Literal["claude-json", "codex-jsonl", "opencode-json", "pi-jsonl", "text"]
@@ -47,9 +48,18 @@ class Sandbox(Strict):
     notes: str = ""
 
 
+def _each(rule):
+    def check(value: list[str]) -> list[str]:
+        problems = [problem for item in value if (problem := rule(item))]
+        if problems:
+            raise ValueError("; ".join(problems))
+        return value
+    return AfterValidator(check)
+
+
 class AdapterEnv(Strict):
-    provider_keys: list[str] = []
-    auth_files: list[str] = []
+    provider_keys: Annotated[list[str], _each(provider_key_problem)] = []
+    auth_files: Annotated[list[str], _each(auth_file_problem)] = []
 
 
 class DisableAwg(Strict):
