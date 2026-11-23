@@ -21,7 +21,7 @@ _TS = re.compile(r"^(?P<file>[^()\n]+?)\((?P<line>\d+),\d+\): error (?P<code>TS\
 # ruff concise:  path:line:col: CODE message
 _RUFF = re.compile(r"^(?P<file>[^:\n]+):(?P<line>\d+):\d+: (?P<code>[A-Z]+\d+) (?P<msg>.+)$")
 
-# ruff rules that are real bugs (the Python analogue of the zennyEnabled crash),
+# ruff rules that are real bugs (the Python analogue of an undefined feature-flag crash),
 # not style. F821 = undefined name; E9 = syntax; F82x = undefined export/__all__.
 _RUFF_SELECT = "E9,F821,F822,F823,F811,F406,F501,F502,F522,F601,F602,F631,F701,F702"
 

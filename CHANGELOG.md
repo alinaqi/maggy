@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: PR-review false-positive filter is configured per repo
+
+#### Changed
+- **`maggy/review/fp_filter.py`** (moved out of `pipeline.py`) — the deterministic
+  false-positive filter no longer hardcodes one client's locale and router paths or
+  translation-key prefix. It reads `.maggy/review.yaml` from the reviewed repo
+  (`translation_locales`, `translation_key_prefix`, `router_files`; parsed with
+  Pydantic in the new `maggy/review/repo_config.py`). With no config, or an invalid
+  one, findings pass through unchanged. An equivalent config keeps the old drop
+  behaviour (all used keys resolve in every locale; unrouted, pre-existing or
+  already-gated components). The refuter prompt and a comment no longer name the
+  client either.
+
 ### Maggy: telos and e2e-testkit routes require auth and a registered project
 
 #### Security

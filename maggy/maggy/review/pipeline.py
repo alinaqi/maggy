@@ -10,15 +10,14 @@ LLM call therefore sees a bounded input, no matter how large the PR is.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
-import re
 from pathlib import Path
 
 from pydantic_ai.usage import UsageLimits
 
 from .agents import build_chair, build_planner, build_refuter, build_reviewer
 from .config import CHAIR, PRICING_KEY, available, cost_usd, load_env, load_skill
+from .fp_filter import deterministic_fp_filter
 from .github import get_pr, get_pr_files, post_review
 from .languages import detect_languages
 from .models import ReviewChunk, Verdict
@@ -197,108 +196,6 @@ def _deterministic_verdict(verdicts, note=""):
         any(v.decision == "changes_needed" for v in verdicts)
     summary = (note + " | ".join(v.summary[:140] for v in verdicts[:3])) if verdicts else (note or "no findings")
     return Verdict(decision="changes_needed" if blocked else "approve", summary=summary, findings=merged)
-
-
-# --- deterministic false-positive filter (no LLM) -----------------------------
-# The two FP classes that dominate mega-PR reviews are MECHANICALLY checkable, so we
-# verify them in code instead of relying on a per-finding LLM (which is inconsistent):
-#   1. "missing translation key" — grep the real locale JSON; if every key the file
-#      uses resolves in BOTH en and de, the claim is false.
-#   2. "not feature-flagged" on a sub-component — flag gating is an ENTRY-POINT concern;
-#      a component that isn't a routed entry point doesn't get its own flag.
-_RE_KEY = re.compile(r"""t\(\s*['"]([a-zA-Z0-9_.]+)['"]""")
-_RE_I18N = re.compile(r"(i18n|translation|locale|missing.{0,15}key|de (locale|translation)|"
-                      r"informal|not localized|missing 'de'|missing de)", re.I)
-_RE_FLAG = re.compile(r"(feature.?flag|not gated|feature-flag|unconditional|not feature)", re.I)
-
-
-def _flat_keys(path):
-    keys = set()
-    try:
-        data = json.loads(Path(path).read_text())
-    except Exception:  # noqa: BLE001
-        return keys
-
-    def walk(o, p=""):
-        for k, v in o.items():
-            walk(v, p + k + ".") if isinstance(v, dict) else keys.add(p + k)
-    walk(data)
-    return keys
-
-
-def _resolves(key, ks):
-    return key in ks or any(key + s in ks for s in ("_one", "_other", "_plural", "_zero", "_many"))
-
-
-def _git_show(lp, ref, path):
-    try:
-        import subprocess
-        r = subprocess.run(["git", "-C", str(lp), "show", f"{ref}:{path}"],
-                           capture_output=True, text=True, timeout=15)
-        return r.stdout if r.returncode == 0 else ""
-    except Exception:  # noqa: BLE001
-        return ""
-
-
-def _routed(comp, router_text):
-    # a component is a routed entry point if its name appears as a word in the router
-    return bool(comp) and re.search(rf"\b{re.escape(comp)}\b", router_text) is not None
-
-
-def _gated(comp, router_text):
-    # is the component's mount inside a feature-flag conditional? (e.g. {zennyEnabled && <X/>})
-    for m in re.finditer(rf"\b{re.escape(comp)}\b", router_text):
-        ctx = router_text[max(0, m.start() - 400):m.start()]
-        if re.search(r"Enabled\s*&&|useFeatureFlag|can_use_\w+\s*&&|FF_\w+\s*&&", ctx):
-            return True
-    return False
-
-
-def deterministic_fp_filter(findings, local_path, on_log, base_ref=None):
-    if not local_path:
-        return findings, 0
-    lp = Path(local_path)
-    en = _flat_keys(lp / "libs/shared/services/translate/src/lib/locals/en/en.json")
-    de = _flat_keys(lp / "libs/shared/services/translate/src/lib/locals/de/de.json")
-    rp = lp / "apps/platform-app/src/Router.tsx"
-    router = rp.read_text(errors="replace") if rp.exists() else ""
-    # the same router on the BASE branch — to tell a NEW ungated route from a
-    # pre-existing one (a finding "not feature-flagged" is only real for a NEW entry point).
-    base_router = _git_show(lp, f"origin/{base_ref}", "apps/platform-app/src/Router.tsx") if base_ref else ""
-    kept, dropped = [], 0
-    for f in findings:
-        if getattr(f.severity, "value", f.severity) != "blocking":
-            kept.append(f)
-            continue
-        blob = f"{f.title} {f.detail}".lower()
-        fpath = lp / f.file
-        # (1) missing-translation-key FP: every zenny.* key the file uses resolves in both locales
-        if en and de and _RE_I18N.search(blob) and "hardcod" not in blob and fpath.exists():
-            used = {k for k in _RE_KEY.findall(fpath.read_text(errors="replace")) if k.startswith("zenny.")}
-            if used and all(_resolves(k, en) and _resolves(k, de) for k in used):
-                dropped += 1
-                on_log(f"[det-fp] i18n FP dropped: {f.title[:55]} ({len(used)} keys all resolve en+de)")
-                continue
-        # (2) not-feature-flagged FP. Flag gating is an ENTRY-POINT concern, so the
-        # finding is false unless this PR introduces a NEW ungated route:
-        #   - component isn't routed at all  -> sub-component, inherits its host's gate
-        #   - component is routed on the BASE branch too -> pre-existing, not new
-        if router and _RE_FLAG.search(blob):
-            comp = Path(f.file).stem
-            if not _routed(comp, router):
-                dropped += 1
-                on_log(f"[det-fp] flag FP dropped: {f.title[:55]} ({comp} is a sub-component, not a route)")
-                continue
-            if base_router and _routed(comp, base_router):
-                dropped += 1
-                on_log(f"[det-fp] flag FP dropped: {f.title[:55]} ({comp} route pre-exists on base)")
-                continue
-            if _gated(comp, router):
-                dropped += 1
-                on_log(f"[det-fp] flag FP dropped: {f.title[:55]} ({comp} is already behind a feature flag)")
-                continue
-        kept.append(f)
-    return kept, dropped
 
 
 async def process_chunk(idx, chunk, council, skill, title, deps, on_log, usages, panel_size):

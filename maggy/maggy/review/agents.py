@@ -15,9 +15,9 @@ If you cannot disprove it, set refuted=false — the finding stands.
 Common false-positive classes — check these explicitly, because the diff a reviewer sees may be
 TRUNCATED (huge PRs) and mislead them:
 - "i18n / translation key missing" or "lacks German/de translation": OPEN the actual locale files
-  and grep the bare key (its last segment). For this repo they live under
-  libs/shared/services/translate/src/lib/locals/en/en.json and .../de/de.json. If the key (or its
-  i18next plural variants key_one/key_other) exists in BOTH, the finding is FALSE — refuted=true.
+  and grep the bare key (its last segment). Find them by grepping for the locale JSON files (or
+  see `translation_locales` in the repo's .maggy/review.yaml). If the key (or its i18next plural
+  variants key_one/key_other) exists in EVERY locale, the finding is FALSE — refuted=true.
 - "new feature not feature-flagged" / "mounts unconditionally": a component being a NEW FILE does
   NOT mean the feature is new. grep where it's mounted (Router.tsx, route definitions) and check
   whether that ROUTE already exists on the base branch / is gated upstream. If the route/host
