@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Worker process supervisor and daily budget ledger** (RFC personal-harness
+  §2.6.3, §2.6.4, §2.6.8). `maggy/worker/supervisor.py`: `supervise(job)` launches
+  the adapter argv (no shell) as the leader of a new session, streams stdout/stderr
+  to `stdout.log`/`stderr.log` in the attempt dir, and kills the whole process group
+  (SIGTERM, then SIGKILL after `grace_s`, leftovers always reaped) on `deadline_s`
+  (outcome `timeout`), on a `~/.maggy/STOP` file before launch or while running
+  (outcome `failed`, reason `stopped`; path injectable), and, for cost-streaming
+  parsers, when parsed cost passes `per_run_usd` (outcome `budget_exceeded`).
+  `maggy/worker/ledger.py`: `BudgetLedger` in `~/.maggy/budget.db` (path injectable)
+  reserves each run in one `BEGIN IMMEDIATE` transaction, refusing (`BudgetRefused`)
+  anything that would pass `per_day_usd`, so concurrent threads or processes never
+  overshoot; `settle` and `release` close a reservation. `maggy/worker/budgeted.py`:
+  `run_budgeted` reserves before launch (a refusal means nothing starts), releases
+  when launch fails, and settles at the parsed cost, or at the reservation when the
+  cost is unknown or the supervisor crashed. Reservation is `per_run_usd` for
+  cost-streaming adapters and `cost.fixed_reservation_usd` otherwise. The older
+  per-provider spend tracker in `maggy/budget.py` is left as is for Phase 6.
 - **Worker and check env scrubbing** (RFC personal-harness §2.6.1, §2.6.7).
   `maggy/worker/env.py`: `build_worker_env(adapter, base_env)` keeps only an
   allowlist (`PATH`, `HOME`, `LANG`, `LC_*`, `TERM`, `TMPDIR`, `SHELL`, `USER`) plus
