@@ -61,6 +61,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `awg node create`, `awg decision`). Legacy spec/planner code is untouched (Phase 6 deletion).
 
 #### Fixed
+- **A plan child left READY by a partial `create_child` failure is now cancelled.** `awg
+  create` makes the child READY; if the BACKLOG move or the `task-plan` annotation then failed,
+  `CliAwgClient.create_child` raised before `build_graph` learned the child's ref, so the
+  rollback skipped it and a claimable `stage:build` task with no plan escaped the high-risk
+  plan-approval gate. The client now cancels that child (best effort) and re-raises the
+  original error. The brief READY window between `create` and the BACKLOG move remains until
+  AWG can create items in BACKLOG directly.
 - **Runner CLI calls now match the real awg** (`maggy/runner/awg_cli.py`,
   `awg_cli_graph.py`), found by the Phase 4 exit test. `awg block` takes no fence flags
   (the runner fences it with `session.verify()` just before) and now passes `--question`,
