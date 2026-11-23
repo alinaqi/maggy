@@ -24,3 +24,4 @@ class RunnerConfig:
     project: str = "default"
     heartbeat_s: float | None = None  # None: a third of the remaining lease
     pr_step: PrStep | None = None  # runner.publish.Publisher in `maggy run`; fenced per action
+    state_file: Path | None = None  # held leases; None: <state_dir>/runner/state.json

@@ -11,6 +11,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 3)
 
 #### Added
+- **Crash recovery and startup reconciliation for `maggy run`** (`maggy/runner/state.py`,
+  `recovery.py`, `publish_settle.py`; RFC personal-harness §2.4, §2.6.3). The runner records
+  each held lease (claim, then the WorkerResult once checks ran) in
+  `<state_dir>/runner/state.json` (path injectable, atomic writes). On start and before every
+  claim (never while STOP is set) it reconciles each held item: dangling publish intents get a
+  `reconciled` result looked up by stable name (remote `maggy/<ref>`, open PR by head); if the
+  lease is still live and the worker had finished it rolls forward (evidence attached once per
+  check/SHA/spec version, idempotent push and PR, submit), otherwise it rolls back (release with
+  a handoff naming what was done, the branch's last SHA and the next step). Worktree and branch
+  are kept; the re-claim resumes from the branch and the latest handoff is passed to the worker
+  prompt as delimited data. Crash-injection tests (kill -9 after worker exit before commit,
+  after commit before evidence, after push before PR, after PR before its result, after PR
+  before submit) converge to one draft PR, evidence bound to the final SHA and a single submit.
 - **Stable-branch push and idempotent draft PR with intent records** (`maggy/runner/publish.py`,
   `publish_git.py`, `publish_gh.py`, `publish_body.py`; RFC personal-harness §2.4, §2.6.3,
   §2.6.5). `maggy run` now uses `Publisher` as its PR step. For each external action the

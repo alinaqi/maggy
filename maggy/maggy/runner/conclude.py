@@ -35,13 +35,23 @@ def _spec_drift(session: Session) -> str | None:
 
 
 def _attach_evidence(session: Session, result: WorkerResult) -> None:
+    """Attach each check's evidence once: a roll-forward skips records already attached."""
+    attached = _attached(session)
     for check in result.checks:
-        session.verify()
         meta = {"spec_version": str(session.claim.version), "check": check.name}
+        if (check.name, check.sha, meta["spec_version"]) in attached:
+            continue
+        session.verify()
         spec = EvidenceSpec(kind=check.name, verdict="PASS" if check.passed else "FAIL",
                             commit_sha=check.sha, meta=meta)
         session.awg.evidence(session.claim, spec)
         session.log("evidence", {"check": check.name, "passed": check.passed, "sha": check.sha})
+
+
+def _attached(session: Session) -> set[tuple[str, str, str]]:
+    records = session.awg.show(session.claim.ref).get("evidence") or []
+    return {(str(r.get("kind")), str(r.get("commit_sha")),
+             str((r.get("meta") or {}).get("spec_version"))) for r in records}
 
 
 def _block(session: Session, question: str) -> RunReport:

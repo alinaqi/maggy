@@ -16,6 +16,7 @@ from maggy.runner.awg_client import AwgClient
 from maggy.runner.awg_types import Claim
 from maggy.runner.publish_body import pr_title, render_body
 from maggy.runner.publish_gh import GhCli, PrRequest
+from maggy.runner.publish_settle import annotation_key, settle_intents
 from maggy.runner.publish_git import (PublishError, branch_for, default_base, push_branch,
                                       remote_sha)
 from maggy.runner.session import verify_live
@@ -42,6 +43,10 @@ class Publisher:
         push = self._step(claim, ("push", sha), lambda: self._push(claim, sha))
         pr = self._step(claim, ("pr", sha), lambda: self._pr(claim, result))
         return {"push": push, "pr": pr}
+
+    def settle(self, claim: Claim) -> list[str]:
+        """Record results for intents a crashed runner left dangling (crash recovery)."""
+        return settle_intents(self, claim)
 
     def _step(self, claim: Claim, what: tuple[str, str], perform: Callable[[], dict]) -> dict:
         action, sha = what
@@ -85,7 +90,7 @@ def expected_remote(annotations: list[dict], ref: str, remote: str) -> str:
     """The lease value: `remote` when it is absent or a SHA we pushed (or meant to), else
     our last known SHA, so a remote that moved unexpectedly makes the push fail."""
     known = [a.get("data", {}).get("sha", "") for a in annotations
-             if _key(a).startswith(f"{ref}:") and a.get("data", {}).get("action") == "push"]
+             if annotation_key(a).startswith(f"{ref}:") and a.get("data", {}).get("action") == "push"]
     if not remote or remote in known:
         return remote
     return known[-1] if known else ""
@@ -94,7 +99,3 @@ def expected_remote(annotations: list[dict], ref: str, remote: str) -> str:
 def publisher_for(awg: AwgClient, repo: Path, state_dir: Path) -> Publisher:
     """The Publisher for `repo`, targeting origin's default branch."""
     return Publisher(awg, PublishConfig(repo=repo, state_dir=state_dir, base=default_base(repo)))
-
-
-def _key(annotation: dict) -> str:
-    return str(annotation.get("key") or annotation.get("idempotency_key") or "")

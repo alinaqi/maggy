@@ -8,12 +8,14 @@ attempt is given back as interrupted (RFC §2.6.3).
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 
 from maggy.runner.attempt import build_attempt, item_stage, workspace_for
 from maggy.runner.awg_errors import LeaseLost
 from maggy.runner.conclude import conclude
 from maggy.runner.heartbeat import Heartbeat
 from maggy.runner.session import RunReport, Session, Stopped
+from maggy.runner.state import latest_handoff, state_for
 from maggy.runner.workspace import prepare_workspace
 from maggy.worker.models import WorkerResult
 from maggy.worker.pipeline import run_attempt
@@ -24,8 +26,13 @@ class Interrupted(LeaseLost):
 
 
 def drive(session: Session) -> RunReport:
+    return guarded(session, lambda: _drive(session))
+
+
+def guarded(session: Session, step: Callable[[], RunReport]) -> RunReport:
+    """Run `step`; lease loss, STOP or any failure gives the item back with a handoff."""
     try:
-        return _drive(session)
+        return step()
     except LeaseLost as exc:
         workspace = workspace_for(session)
         return session.give_back("interrupted", f"{exc}; worktree kept at {workspace}")
@@ -36,13 +43,18 @@ def drive(session: Session) -> RunReport:
 
 
 def _drive(session: Session) -> RunReport:
-    stage = item_stage(session.awg.show(session.claim.ref))
+    shown = session.awg.show(session.claim.ref)
+    stage = item_stage(shown)
     if stage != "build":
         return session.give_back("unsupported", f"stage {stage!r} is not supported yet")
+    session.handoff = latest_handoff(shown)
     session.verify()
+    session.settle_intents()
     base = prepare_workspace(session.config.repo, workspace_for(session), session.claim.ref)
     session.log("worktree", {"base": base, "workspace": workspace_for(session)})
-    return conclude(session, _run_worker(session, base))
+    result = _run_worker(session, base)
+    state_for(session.config).record(session.claim.ref, result)
+    return conclude(session, result)
 
 
 def _run_worker(session: Session, base: str) -> WorkerResult:
