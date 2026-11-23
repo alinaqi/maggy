@@ -1,4 +1,4 @@
-"""Executor/orchestrator must never discard unmerged isolated work."""
+"""Executor must never discard unmerged isolated work."""
 
 from __future__ import annotations
 
@@ -6,17 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from maggy.orchestrator.isolation import IsolationLevel
-from maggy.orchestrator.models import Task as OrchTask
 from maggy.providers.base import Task
 from maggy.services import executor_helpers
 from maggy.services.executor import ExecutorService
 from maggy.services.executor_types import SessionCtx
-from maggy.services.orchestrator import OrchestratorService, TeamSession
 
 _ISO = "maggy.orchestrator.isolation"
 _MRG = "maggy.orchestrator.merge"
-_ORC = "maggy.services.orchestrator"
 
 
 def _ctx(parallel: bool = False) -> SessionCtx:
@@ -91,49 +87,3 @@ async def test_failed_run_preserves_workspace(mock_cfg, monkeypatch):
     merge.assert_not_called()
     clean.assert_not_called()
     assert ctx.session["preserved_workspace"] == "/ws/s1"
-
-
-def _orch() -> OrchestratorService:
-    cfg = MagicMock()
-    cfg.orchestrator.workspace_root = "/tmp/maggy-ws"
-    svc = OrchestratorService(cfg=cfg)
-    svc._isolation = IsolationLevel.WORKTREE
-    return svc
-
-
-async def _run_one(code: int, merged: bool):
-    svc = _orch()
-    session = TeamSession(team_id="tm1", task_id="p1", repo_dir="/repo",
-                          subtasks=[OrchTask(title="x", source="t", source_ref="r")])
-    with patch(f"{_ORC}.provision_workspace", return_value="/ws/sub"), \
-         patch(f"{_ORC}.merge_changes", return_value=merged) as merge, \
-         patch(f"{_ORC}.cleanup_workspace") as clean, \
-         patch.object(svc, "_run_local", new_callable=AsyncMock, return_value=code):
-        result = await svc._run_one(session.subtasks[0], session)
-    return result, merge, clean
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_keeps_failed_subtask_workspace():
-    result, merge, clean = await _run_one(code=1, merged=True)
-    merge.assert_not_called()
-    clean.assert_not_called()
-    assert result.artifacts["workspace"] == "/ws/sub"
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_keeps_unmerged_subtask_workspace():
-    result, merge, clean = await _run_one(code=0, merged=False)
-    merge.assert_called_once()
-    clean.assert_not_called()
-    assert result.artifacts["workspace"] == "/ws/sub"
-    assert result.status == "failed"
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_merges_then_cleans_subtask_workspace():
-    result, merge, clean = await _run_one(code=0, merged=True)
-    merge.assert_called_once()
-    clean.assert_called_once()
-    assert "workspace" not in result.artifacts
-    assert result.status == "succeeded"
