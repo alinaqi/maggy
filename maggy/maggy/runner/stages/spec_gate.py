@@ -12,6 +12,7 @@ from __future__ import annotations
 from maggy.runner.awg_types import NodeSpec, WorkUpdate
 from maggy.runner.session import RunReport, Session
 from maggy.runner.stages.models import SpecDraft, SpecReview
+from maggy.runner.stages.spec_version import SPEC_APPROVED, criteria_sha
 
 NEXT_STAGE = "stage:plan"
 
@@ -42,8 +43,10 @@ def _approve(session: Session, shown: dict, draft: SpecDraft) -> RunReport:
         awg.create_node(claim, NodeSpec(type="REQUIREMENT", title=criterion.text,
                                         data={**criterion.model_dump(), "work": claim.ref}))
     session.verify()
-    awg.decision(claim, "spec-approved", {"spec_version": spec_version,
-                                          "criteria": [c.id for c in draft.acceptance_criteria]})
+    awg.decision(claim, SPEC_APPROVED, {"spec_version": spec_version,
+                                        "criteria": [c.id for c in draft.acceptance_criteria],
+                                        "criteria_sha": criteria_sha(criteria),
+                                        "risk_paths": draft.risk_paths})
     session.verify()
     awg.update(claim, WorkUpdate(capabilities=next_stage_capabilities(shown)))
     session.verify()
@@ -54,6 +57,11 @@ def _approve(session: Session, shown: dict, draft: SpecDraft) -> RunReport:
 
 def next_stage_capabilities(shown: dict) -> list[str]:
     """The item's capabilities with its stage tag swapped for `stage:plan` (project kept)."""
+    return with_stage(shown, NEXT_STAGE)
+
+
+def with_stage(shown: dict, stage: str) -> list[str]:
+    """The item's capabilities with its stage tag swapped for `stage` (project kept)."""
     caps = ((shown.get("work") or {}).get("execution_policy") or {}).get("capabilities") or []
     kept = [cap for cap in caps if not str(cap).startswith("stage:")]
-    return sorted({*kept, "maggy-runner", NEXT_STAGE})
+    return sorted({*kept, "maggy-runner", stage})

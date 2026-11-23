@@ -7,11 +7,11 @@ claim, versions, idempotent keyed annotations, and evidence trust taken from the
 
 from __future__ import annotations
 
-from maggy.runner.awg_fake_graph import FakeGraph
+from maggy.runner.awg_fake_plan import FakePlanGraph
 from maggy.runner.awg_types import TRUST, Claim, EvidenceSpec
 
 
-class FakeAwg(FakeGraph):
+class FakeAwg(FakePlanGraph):
     def next_claim(self, capabilities: list[str], require: list[str] | None = None) -> Claim | None:
         for item in self.items.values():
             if self._claimable(item, capabilities, require or []):

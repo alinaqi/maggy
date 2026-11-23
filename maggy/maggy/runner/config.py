@@ -13,7 +13,7 @@ from maggy.worker.models import WorkerResult
 
 PrStep = Callable[[Claim, WorkerResult], object]
 CAPABILITIES = ["maggy-runner", "stage:build"]
-STAGES = ["stage:spec"]  # stages held beyond build (plan arrives with Task 4.2)
+STAGES = ["stage:spec", "stage:plan"]  # stages held beyond build
 REQUIRED = ["maggy-runner"]  # opt-in: untagged items are never claimed (RFC §2.4)  # later stages arrive in Phase 4
 
 

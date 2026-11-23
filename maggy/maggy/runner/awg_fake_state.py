@@ -28,6 +28,7 @@ class FakeItem:
     attributes: dict = field(default_factory=dict)
     validations: list[dict] = field(default_factory=list)
     description: str = ""
+    parent: str | None = None
 
 
 class FakeAwgState:
@@ -38,6 +39,7 @@ class FakeAwgState:
         self.items: dict[str, FakeItem] = {}
         self.nodes: list[dict] = []  # REQUIREMENT/DECISION/... nodes, oldest first
         self.criteria_versions: dict[str, list[int]] = {}  # versions criteria were set at
+        self.edges: list[tuple[str, str, str]] = []  # (source, type, target)
         self._attempts = 0
 
     def add_item(self, title: str, capabilities: list[str] | tuple = (),
@@ -55,7 +57,12 @@ class FakeAwgState:
         """AWG's rule: needed <= held, and every required capability declared by the item."""
         lapsed = item.state == "ACTIVE" and item.lease_expires < self.clock()
         matches = set(require) <= item.capabilities <= set(capabilities)
-        return matches and (item.state == "READY" or lapsed)
+        return matches and (item.state == "READY" or lapsed) and not self._waits(item.ref)
+
+    def _waits(self, ref: str) -> bool:
+        """`ref` DEPENDS_ON an item that is not DONE yet (AWG's unmet dependency count)."""
+        return any(self.items[t].state != "DONE" for s, kind, t in self.edges
+                   if s == ref and kind == "DEPENDS_ON")
 
     def _grant(self, item: FakeItem) -> Claim:
         self._attempts += 1
