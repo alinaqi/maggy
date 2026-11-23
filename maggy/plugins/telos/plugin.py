@@ -7,10 +7,16 @@ import logging
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends
+
+from maggy.api.auth import require_auth
+from maggy.api.project_guard import guarded_project_dir
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/telos", tags=["telos"])
+router = APIRouter(
+    prefix="/api/telos", tags=["telos"],
+    dependencies=[Depends(require_auth)],
+)
 _here = Path(__file__).resolve().parent
 
 
@@ -59,7 +65,7 @@ async def heartbeat_ifs() -> dict:
 
 @router.get("/status")
 async def telos_status(
-    project_dir: str = Query(...),
+    project_dir: str = Depends(guarded_project_dir),
 ):
     result = _scorer.score_project(project_dir)
     return result.to_dict()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request
+from fastapi import Header, HTTPException, Request
 
 
 def check_auth(
@@ -18,6 +18,13 @@ def check_auth(
             status_code=401,
             detail="Invalid or missing X-API-Key",
         )
+
+
+def require_auth(
+    request: Request, x_api_key: str | None = Header(None),
+) -> None:
+    """FastAPI dependency form of check_auth (for router-level use)."""
+    check_auth(request, x_api_key)
 
 
 def require_configured(request: Request) -> None:
