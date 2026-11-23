@@ -54,11 +54,26 @@ def _apply_one(change: FileChange, ctx: HarnessContext, state: tuple[HarnessLock
         report.skipped[str(change.path)] = reason
         return
     target = real(change.path)
+    if change.kind == "delete":
+        _delete(change.path, (ctx.root, report))
+        lock.forget(change.path)
+        return
     if change.kind != "unchanged":
         _write(change, (target, ctx.root), report)
     elif change.references_token:
         os.chmod(target, 0o600)
     lock.record(change.path, change.region_texts)
+
+
+def _delete(path: Path, where: tuple[Path, ApplyReport]) -> None:
+    """Back up, remove, and drop the parent directory if that left it empty."""
+    root, report = where
+    target = real(path)
+    backup_file(target, root, report.backup_dir)
+    target.unlink()
+    report.written.append(path)
+    if target.parent != real(root) and not any(target.parent.iterdir()):
+        target.parent.rmdir()
 
 
 def _write(change: FileChange, where: tuple[Path, Path], report: ApplyReport) -> None:

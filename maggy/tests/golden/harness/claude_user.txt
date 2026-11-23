@@ -1,0 +1,99 @@
+=== <TMP>/home/.claude/AGENTS.md [create/ok]
+<!-- maggy:begin instructions -->
+## TDD
+
+Write the failing test first.
+
+## Security
+
+No secrets in code.
+<!-- maggy:end instructions -->
+
+=== <TMP>/home/.claude/CLAUDE.md [create/ok]
+<!-- maggy:begin agents-import -->
+@AGENTS.md
+<!-- maggy:end agents-import -->
+
+=== <TMP>/home/.claude/settings.json [create/ok]
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.maggy/hooks/load-memory"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.maggy/hooks/lint-changed"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.maggy/hooks/run-focused-tests"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write",
+      "MultiEdit",
+      "NotebookEdit",
+      "Bash(pytest -q)",
+      "Bash(ruff check .)"
+    ]
+  }
+}
+
+=== <TMP>/home/.claude.json [create/ok]
+{
+  "mcpServers": {
+    "awg": {
+      "type": "stdio",
+      "command": "awg",
+      "args": [
+        "mcp",
+        "--token-file",
+        "<TMP>/home/.maggy/tokens/claude.token"
+      ]
+    }
+  }
+}
+
+=== <TMP>/home/.claude/skills/python/SKILL.md [create/ok]
+---
+name: python
+description: python skill
+---
+<!-- maggy:managed-skill -->
+
+# python
+
+Use python well.
+
+=== <TMP>/home/.claude/skills/react-web/SKILL.md [create/ok]
+---
+name: react-web
+description: react-web skill
+---
+<!-- maggy:managed-skill -->
+
+# react-web
+
+Use react-web well.
