@@ -38,6 +38,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   could reach the dashboard could spawn agent teams. The router now carries the same
   `require_auth` (X-API-Key) dependency the core API uses.
 
+#### Changed
+- **Tests** — `tests/test_install_script.py` checks the real home from the passwd
+  entry (`pwd.getpwuid(os.getuid()).pw_dir`) rather than `~`, which conftest points
+  at a temp dir, so the "real HOME untouched" guard now checks the real home. Phase 0
+  test files over 10 functions were split (`test_merge_rollback.py`,
+  `test_orchestrator_workspace_safety.py`, `test_review_fp_i18n.py`,
+  `test_review_fp_flag.py`, shared `merge_helpers.py` and `fp_filter_helpers.py`).
+
 ### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
 
 #### Fixed
