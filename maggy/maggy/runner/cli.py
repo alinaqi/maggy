@@ -9,8 +9,9 @@ import typer
 from maggy.harness.cli.command import options_command
 from maggy.harness.errors import HarnessConfigError
 from maggy.runner.awg_errors import AwgError
-from maggy.runner.cli_setup import STATE_HELP, RunCliOptions, build_runner, state_of
+from maggy.runner.cli_setup import STATE_HELP, RunCliOptions, awg_binary, build_runner, state_of
 from maggy.runner.control import request_stop, set_paused
+from maggy.runner.intake import IntakeOptions, run_sync, summary, sync_argv
 from maggy.worker.git_ops import GitError
 from maggy.worker.launch import Refused
 
@@ -54,3 +55,16 @@ def resume(project: str = _PROJECT, state_dir: Path | None = _STATE) -> None:
     """Resume intake for one project."""
     set_paused(state_of(state_dir), project, False)
     typer.echo(f"resumed intake for {project}")
+
+
+@app.command("intake")
+@options_command(IntakeOptions)
+def intake(ctx: typer.Context, opts: IntakeOptions) -> None:
+    """Pull labelled GitHub issues into AWG as runner items (`awg sync github`)."""
+    try:
+        report = run_sync(awg_binary(opts.awg_bin), sync_argv(opts))
+    except (Refused, HarnessConfigError, AwgError) as exc:
+        typer.echo(f"refused: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    for line in summary(report):
+        typer.echo(line)

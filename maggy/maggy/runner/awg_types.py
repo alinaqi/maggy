@@ -35,6 +35,7 @@ class EvidenceSpec(BaseModel):
     kind: str = Field(min_length=1, max_length=40)
     verdict: str = Field(min_length=1)
     commit_sha: str = Field(min_length=1, max_length=80)
+    validation: str | None = None  # the AWG validation id this evidence answers
     meta: dict[str, str] = Field(default_factory=dict)
 
 

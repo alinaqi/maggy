@@ -1,7 +1,9 @@
-"""AWG setup for `harness init`: `awg init` if needed, one agent token per agent.
+"""AWG setup for `harness init`: `awg init` if needed, one agent token per agent, plus the
+runner's two credentials: runner-agent (kind agent: claim/heartbeat/submit) and runner-ci
+(kind ci: evidence only), RFC §2.4.
 
 Secrets go straight from `awg token mint --json` into
-~/.maggy/tokens/<agent>.token (mode 0600) and are never printed.
+~/.maggy/tokens/<name>.token (mode 0600) and are never printed.
 """
 
 from __future__ import annotations
@@ -12,14 +14,16 @@ from pathlib import Path
 from maggy.harness.cli.env import ToolEnv
 from maggy.harness.fs_safe import atomic_write
 
+RUNNER_TOKENS = {"runner-agent": "agent", "runner-ci": "ci"}
+
 
 def token_path(env: ToolEnv, agent: str) -> Path:
     return env.state_dir / "tokens" / f"{agent}.token"
 
 
-def _mint(env: ToolEnv, agent: str) -> str | None:
+def _mint(env: ToolEnv, agent: str, kind: str = "agent") -> str | None:
     """Mint and store a token; returns a problem message or None."""
-    done = env.run(["awg", "token", "mint", f"maggy-{agent}", "--kind", "agent", "--json"])
+    done = env.run(["awg", "token", "mint", f"maggy-{agent}", "--kind", kind, "--json"])
     try:
         secret = json.loads(done.stdout)["token"] if done.returncode == 0 else None
     except (ValueError, KeyError, TypeError):
@@ -41,8 +45,10 @@ def ensure_awg(env: ToolEnv, agents: list[str]) -> tuple[list[str], list[str]]:
         if env.run(["awg", "init"]).returncode != 0:
             return [], ["awg init failed"]
         notes.append("initialised AWG (awg init)")
-    missing = [agent for agent in agents if not token_path(env, agent).is_file()]
-    problems = [p for p in (_mint(env, agent) for agent in missing) if p]
-    minted = [agent for agent in missing if token_path(env, agent).is_file()]
-    notes += [f"minted agent token for {agent} -> {token_path(env, agent)}" for agent in minted]
+    kinds = {**{agent: "agent" for agent in agents}, **RUNNER_TOKENS}
+    missing = [name for name in kinds if not token_path(env, name).is_file()]
+    problems = [p for p in (_mint(env, name, kinds[name]) for name in missing) if p]
+    minted = [name for name in missing if token_path(env, name).is_file()]
+    notes += [f"minted {kinds[name]} token for {name} -> {token_path(env, name)}"
+              for name in minted]
     return notes, problems

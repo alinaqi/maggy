@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import stat
 from dataclasses import dataclass, field
 
-from maggy.harness.cli.awg_tokens import token_path
+from maggy.harness.cli.awg_tokens import RUNNER_TOKENS, token_path
 from maggy.harness.cli.detect import TESTED_VERSIONS, agent_version
 from maggy.harness.cli.env import ToolEnv
 from maggy.harness.compile import emitters_for
@@ -67,12 +68,22 @@ def _token_check(env: ToolEnv, agent: str, found: Findings) -> None:
         found.errors.append(f"{agent}: AWG not reachable with {path} (exit {done.returncode})")
 
 
+def _private_check(env: ToolEnv, name: str, found: Findings) -> None:
+    """A runner token must be owner-only (0600): it can submit work and attach CI evidence."""
+    path = token_path(env, name)
+    if path.is_file() and stat.S_IMODE(path.stat().st_mode) & 0o077:
+        found.errors.append(f"{name}: token file {path} must be mode 0600 (chmod 600 it)")
+
+
 def awg_checks(env: ToolEnv, profile: HarnessProfile, agents: list[str]) -> Findings:
     """Token files and AWG reachability per agent, then T3 advice."""
     found = Findings()
     if profile.work.provider == "awg":
         for agent in agents:
             _token_check(env, agent, found)
+        for name in RUNNER_TOKENS:
+            _private_check(env, name, found)
+            _token_check(env, name, found)
     if "t3" in profile.surfaces:
         found.info += T3_ADVICE
     return found

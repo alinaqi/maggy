@@ -36,7 +36,8 @@ def settle_intents(publisher: Publisher, claim: Claim) -> list[str]:
 
 def _dangling(note: dict, keys: set[str], ref: str) -> bool:
     key = annotation_key(note)
-    intent = (note.get("data") or {}).get("phase") == "intent"
+    data = note.get("data") or {}
+    intent = data.get("phase") == "intent" and data.get("action") in ("push", "pr")
     return intent and key.startswith(f"{ref}:") and f"{key}:result" not in keys
 
 

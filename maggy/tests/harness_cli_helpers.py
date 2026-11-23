@@ -75,5 +75,6 @@ def write_profile(env: ToolEnv, data: dict) -> Path:
 def write_tokens(env: ToolEnv, agents: list[str]) -> None:
     tokens = env.home / ".maggy" / "tokens"
     tokens.mkdir(parents=True, exist_ok=True)
-    for agent in agents:
+    for agent in [*agents, "runner-agent", "runner-ci"]:
         (tokens / f"{agent}.token").write_text("x")
+        (tokens / f"{agent}.token").chmod(0o600)

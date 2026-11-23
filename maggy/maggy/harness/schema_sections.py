@@ -88,6 +88,7 @@ class Intake(Strict):
     source: Literal["github", "awg", "none"] = "none"
     label: str | None = None
     status: str = "open"
+    capabilities: list[str] | None = None  # None: the runner's (maggy-runner, stage:build)
 
 
 class Worker(Strict):

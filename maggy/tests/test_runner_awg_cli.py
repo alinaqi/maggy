@@ -30,8 +30,7 @@ def test_next_claim_builds_argv_and_parses_lease(awg) -> None:
     fake.reply("next", LEASE)
     claim = client.next_claim(["maggy-runner", "stage:build"])
     assert fake.calls()[0]["argv"] == [
-        "--token-file", str(agent), "next", "--claim", "--capabilities=maggy-runner",
-        "--capabilities=stage:build", "--json"]
+        "--token-file", str(agent), "next", "--claim", "--capabilities=maggy-runner,stage:build", "--json"]
     assert (claim.ref, claim.attempt_id, claim.fencing_token) == ("AWG-7", "att-1", 4)
     assert (claim.version, claim.title, claim.lease_expires) == (3, "Add login", 1700000900.0)
     assert claim.acceptance_criteria == ["login works", "logout works"]
@@ -69,15 +68,27 @@ def test_lifecycle_calls_carry_fence_and_agent_token(awg) -> None:
 def test_evidence_alone_uses_the_ci_token(awg) -> None:
     client, fake, agent, ci = awg
     fake.reply("evidence", {"id": "ev-1", "trust_class": 3})
-    fake.reply("show", {"work": {"display_id": "AWG-7"}})
     spec = EvidenceSpec(kind="test", verdict="PASS", commit_sha="abc123",
-                        meta={"spec_version": "3"})
+                        meta={"spec_version": "3"}, validation="val-1")
     assert client.evidence(_claim(), spec) == {"id": "ev-1", "trust_class": 3}
-    client.show("AWG-7")
-    evidence, show = (call["argv"] for call in fake.calls())
+    [evidence] = (call["argv"] for call in fake.calls())
     assert evidence == ["--token-file", str(ci), "evidence", "--kind=test", "--verdict=PASS",
-                        "--commit-sha=abc123", "--meta=spec_version=3", "--json", "--", "AWG-7"]
-    assert show == ["--token-file", str(agent), "show", "--json", "--", "AWG-7"]
+                        "--commit-sha=abc123", "--validation=val-1", "--meta=spec_version=3",
+                        "--json", "--", "AWG-7"]
+
+
+def test_show_merges_validations_and_comments(awg) -> None:
+    client, fake, agent, _ = awg
+    fake.reply("show", {"work": {"display_id": "AWG-7", "version": 3}, "explain": {}})
+    fake.reply("proof", {"validations": [{"id": "val-1", "kind": "test", "required": True}]})
+    fake.reply("comments", {"items": [{"body": "[handoff att-1] resume"}]})
+    shown = client.show("AWG-7")
+    assert shown["work"]["version"] == 3
+    assert shown["validations"] == [{"id": "val-1", "kind": "test", "required": True}]
+    assert shown["comments"] == [{"body": "[handoff att-1] resume"}]
+    argvs = [call["argv"] for call in fake.calls()]
+    assert argvs == [["--token-file", str(agent), name, "--json", "--", "AWG-7"]
+                     for name in ("show", "proof", "comments")]
 
 
 def test_annotate_is_keyed_and_annotations_parse(awg) -> None:

@@ -11,6 +11,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 3)
 
 #### Added
+- **`maggy run intake`, runner tokens and the Phase 3 exit test against the real AWG**
+  (`maggy/runner/intake.py`, `evidence.py`, `harness/cli/awg_tokens.py`, `doctor_checks.py`,
+  `docs/runner.md`). `maggy run intake --repo OWNER/REPO [--label]` wraps `awg sync github
+  --label --capability maggy-runner --capability stage:build --json`. The label and
+  capabilities come from the repo profile's `intake.*` (new `intake.capabilities`), and
+  intake refuses to run without a label. `maggy harness init` mints
+  `~/.maggy/tokens/runner-agent.token` (kind agent) and `runner-ci.token` (kind ci), both
+  0600. `harness doctor` checks that both exist, are private and reach AWG. `maggy run` now
+  reads these files. An integration test runs the real awg CLI with a temp HOME/AWG_HOME,
+  `awg init` and minted tokens. It covers intake through a fake `gh`, `maggy run --once` (CI
+  evidence bound to the candidate SHA, agent evidence ignored, one draft PR, one submit) and
+  a SIGKILL after the push followed by a restart that converges. It skips, with the reason,
+  when no awg with the runner flags is present.
+
+#### Fixed
+- **Runner against the real AWG CLI:** these mismatches with the real CLI turned up in the
+  exit test.
+  - `next` now gets comma-separated `--capabilities`. Repeated flags kept only the last one,
+    so the runner never claimed anything.
+  - Evidence is now bound to the item's CI `test` validation through `--validation`. Without
+    it, AWG ignored the evidence for the completion contract.
+  - `CliAwgClient.show` now merges `awg proof` validations and the `awg comments` thread, so
+    the runner can find the validation and the previous attempt's handoff.
+  - Evidence is attached once per attempt, check and SHA, using keyed intent/result
+    annotations instead of evidence fields that `awg show` does not return.
 - **Crash recovery and startup reconciliation for `maggy run`** (`maggy/runner/state.py`,
   `recovery.py`, `publish_settle.py`; RFC personal-harness §2.4, §2.6.3). The runner records
   each held lease (claim, then the WorkerResult once checks ran) in

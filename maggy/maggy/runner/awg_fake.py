@@ -65,4 +65,5 @@ class FakeAwg(FakeAwgState):
                 "revision_sha": item.revision_sha, "attributes": dict(item.attributes),
                 "execution_policy": {"capabilities": sorted(item.capabilities)}}
         return {"work": work, "comments": list(item.comments),
-                "annotations": self.annotations(ref), "evidence": list(item.evidence)}
+                "annotations": self.annotations(ref), "evidence": list(item.evidence),
+                "validations": [dict(v) for v in item.validations]}
