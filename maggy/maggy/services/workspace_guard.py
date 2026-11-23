@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def merge_workspace(session: dict, repo_dir: Path, ws_dir: Path) -> bool:
     """Merge a completed session's workspace. True means safe to delete."""
-    if session.get("status") == "completed" and _merge(repo_dir, ws_dir):
+    if session.get("status") == "completed" and safe_merge(repo_dir, ws_dir):
         return True
     if session.get("status") == "completed":
         session["status"] = "merge_failed"
@@ -23,7 +23,7 @@ def merge_workspace(session: dict, repo_dir: Path, ws_dir: Path) -> bool:
     return False
 
 
-def _merge(repo_dir: Path, ws_dir: Path) -> bool:
+def safe_merge(repo_dir: Path, ws_dir: Path) -> bool:
     """Run merge_changes, treating any exception as a failed merge."""
     from maggy.orchestrator import merge
     try:

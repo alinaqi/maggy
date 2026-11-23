@@ -176,7 +176,7 @@ class TestIsolationDispatch:
 
         with patch(f"{_MOD}.provision_workspace", return_value="/ws/worktrees/s1"), \
              patch(f"{_MOD}.cleanup_workspace"), \
-             patch(f"{_MOD}.merge_changes", return_value=True), \
+             patch(f"{_MOD}.safe_merge", return_value=True), \
              patch(f"{_MOD}.async_create_container", new=_capture), \
              patch(f"{_MOD}.async_start_container", new_callable=AsyncMock), \
              patch(f"{_MOD}.async_wait_container", new_callable=AsyncMock, return_value=0), \
@@ -196,7 +196,7 @@ class TestIsolationDispatch:
         docker = AsyncMock()
         with patch(f"{_MOD}.provision_workspace", return_value="/ws/worktrees/s1"), \
              patch(f"{_MOD}.cleanup_workspace") as clean, \
-             patch(f"{_MOD}.merge_changes", return_value=True), \
+             patch(f"{_MOD}.safe_merge", return_value=True), \
              patch(f"{_MOD}.async_create_container", new=docker), \
              patch.object(svc, "_run_local", new_callable=AsyncMock, return_value=0) as local:
             result = await svc._run_one(session.subtasks[0], session)

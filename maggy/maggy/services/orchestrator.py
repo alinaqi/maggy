@@ -30,8 +30,8 @@ from maggy.orchestrator.isolation import (
     detect_capabilities,
     provision_workspace,
 )
-from maggy.orchestrator.merge import merge_changes
 from maggy.orchestrator.models import Result, RunSpec, Task
+from maggy.services.workspace_guard import safe_merge
 
 if TYPE_CHECKING:
     from maggy.adapters.pi import PiAdapter
@@ -183,7 +183,7 @@ class OrchestratorService:
     def _settle(self, repo: Path, workspace: str, result: Result) -> None:
         """Merge a successful workspace and clean it; otherwise keep it."""
         ok = result.status == "succeeded"
-        if ok and merge_changes(repo, Path(workspace)):
+        if ok and safe_merge(repo, Path(workspace)):
             try:
                 cleanup_workspace(self._isolation, repo, workspace)
             except Exception as exc:  # noqa: BLE001 - cleanup is best-effort

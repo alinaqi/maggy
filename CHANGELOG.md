@@ -22,6 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   their work sat unmerged. It now yields an error naming the preserved workspace path.
   The dead `parallel_running` status (no longer produced) was dropped from the
   running set.
+- **`maggy/services/orchestrator.py`** — `_settle` called `merge_changes` unguarded,
+  so an `OSError` (e.g. git missing, disk full) during the apply escaped `_run_one`
+  and lost the subtask result. It now uses `workspace_guard.safe_merge` (the
+  executor's guard, formerly `_merge`): any exception counts as a failed merge, the
+  workspace is kept and the subtask reports `failed`.
 
 ### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
 
