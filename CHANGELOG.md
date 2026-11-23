@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Personal Harness (Phase 3)
+
+#### Added
+- **`AwgClient` protocol, CLI-backed client and in-memory fake** (`maggy/runner/`, RFC
+  personal-harness §2.4, §2.6.1, §2.6.3). The runner's one interface to AWG: `next_claim`
+  (capability-filtered), `heartbeat`, `submit`, `release`, `block`, `handoff`, keyed
+  idempotent `annotate`/`annotations`, commit-bound `evidence`, `show`.
+  - `CliAwgClient` runs the awg CLI argv-only with `--token-file` and `--json`: the `agent`
+    token for every lifecycle call, a separate `ci` token for `evidence` alone (one file for
+    both is refused). Token secrets never enter argv or logs, and `AWG_TOKEN` is dropped from
+    the child env so an ambient credential cannot stand in. Lifecycle calls carry
+    `--attempt`/`--fencing-token`; refs follow `--` and free text uses `--opt=value`, so ticket
+    text can never parse as an option.
+  - awg failures map to typed errors: `FenceStale` (a `LeaseLost`), `Unauthorized`,
+    `NotFound`, `AwgUnavailable` (missing binary, timeout, retry-later codes), else `AwgError`.
+  - `FakeAwg` mirrors AWG Local in memory (leases that expire, fencing tokens and versions
+    bumped per claim, idempotent annotations, evidence trust from the credential: agent=1,
+    ci=3) to drive runner unit tests.
+  - `handoff` is written as an `awg comment` tagged with the attempt id, since the awg CLI has
+    no `handoff` command yet.
+
 ### Maggy: Personal Harness (Phase 2)
 
 #### Security
