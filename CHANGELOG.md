@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Agent-raised blockers** (RFC personal-harness §2.3). `maggy/worker/blocker.py`: a
+  line starting with `QUESTION:` in the agent's final text (markdown emphasis tolerated)
+  becomes the result's `Blocker` and turns a succeeded run into `outcome: blocked`;
+  protected-path blockers still take precedence. `BLOCKER_INSTRUCTIONS` tells agents the
+  convention (used by the replay prompts; Phase 3 adds it to runner-assembled prompts).
 - **Adapter `budget_flags`: CLIs that can cap their own spend get `per_run_usd`**
   (RFC personal-harness §2.6.4). Adapters may declare `budget_flags` (only the
   `{budget_usd}` placeholder is allowed) and splat them with `{budget_flags}`; the

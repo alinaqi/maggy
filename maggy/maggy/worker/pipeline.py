@@ -9,6 +9,7 @@ from pathlib import Path
 from maggy.harness.schema import HarnessProfile
 from maggy.harness.schema_sections import Budget
 from maggy.worker.adapter_spec import AdapterSpec
+from maggy.worker.blocker import agent_blocker
 from maggy.worker.budgeted import cost_limit_usd, reservation_usd, run_budgeted
 from maggy.worker.checks import CheckPlan, required_commands, run_checks
 from maggy.worker.commit import Candidate, commit_candidate
@@ -87,7 +88,8 @@ def _result(attempt: Attempt, run: Supervised,
     candidate, checks = found
     adapter = attempt.adapter
     parsed = parse_run(adapter.output, _raw(run), adapter.quota_patterns)
-    blocker = protected_blocker(protected_paths(candidate.changed_files, attempt.profile))
+    blocker = (protected_blocker(protected_paths(candidate.changed_files, attempt.profile))
+               or agent_blocker(parsed.final_text))
     outcome = "blocked" if blocker and run.outcome == "succeeded" else run.outcome
     return WorkerResult(outcome=outcome, candidate_commit=candidate.commit,
                         changed_files=candidate.changed_files, checks=checks,
