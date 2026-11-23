@@ -38,7 +38,8 @@ def test_intake_wraps_awg_sync_with_label_and_runner_capabilities(awg, tmp_path:
     assert result.exit_code == 0, result.output
     [call] = awg.calls()
     assert call["argv"] == ["sync", "github", "--label=factory", "--capability=maggy-runner",
-                            "--capability=stage:build", "--json", "--", "acme/shop"]
+                            "--capability=stage:build",
+                            f"--capability=project:{tmp_path.name}", "--json", "--", "acme/shop"]
     assert "created 1" in result.output and "AWG-3" in result.output
 
 
@@ -49,7 +50,8 @@ def test_intake_takes_label_and_capabilities_from_repo_profile(awg, tmp_path: Pa
     assert result.exit_code == 0, result.output
     assert awg.calls()[0]["argv"] == [
         "sync", "github", "--label=bot", "--capability=maggy-runner",
-        "--capability=stage:spec", "--project=SHOP", "--json", "--", "acme/shop"]
+        "--capability=stage:spec", "--capability=project:SHOP", "--project=SHOP", "--json", "--",
+        "acme/shop"]
 
 
 def test_intake_refuses_without_a_label(awg, tmp_path: Path) -> None:

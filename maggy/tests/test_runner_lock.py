@@ -13,7 +13,7 @@ from runner_loop_helpers import CAPS, EDIT_AGENT, make_rig
 def test_second_runner_leaves_a_live_runners_lease_alone(tmp_path: Path) -> None:
     rig = make_rig(tmp_path, EDIT_AGENT)
     with RunnerLock(lock_path(rig.state)):  # the first, live runner
-        claim = rig.awg.next_claim(CAPS)
+        claim = rig.awg.next_claim([*CAPS, "project:demo"])
         state_for(rig.runner.config).hold(claim)
         report = rig.runner.run_once()
         assert report.outcome == "locked", report

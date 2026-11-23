@@ -22,7 +22,8 @@ from maggy.harness.cli.env import ToolEnv
 
 AWG_BIN, SKIP_REASON = find_awg()
 pytestmark = pytest.mark.skipif(AWG_BIN is None, reason=f"real awg unavailable: {SKIP_REASON}")
-RUNNER_CAPS = ["--capability", "maggy-runner", "--capability", "stage:build"]
+RUNNER_CAPS = ["--capability", "maggy-runner", "--capability", "stage:build",
+               "--capability", "project:repo"]  # bound to the rig repo's project
 
 
 @pytest.fixture
@@ -75,7 +76,7 @@ def test_intake_then_run_once_publishes_with_ci_evidence(rig: ExitRig) -> None:
     [item] = rig.awg("list", "--json")["items"]
     ref = item["display_id"]
     assert ref in done.stdout and item["execution_policy"]["capabilities"] == [
-        "maggy-runner", "stage:build"]
+        "maggy-runner", "stage:build", "project:repo"]
     outcome, reported, sha = _run_once(rig)
     assert (outcome, reported) == ("submitted", ref)
     _assert_published(rig, ref, sha)

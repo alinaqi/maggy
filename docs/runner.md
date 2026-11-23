@@ -51,14 +51,21 @@ up DONE or VERIFYING. The design is in RFC personal-harness §2.4 and §2.6.
 
 ```
 maggy run intake --repo OWNER/REPO [--label factory] [--project KEY] [--checkout PATH]
+                 [--state-dir DIR]
 ```
 
 This wraps `awg sync github OWNER/REPO --label L --capability maggy-runner --capability
-stage:build --json`.
+stage:build --capability project:KEY --json`.
 
 - **Label:** intake is opt-in by label. The label comes from `--label` or `intake.label`.
   Without either, intake refuses to run.
 - **Capabilities:** taken from `intake.capabilities`, defaulting to the runner's own.
+- **Project binding:** every imported item also gets `project:KEY`. KEY is `--project`,
+  else the checkout's repo name, the same default `maggy run` uses. A runner only claims
+  items that declare `maggy-runner` and its own `project:KEY`, so a runner bound to repo A
+  never claims, builds, pushes or opens a PR for project B's items. (`awg next` has no
+  project filter yet, so the binding is carried as a required capability.)
+- **Pause:** intake refuses to run while KEY is paused.
 - **Credentials:** `awg sync` needs the AWG admin scope, so it runs with your own AWG
   credential, never with the runner's tokens. GitHub is read with your own `gh` login.
 
@@ -100,7 +107,10 @@ Two rules apply throughout:
   While STOP exists, nothing is claimed, reconciled, pushed or submitted. Delete the file to
   resume.
 - `maggy run pause --project KEY` and `maggy run resume --project KEY` stop and restart intake
-  for one project.
+  for one project: while KEY is paused, `maggy run intake` refuses to import for KEY and the
+  runner bound to KEY claims nothing. Runners bound to other projects keep working, and they
+  never claim KEY's items anyway (project binding above). Pause flags live in the state dir,
+  so pass the same `--state-dir` to `pause` as to `run` and `intake`.
 
 ## One runner per state dir, and retries
 

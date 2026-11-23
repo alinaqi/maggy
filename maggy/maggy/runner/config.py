@@ -16,6 +16,17 @@ CAPABILITIES = ["maggy-runner", "stage:build"]
 REQUIRED = ["maggy-runner"]  # opt-in: untagged items are never claimed (RFC §2.4)  # later stages arrive in Phase 4
 
 
+def project_capability(project: str) -> str:
+    """The capability binding an item to one project (a runner is bound per repo, RFC §2.4)."""
+    return f"project:{project}"
+
+
+def claim_capabilities(project: str) -> tuple[list[str], list[str]]:
+    """(held, required) for a runner bound to `project`: it only claims that project's items."""
+    tag = project_capability(project)
+    return [*CAPABILITIES, tag], [*REQUIRED, tag]
+
+
 @dataclass(frozen=True)
 class RunnerConfig:
     repo: Path

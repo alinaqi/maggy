@@ -10,7 +10,7 @@ from __future__ import annotations
 from time import sleep
 
 from maggy.runner.awg_client import AwgClient
-from maggy.runner.config import CAPABILITIES, REQUIRED, RunnerConfig
+from maggy.runner.config import CAPABILITIES, RunnerConfig, claim_capabilities
 from maggy.runner.control import is_paused, stop_file
 from maggy.runner.drive import drive
 from maggy.runner.lock import Locked, RunnerLock, lock_path
@@ -37,7 +37,9 @@ class Runner:
 
     def _pass(self) -> RunReport:
         """Reconcile leases a crashed run left, else at most one item: nothing is claimed
-        (or reconciled) while STOP exists, and nothing is claimed while the project is paused."""
+        (or reconciled) while STOP exists, and nothing is claimed while the project is paused.
+        Claims are bound to `config.project` (`project:<key>`), so another project's items
+        (paused or not) are never claimed here."""
         state = self.config.state_dir
         if stop_file(state).exists():
             return RunReport("stopped")
@@ -49,7 +51,7 @@ class Runner:
         return self._claim_and_drive()
 
     def _claim_and_drive(self) -> RunReport:
-        claim = self.awg.next_claim(list(CAPABILITIES), list(REQUIRED))
+        claim = self.awg.next_claim(*claim_capabilities(self.config.project))
         if claim is None:
             return RunReport("idle")
         held = state_for(self.config)
