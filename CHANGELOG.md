@@ -32,6 +32,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   symlink cleanly, the rollback left the symlink changed. Snapshots now record a
   symlink's target and restore it, so a failed merge leaves the repo untouched.
 
+#### Security
+- **`maggy/api/routes_orchestrator.py`** — `/api/orchestrator/*` (spawn a team,
+  cancel a team, list/get teams) had no auth, so in `auth_mode: token` anyone who
+  could reach the dashboard could spawn agent teams. The router now carries the same
+  `require_auth` (X-API-Key) dependency the core API uses.
+
 ### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
 
 #### Fixed

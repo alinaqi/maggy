@@ -8,12 +8,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from maggy.api.routes_orchestrator import router
+from maggy.config import DashboardConfig, MaggyConfig
 from maggy.orchestrator.models import Task
 from maggy.services.orchestrator import TeamSession
 
 
 def _app() -> FastAPI:
     app = FastAPI()
+    app.state.cfg = MaggyConfig(dashboard=DashboardConfig(auth_mode="local"))
     app.state.orchestrator = MagicMock()
     app.state.provider = AsyncMock()
     app.include_router(router)

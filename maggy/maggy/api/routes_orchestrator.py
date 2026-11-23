@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+
+from maggy.api.auth import require_auth
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/orchestrator", tags=["orchestrator"])
+# Every route spawns, cancels or reveals agent teams: all need the core API key.
+router = APIRouter(
+    prefix="/api/orchestrator", tags=["orchestrator"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 class SpawnRequest(BaseModel):
