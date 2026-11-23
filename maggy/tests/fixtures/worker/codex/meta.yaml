@@ -3,6 +3,11 @@ version: codex-cli 0.163.0
 parser: codex-jsonl
 help: help.txt
 quota_patterns: [rate limit, usage limit, '429']
+verified:
+  - 'adapter flags: help.txt excerpt regenerated from codex exec --help 0.163.0 on 2026-11-23'
+  - 'codex mcp list with a scratch CODEX_HOME: -c mcp_servers.awg.enabled=false shows awg disabled
+    when configured but errors (invalid transport) when it is not; adding -c mcp_servers.awg.command="awg"
+    gives awg disabled in both cases; -c mcp_servers={} has no effect (merge, not replace)'
 cases:
   success:
     file: success.jsonl

@@ -1,0 +1,29 @@
+# pi headless worker. Flags verified against `pi --help` 0.73.1
+# (tests/fixtures/worker/pi/help.txt, including its read-only example).
+name: pi
+tested_version: 0.73.1
+version_range: '>=0.73,<1'
+detect: [pi, --version]
+argv: [pi, -p, --mode, json, --no-session, '{awg_off_flags}', '{model_flags}',
+       '{permission_flags}', '{prompt}']
+cwd: '{workspace}'
+model_flags: [--model, '{model}']
+permissions:
+  read_only: [--tools, 'read,grep,find,ls']
+  workspace: []
+sandbox:
+  native: false
+  notes: tool allowlist only, no OS sandbox; writes/shell need isolation or allow_host_execution
+output: pi-jsonl
+instruction_file: AGENTS.md
+quota_patterns: [rate limit, rate_limit, '429']
+env:
+  provider_keys: [ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY]
+  auth_files: [~/.pi/agent/auth.json]
+disable_awg:
+  # No extension discovery: AWG's pi extension (and maggy-hooks.ts) are not loaded;
+  # the runner enforces hook gates for workers.
+  flags: [--no-extensions]
+  env: {}
+cost:
+  streams: true

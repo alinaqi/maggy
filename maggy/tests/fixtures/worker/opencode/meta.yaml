@@ -4,6 +4,11 @@ parser: opencode-json
 help: help.txt
 quota_patterns: [rate limit, '429']
 note: Synthetic; built from the opencode 1.19.6 'run --format json' emitter (step_start, text, tool_use, step_finish, error events). Not recorded live because opencode has no configured provider here.
+verified:
+  - 'adapter flags: help.txt excerpt regenerated from opencode run --help 1.19.6 on 2026-11-23'
+  - 'opencode debug config with a scratch HOME holding user and project configs that enable an awg MCP
+    server and allow edit/bash: OPENCODE_CONFIG_CONTENT set mcp.awg.enabled false and OPENCODE_PERMISSION
+    replaced the permission rules in the resolved config'
 cases:
   success:
     file: success.jsonl

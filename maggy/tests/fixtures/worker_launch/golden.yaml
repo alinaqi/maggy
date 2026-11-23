@@ -1,0 +1,56 @@
+# Golden launch output per shipped adapter and permission profile.
+# Rendered with allow_host_execution: true so every profile resolves.
+values: {prompt: Do the task, workspace: /ws, model: MODEL}
+launches:
+  claude:
+    read_only:
+      argv: [claude, -p, --no-session-persistence,
+             --permission-mode, plan, --tools, 'Read,Grep,Glob',
+             --strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg,
+             --model, MODEL, --output-format, json, Do the task]
+      env: {}
+      host_execution: false
+    workspace:
+      argv: [claude, -p, --no-session-persistence,
+             --permission-mode, acceptEdits, --settings,
+             '{"sandbox":{"enabled":true,"failIfUnavailable":true,"autoAllowBashIfSandboxed":true,"allowUnsandboxedCommands":false}}',
+             --strict-mcp-config, --mcp-config, '{"mcpServers":{}}', --disallowedTools, mcp__awg,
+             --model, MODEL, --output-format, json, Do the task]
+      env: {}
+      host_execution: false
+  codex:
+    read_only:
+      argv: [codex, exec, --json, --ephemeral,
+             -c, mcp_servers.awg.enabled=false, -c, 'mcp_servers.awg.command="awg"',
+             --sandbox, read-only, -m, MODEL, Do the task]
+      env: {}
+      host_execution: false
+    workspace:
+      argv: [codex, exec, --json, --ephemeral,
+             -c, mcp_servers.awg.enabled=false, -c, 'mcp_servers.awg.command="awg"',
+             --sandbox, workspace-write, -m, MODEL, Do the task]
+      env: {}
+      host_execution: false
+  opencode:
+    read_only:
+      argv: [opencode, run, --format, json, --pure, -m, MODEL, Do the task]
+      env:
+        OPENCODE_CONFIG_CONTENT: '{"mcp":{"awg":{"type":"local","command":["awg"],"enabled":false}}}'
+        OPENCODE_PERMISSION: '{"edit":"deny","bash":"deny","webfetch":"deny","websearch":"deny","task":"deny","external_directory":"deny"}'
+      host_execution: false
+    workspace:
+      argv: [opencode, run, --format, json, --pure, -m, MODEL, Do the task]
+      env:
+        OPENCODE_CONFIG_CONTENT: '{"mcp":{"awg":{"type":"local","command":["awg"],"enabled":false}}}'
+        OPENCODE_PERMISSION: '{"edit":"allow","bash":"allow","webfetch":"deny","websearch":"deny","external_directory":"deny"}'
+      host_execution: true
+  pi:
+    read_only:
+      argv: [pi, -p, --mode, json, --no-session, --no-extensions, --model, MODEL,
+             --tools, 'read,grep,find,ls', Do the task]
+      env: {}
+      host_execution: false
+    workspace:
+      argv: [pi, -p, --mode, json, --no-session, --no-extensions, --model, MODEL, Do the task]
+      env: {}
+      host_execution: true

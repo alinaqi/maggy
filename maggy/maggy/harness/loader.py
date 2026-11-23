@@ -49,6 +49,8 @@ def read_layer(path: Path, personal: bool = False) -> dict:
                 for key in find_secret_keys(raw)]
     if personal and "locked" in raw:
         problems.append("locked: only allowed in the repo profile")
+    if not personal and _sets_host_execution(raw):
+        problems.append("worker.allow_host_execution: only allowed in the personal profile")
     if problems:
         raise HarnessConfigError(path, problems)
     try:
@@ -56,6 +58,12 @@ def read_layer(path: Path, personal: bool = False) -> dict:
     except ValidationError as exc:
         raise HarnessConfigError(path, schema_problems(exc, raw)) from exc
     return raw
+
+
+def _sets_host_execution(raw: dict) -> bool:
+    """A repo must not grant itself host execution (RFC §2.6.7)."""
+    worker = raw.get("worker")
+    return isinstance(worker, dict) and "allow_host_execution" in worker
 
 
 def _load_yaml(path: Path) -> dict:

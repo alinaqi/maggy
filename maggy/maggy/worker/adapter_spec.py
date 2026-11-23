@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, Field, model_validator
 
 from maggy.harness.schema_sections import Strict
 from maggy.worker.templating import SPLATS, WHOLE, placeholder_problem
@@ -71,6 +71,7 @@ class AdapterSpec(Strict):
     cwd: Cwd = "{workspace}"
     model_flags: ModelFlags = []
     permissions: dict[str, Literals] = {}
+    permission_env: dict[str, dict[str, str]] = {}
     sandbox: Sandbox = Sandbox()
     output: Parser
     instruction_file: str | None = None
@@ -78,3 +79,14 @@ class AdapterSpec(Strict):
     env: AdapterEnv = AdapterEnv()
     disable_awg: DisableAwg = DisableAwg()
     cost: Cost = Cost()
+
+    @model_validator(mode="after")
+    def _permission_env_is_safe(self) -> AdapterSpec:
+        unknown = sorted(set(self.permission_env) - set(self.permissions))
+        if unknown:
+            raise ValueError(f"permission_env names unknown profile(s): {', '.join(unknown)}")
+        clash = sorted({key for env in self.permission_env.values() for key in env}
+                       & set(self.disable_awg.env))
+        if clash:
+            raise ValueError(f"permission_env must not override disable_awg.env: {', '.join(clash)}")
+        return self

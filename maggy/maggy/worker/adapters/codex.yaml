@@ -1,0 +1,31 @@
+# Codex headless worker. Flags verified against `codex exec --help` codex-cli 0.163.0
+# (tests/fixtures/worker/codex/help.txt); the -c override verified with `codex mcp list`.
+name: codex
+tested_version: 0.163.0
+version_range: '>=0.163,<0.200'
+detect: [codex, --version]
+# No --skip-git-repo-check: workspaces are git worktrees.
+argv: [codex, exec, --json, --ephemeral, '{awg_off_flags}', '{permission_flags}',
+       '{model_flags}', '{prompt}']
+cwd: '{workspace}'
+model_flags: [-m, '{model}']
+permissions:
+  read_only: [--sandbox, read-only]
+  workspace: [--sandbox, workspace-write]
+sandbox:
+  native: true
+  notes: --sandbox read-only / workspace-write (Seatbelt/Landlock), network off by default
+output: codex-jsonl
+instruction_file: AGENTS.md
+quota_patterns: [rate limit, usage limit, '429']
+env:
+  provider_keys: [OPENAI_API_KEY, CODEX_API_KEY]
+  auth_files: [~/.codex/auth.json]
+disable_awg:
+  # enabled=false alone fails ("invalid transport") when no awg server is configured;
+  # the command stub keeps the entry valid either way (verified with `codex mcp list`).
+  flags: [-c, mcp_servers.awg.enabled=false, -c, 'mcp_servers.awg.command="awg"']
+  env: {}
+cost:
+  streams: false
+  fixed_reservation_usd: 1.0

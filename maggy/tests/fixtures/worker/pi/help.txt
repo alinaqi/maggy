@@ -1,7 +1,29 @@
 # pi --help excerpt, pi 0.73.1
   --model <pattern>              Model pattern or ID (supports "provider/id" and optional ":<thinking>")
+--
   --mode <mode>                  Output mode: text (default), json, or rpc
+--
   --print, -p                    Non-interactive mode: process prompt and exit
+--
   --no-session                   Don't save session (ephemeral)
+--
   --models <patterns>            Comma-separated model patterns for Ctrl+P cycling
+                                 Supports globs (anthropic/*, *sonnet*) and fuzzy matching
+--
   --tools, -t <tools>            Comma-separated allowlist of tool names to enable
+                                 Applies to built-in, extension, and custom tools
+--
+  --no-extensions, -ne           Disable extension discovery (explicit -e paths still work)
+--
+  # Read-only mode (no file modifications possible)
+  pi --tools read,grep,find,ls -p "Review the code in src/"
+--
+Built-in Tool Names:
+  read   - Read file contents
+  bash   - Execute bash commands
+  edit   - Edit files with find/replace
+  write  - Write files (creates/overwrites)
+  grep   - Search file contents (read-only, off by default)
+  find   - Find files by glob pattern (read-only, off by default)
+  ls     - List directory contents (read-only, off by default)
+

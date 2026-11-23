@@ -6,7 +6,9 @@ from pathlib import Path
 
 import typer
 
-from maggy.harness.cli.doctor_checks import awg_checks, capability_gaps, capability_rows
+from maggy.harness.cli.doctor_checks import (
+    awg_checks, capability_gaps, capability_rows, host_execution_warnings,
+)
 from maggy.harness.cli.env import get_env
 from maggy.harness.cli.options import REPO, config_errors, load, selected_agents
 
@@ -18,6 +20,7 @@ def doctor(ctx: typer.Context, repo: Path = REPO) -> None:
         resolved = load(env, repo or Path.cwd())
     agents = selected_agents(resolved, None)
     found = awg_checks(env, resolved.profile, agents)
+    found.warnings += host_execution_warnings(resolved.profile)
     for row in capability_rows(env, agents, found):
         typer.echo(row)
     typer.echo("")
