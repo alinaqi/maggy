@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Personal Harness (Phase 2)
+
+#### Added
+- **`maggy/worker/`** — worker interface models and data-driven adapters (RFC
+  personal-harness §2.3, §2.6). Strict Pydantic models `WorkerSpec` (AWG ref,
+  attempt id and fencing token carried as plain data), `WorkerResult` (a
+  `blocked` outcome requires a `Blocker{question, options}`), `CheckResult` (a
+  check cannot pass with a non-zero exit). `AdapterSpec` schema for
+  `worker/adapters/*.yaml` (detect argv, argv template, cwd, permission
+  profile -> flags, native sandbox, output parser id, instruction file, quota
+  patterns, provider keys/auth files, AWG-disable flags/env, cost streaming and
+  fixed reservation). `load_adapters` reads shipped adapters, each replaced whole
+  by `~/.maggy/adapters/<name>.yaml` (dir injectable); bad files fail with file
+  and key path. Safe argv templating: placeholders only as whole elements
+  (`{prompt}`, `{model}`, `{workspace}`) or list splats (`{permission_flags}`,
+  `{model_flags}`, `{awg_off_flags}`); embedded or unknown placeholders are
+  load-time errors; `{prompt}` appears exactly once and values are never
+  re-scanned, so prompt text is always one literal argv element.
+  `assemble_prompt`/`wrap_untrusted` put ticket text in an
+  `<untrusted_ticket>` data section and defuse delimiter copies inside it.
+
 ### Maggy: Personal Harness (Phase 1)
 
 #### Added
