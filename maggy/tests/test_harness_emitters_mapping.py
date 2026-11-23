@@ -29,14 +29,14 @@ def test_read_only_profile_maps_to_denies_and_codex_read_only(tmp_path: Path) ->
     assert config["sandbox_mode"] == "read-only" and "sandbox_workspace_write" not in config
 
 
-def test_undefined_permission_profile_emits_codex_defaults_only(tmp_path: Path) -> None:
+def test_undefined_permission_profile_emits_no_codex_sandbox(tmp_path: Path) -> None:
     profile = fixture_profile(permissions={}, hooks={})
     scope = user_scope(tmp_path)
     claude = ClaudeEmitter(make_sources(tmp_path)).plan(profile, scope)
     assert not [c for c in claude if c.path.name == "settings.json"]
     codex = CodexEmitter(make_sources(tmp_path)).plan(profile, scope)
     config = tomllib.loads(by_name(codex, "config.toml").after)
-    assert config["sandbox_mode"] == "workspace-write"
+    assert "sandbox_mode" not in config and "approval_policy" not in config
     assert "sandbox_workspace_write" not in config
 
 

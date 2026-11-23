@@ -8,11 +8,13 @@ from maggy.harness.lock import LockEntry
 
 
 def classify(entry: LockEntry | None, disk: str | None, profile: str | None) -> str:
-    """new (never written), clean, pinned (user's text kept via --take-mine and
-    the profile has not moved since) or edited (a conflict). profile None means
-    the profile no longer has the region."""
+    """new (never written, and absent on disk or already the profile's text),
+    clean, pinned (user's text kept via --take-mine and the profile has not
+    moved since) or edited (a conflict). A value the user already has at a
+    managed key that differs from the profile is edited, never silently
+    replaced (first adoption). profile None means the region was dropped."""
     if entry is None:
-        return "new"
+        return "new" if disk is None or disk == profile else "edited"
     if not entry.matches(disk):
         return "edited"
     if entry.base is None:

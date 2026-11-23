@@ -28,7 +28,8 @@ CAPABILITIES = Capabilities(
         "[mcp_servers.awg] awg mcp --token-file ~/.maggy/tokens/codex.token in "
         "~/.codex/config.toml (user scope only)")),
     permissions=Capability(level="partial", notes=(
-        "sandbox_mode read-only/workspace-write and approval_policy on-request; no per-command "
+        "sandbox_mode read-only/workspace-write and approval_policy on-request, only when "
+        "worker.permission names a profile; no per-command "
         "allowlist; network=registries becomes full network access in workspace-write")),
 )
 

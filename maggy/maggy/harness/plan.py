@@ -31,7 +31,7 @@ def _skip(spec: ManagedFile, before: str | None, **update: Any) -> FileChange:
 
 
 def _diff3(conflicts: list[Region]) -> str:
-    return "\n".join(region_diff(r.rid, (r.entry.content or "", r.disk, r.profile or "")) for r in conflicts)
+    return "\n".join(region_diff(r.rid, ((r.entry.content if r.entry else None) or "", r.disk, r.profile or "")) for r in conflicts)
 
 
 class _Planner:
