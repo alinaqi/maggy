@@ -14,6 +14,7 @@ from pathlib import Path
 from maggy.harness.changes import FileChange, ManagedFile
 from maggy.harness.emitters.base import Capabilities, Capability, EmitterSources, Scope
 from maggy.harness.emitters.common import markdown, run_plan
+from maggy.harness.emitters.skills import SkillSet
 from maggy.harness.emitters.opencode_config import OpenCodeConfig
 from maggy.harness.emitters.sources import instructions_body
 from maggy.harness.schema import HarnessProfile
@@ -57,7 +58,7 @@ class OpenCodeEmitter:
     def plan(self, profile: HarnessProfile, scope: Scope) -> list[FileChange]:
         user = scope.kind == "user"
         skills_dir = config_dir(scope) / "skills" if user else scope.root / ".opencode" / "skills"
-        skills = (list(profile.skills), skills_dir)
+        skills = SkillSet(list(profile.skills), skills_dir)
         return run_plan(self.managed_files(profile, scope), skills, (self.sources, scope))
 
     def managed_files(self, profile: HarnessProfile, scope: Scope) -> list[ManagedFile]:

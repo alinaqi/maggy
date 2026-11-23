@@ -49,9 +49,8 @@ def test_every_agent_gets_the_identical_rules_block(env: ToolEnv) -> None:
 
 
 def test_every_agent_gets_the_same_skills(env: ToolEnv) -> None:
-    dirs = agent_dirs(env.home)
-    found = {agent: skill_names(dirs[agent] / "skills") for agent in AGENTS}
-    assert found == {agent: {"model-routing"} for agent in AGENTS}
+    found = {agent: skill_names(env.home, agent) for agent in AGENTS}
+    assert found == {agent: {"model-routing", "awg"} for agent in AGENTS}
 
 
 def test_every_agent_is_wired_to_awg_with_its_own_token(env: ToolEnv) -> None:

@@ -10,10 +10,11 @@ project scope: AGENTS.md + CLAUDE.md, .claude/settings.json, .mcp.json,
 from __future__ import annotations
 
 from maggy.harness.changes import FileChange, ManagedFile
-from maggy.harness.emitters.awg import claude_awg_server
+from maggy.harness.emitters.awg import awg_skill, claude_awg_server
 from maggy.harness.emitters.base import Capabilities, Capability, EmitterSources, Scope
 from maggy.harness.emitters.claude_settings import settings_regions
 from maggy.harness.emitters.common import markdown, run_plan
+from maggy.harness.emitters.skills import SkillSet
 from maggy.harness.emitters.sources import instructions_body
 from maggy.harness.schema import HarnessProfile
 
@@ -23,7 +24,8 @@ CAPABILITIES = Capabilities(
         "(user: ~/.claude/, project: repo root)")),
     skills=Capability(level="native", notes=(
         "~/.claude/skills/<name>/SKILL.md (project: .claude/skills); copies carry a "
-        "maggy:managed-skill marker; only SKILL.md is copied")),
+        "maggy:managed-skill marker; only SKILL.md is copied; user scope also gets AWG's skill "
+        "(plugins/claude-code/skills/awg, needs MAGGY_AWG_REPO)")),
     hooks=Capability(level="native", notes=(
         "settings.json hooks: session_start=SessionStart, before_tool=PreToolUse, after_tool and "
         "after_edit=PostToolUse, before_stop=Stop, before_compact=PreCompact, session_end=SessionEnd; "
@@ -49,7 +51,7 @@ class ClaudeEmitter:
 
     def plan(self, profile: HarnessProfile, scope: Scope) -> list[FileChange]:
         claude_dir = scope.root / ".claude"
-        skills = (list(profile.skills), claude_dir / "skills")
+        skills = SkillSet(list(profile.skills), claude_dir / "skills", awg_skill(self.sources, self.agent, (profile, scope)))
         return run_plan(self.managed_files(profile, scope), skills, (self.sources, scope))
 
     def managed_files(self, profile: HarnessProfile, scope: Scope) -> list[ManagedFile]:

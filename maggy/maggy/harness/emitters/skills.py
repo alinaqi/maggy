@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 from maggy.harness.changes import FileChange, HarnessContext
 from maggy.harness.emitters.base import EmitterSources
@@ -26,8 +27,19 @@ def managed_text(source: str) -> str:
     return f"{source[:cut]}{MARKER}\n{source[cut:]}"
 
 
-def plan_skills(names: list[str], skills_dir: Path, env: Env) -> list[FileChange]:
+class SkillSet(NamedTuple):
+    """Profile skill names (from the Maggy sources) plus extra name -> SKILL.md texts
+    (e.g. AWG's skill), all copied into `dir`."""
+
+    names: list[str]
+    dir: Path
+    extra: dict[str, str] = {}
+
+
+def plan_skills(skills: SkillSet, env: Env) -> list[FileChange]:
     sources, ctx = env
-    wanted = {skills_dir / n / "SKILL.md": managed_text(skill_source(sources, n)) for n in names}
+    texts = {**skills.extra, **{n: skill_source(sources, n) for n in skills.names}}
+    skills_dir = skills.dir
+    wanted = {skills_dir / n / "SKILL.md": managed_text(text) for n, text in texts.items()}
     stale = sorted(skills_dir.glob("*/SKILL.md")) if skills_dir.is_dir() else []
     return plan_copies(wanted, stale, (ctx, SKILL))
