@@ -17,10 +17,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query
+
+from maggy.api.auth import require_auth
+from maggy.api.project_guard import guarded_project_dir
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/testkit", tags=["testkit"])
+router = APIRouter(
+    prefix="/api/testkit", tags=["testkit"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 @dataclass
@@ -99,7 +105,6 @@ class ProjectDetector:
 
         return info
 
-    @staticmethod
     @staticmethod
     def _detect_python_arch(root, info):
         """Detect Python project architecture from code structure."""
@@ -505,18 +510,12 @@ async def run_regression_scan():
 
 # ── API routes ───────────────────────────────────────────────────────────
 
-@router.post("/run")
-async def run_full(request: Request, project_dir: str = Query("."), benchmark_runs: int = Query(3)):
-    if not _kit:
-        return {"error": "plugin not initialized"}
-    kit = E2ETestKit(project_dir) if project_dir != "." else _kit
-    run = kit.run_full(benchmark_runs)
+def _run_payload(run: TestRun) -> dict:
     return {
         "run_id": run.id, "summary": run.summary,
         "passed": sum(1 for r in run.results if r.passed),
         "total": len(run.results),
         "drift_signals": len(run.drift_signals),
-        "intent_bugs": len(run.intent_bugs),
         "benchmark_avg_ms": run.benchmark_score,
         "results": [{"name": r.name, "passed": r.passed, "category": r.category,
                       "error": r.error[:200]} for r in run.results],
@@ -527,8 +526,18 @@ async def run_full(request: Request, project_dir: str = Query("."), benchmark_ru
     }
 
 
+@router.post("/run")
+async def run_full(
+    project_dir: str = Depends(guarded_project_dir),
+    benchmark_runs: int = Query(3, ge=1, le=10),
+):
+    if not _kit:
+        return {"error": "plugin not initialized"}
+    return _run_payload(E2ETestKit(project_dir).run_full(benchmark_runs))
+
+
 @router.post("/drift")
-async def detect_drift(request: Request, project_dir: str = Query(".")):
+async def detect_drift(project_dir: str = Depends(guarded_project_dir)):
     kit = E2ETestKit(project_dir)
     signals = kit._drift.detect(kit._detector.detect(project_dir))
     return {"signals": [{"file": s.file, "score": s.divergence_score,
@@ -536,7 +545,7 @@ async def detect_drift(request: Request, project_dir: str = Query(".")):
 
 
 @router.post("/intent")
-async def detect_intent_bugs(request: Request, project_dir: str = Query(".")):
+async def detect_intent_bugs(project_dir: str = Depends(guarded_project_dir)):
     kit = E2ETestKit(project_dir)
     bugs = kit._intent.detect(kit._detector.detect(project_dir))
     return {"bugs": [{"node": b.reason_node, "flaw": b.flaw,
@@ -545,11 +554,16 @@ async def detect_intent_bugs(request: Request, project_dir: str = Query(".")):
 
 
 @router.get("/history")
-async def get_history(request: Request, project_dir: str = Query(".")):
+async def get_history(project_dir: str = Depends(guarded_project_dir)):
     path = Path.home() / ".maggy" / "testkit" / f"{Path(project_dir).name}-runs.json"
     if path.exists():
         return {"runs": json.loads(path.read_text())}
     return {"runs": []}
+
+
+def _safe_rglob(root: Path, pattern: str) -> list[Path]:
+    """rglob that returns [] for a missing root instead of crashing."""
+    return list(root.rglob(pattern)) if root.is_dir() else []
 
 
 def _read_json(path: Path) -> dict:

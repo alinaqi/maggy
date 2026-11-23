@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: telos and e2e-testkit routes require auth and a registered project
+
+#### Security
+- **`plugins/telos`, `plugins/e2e-testkit`** — every route (`/api/telos/status`,
+  `/api/testkit/run|drift|intent|history`) was unauthenticated and ran
+  pytest/benchmarks in any `project_dir` passed in. Both routers now use the
+  core `X-API-Key` check (new `require_auth` dependency in `maggy/api/auth.py`),
+  and `project_dir` must realpath-resolve inside a configured `projects[].path`
+  or `codebases[].path` (new `maggy/api/project_guard.py`). Anything else
+  (`../` traversal, symlinks out, sibling-prefix dirs, `.`, empty) gets 400/403
+  before any subprocess starts. The sandbox applies in `auth_mode=local` too.
+  Callers must now pass `project_dir` explicitly; the testkit's old `.` default
+  is rejected unless the server's working directory is a registered project.
+
+#### Fixed
+- **`plugins/e2e-testkit`** — `ProjectDetector` called an undefined
+  `_safe_rglob`, so every testkit route crashed on Python projects. It is now
+  defined and returns `[]` for a missing source dir.
+
 ### install.sh works on a clean HOME
 
 #### Fixed
