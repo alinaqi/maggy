@@ -58,6 +58,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ~/.maggy/tokens/<agent>.token` and never inline a token. Codex reports
   hooks=none (the runner enforces). `apply_changes` now supports `delete`
   changes (backup, remove, forget lock entry).
+- **OpenCode and pi emitters** (`emitters/opencode*.py`, `pi*.py`; RFC §2.2),
+  checked against opencode 1.19.6 and pi 0.73.1. OpenCode: `AGENTS.md` block in
+  `$XDG_CONFIG_HOME/opencode` (default `~/.config/opencode`) or the repo, and
+  `opencode.json` managed keys `instructions`, `mcp.awg` (`awg mcp --token-file
+  ~/.maggy/tokens/opencode.token`; project files use `{env:HOME}`),
+  `permission.edit/webfetch/websearch/bash` from the profile, and in user scope
+  AWG's heartbeat plugin (`plugin`) and skill (`skills.paths`) by path into the
+  AWG checkout; skills in `<config>/skills` / `.opencode/skills`. User list
+  entries and bash patterns are kept. Emitted config is tested against the real
+  1.19.6 config schema (`tests/fixtures/harness/`, taken from `opencode serve`
+  `/doc`) and resolved by the real binary when available. pi: `AGENTS.md` in
+  `~/.pi/agent` or the repo, skills in `~/.pi/agent/skills` / `.pi/skills`, a
+  generated `extensions/maggy-hooks.ts` that runs `$HOME/.maggy/hooks/<name>` on
+  pi events (hooks=partial: no stdin payload, only before_tool can block), and
+  in user scope AWG's pi extension copied into `~/.pi/agent/extensions/awg/`
+  (marker `// maggy:managed-extension`), its skill via `settings.json` `skills`
+  and the token file via `awg.json` `tokenFile`. The AWG checkout comes from
+  `MAGGY_AWG_REPO` (`EmitterSources.awg_repo`); without it the AWG plugin pieces
+  are skipped. Managed whole-file copies (skills, extensions) now share
+  `emitters/copies.py`. Adds `jsonschema` to the `test` extra.
 
 ### Maggy: Phase 0 hardening (review leftovers)
 

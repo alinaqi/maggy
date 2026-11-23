@@ -31,6 +31,7 @@ class EmitterSources(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     root: Path
+    awg_repo: Path | None = None
 
 
 class Scope(BaseModel):
