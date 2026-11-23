@@ -36,12 +36,12 @@ class AuthFileRef:
 def build_worker_env(adapter: AdapterSpec, base_env: Mapping[str, str]) -> dict[str, str]:
     """Allowlisted vars plus the adapter's declared provider keys; nothing else."""
     keys = {key: base_env[key] for key in adapter.env.provider_keys if key in base_env}
-    return {**_allowlisted(base_env), **keys}
+    return {**allowlisted(base_env), **keys}
 
 
 def build_check_env(base_env: Mapping[str, str], home: str) -> dict[str, str]:
     """Allowlisted vars only (no credentials, no provider keys), HOME = throwaway `home`."""
-    return {**_allowlisted(base_env), "HOME": home}
+    return {**allowlisted(base_env), "HOME": home}
 
 
 def with_path_prefix(env: dict[str, str], prefix: Path | None) -> dict[str, str]:
@@ -57,7 +57,7 @@ def auth_file_refs(adapter: AdapterSpec, home: str) -> list[AuthFileRef]:
             for path in adapter.env.auth_files]
 
 
-def _allowlisted(base_env: Mapping[str, str]) -> dict[str, str]:
+def allowlisted(base_env: Mapping[str, str]) -> dict[str, str]:
     return {key: value for key, value in base_env.items()
             if _allowed(key) and not looks_secret(key)}
 

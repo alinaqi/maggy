@@ -82,7 +82,7 @@ def test_missing_command_and_timeout_fail(tmp_path: Path) -> None:
     sha = init_repo(repo)
     sleeper = f"{sys.executable} -c 'import time; time.sleep(30)'"
     plan = CheckPlan(repo=repo, sha=sha, work_dir=tmp_path / "checks", timeout_s=0.5,
-                     commands=[("lint", None), ("test", sleeper)])
+                     commands=[("lint", None), ("test", sleeper)], profile=profile())
     lint, test = run_checks(plan)
     assert (lint.passed, lint.exit_code, lint.command) == (False, None, "")
     assert (test.passed, test.exit_code) == (False, None)

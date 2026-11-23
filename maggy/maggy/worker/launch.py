@@ -39,7 +39,7 @@ def resolve_launch(adapter: AdapterSpec, profile: HarnessProfile, permission: st
     if bypass:
         raise Refused(f"adapter {adapter.name} uses permission-bypass flag(s) {', '.join(bypass)}; "
                       "these are only allowed with isolation: container")
-    host = needs_boundary(perm) and not adapter.sandbox.native
+    host = _grants_boundary(adapter, perm, permission) and not adapter.sandbox.native
     if host and not profile.worker.allow_host_execution:
         raise Refused(f"adapter {adapter.name} has no native sandbox and permission {permission!r} "
                       f"allows writes or shell; {HOST_HINT}")
@@ -49,6 +49,19 @@ def resolve_launch(adapter: AdapterSpec, profile: HarnessProfile, permission: st
 
 def needs_boundary(perm: PermissionProfile) -> bool:
     return perm.write is not False or perm.shell is not False
+
+
+def refuse_host_checks(profile: HarnessProfile, what: str) -> None:
+    """Checks run candidate code; with no check sandbox yet they need the host opt-in."""
+    if not profile.worker.allow_host_execution:
+        raise Refused(f"required checks ({what}) would run candidate code on the host without "
+                      f"a sandbox; {HOST_HINT}")
+
+
+def _grants_boundary(adapter: AdapterSpec, perm: PermissionProfile, name: str) -> bool:
+    """The adapter's declared grant decides: a repo profile cannot talk it down."""
+    grant = adapter.grant(name)
+    return grant.write or grant.shell or needs_boundary(perm)
 
 
 def _permission(adapter: AdapterSpec, profile: HarnessProfile, name: str) -> PermissionProfile:

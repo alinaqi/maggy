@@ -1,7 +1,9 @@
 """Required checks, run by the runner in a fresh worktree at the candidate (RFC §2.6.2/7).
 
 Each configured command is split with shlex and run as argv (never a shell), with
-`build_check_env` (no credentials, throwaway HOME) and a per-check timeout.
+`build_check_env` (no credentials, throwaway HOME) and a per-check timeout. Checks run
+candidate code and there is no check sandbox yet, so they are refused unless the personal
+profile sets `worker.allow_host_execution: true` (fail closed, §2.6.7).
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from pathlib import Path
 
 from maggy.harness.schema import HarnessProfile
 from maggy.worker.env import build_check_env
+from maggy.worker.launch import refuse_host_checks
 from maggy.worker.models import CheckResult
 from maggy.worker.worktree import add_detached, remove_worktree
 
@@ -29,6 +32,7 @@ class CheckPlan:
     work_dir: Path
     commands: list[Command]
     timeout_s: float = 600
+    profile: HarnessProfile | None = None  # its worker policy gates host execution
 
 
 def required_commands(profile: HarnessProfile) -> list[Command]:
@@ -41,6 +45,7 @@ def run_checks(plan: CheckPlan) -> list[CheckResult]:
     """Run every command in a fresh detached worktree at plan.sha, then remove it."""
     if not plan.commands:
         return []
+    refuse_host_checks(plan.profile or HarnessProfile(), ", ".join(n for n, _ in plan.commands))
     checkout = add_detached(plan.repo, plan.sha, plan.work_dir / "checkout")
     try:
         with tempfile.TemporaryDirectory(prefix="maggy-check-home-") as home:

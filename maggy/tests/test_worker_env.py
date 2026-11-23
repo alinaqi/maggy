@@ -16,7 +16,8 @@ SAFE = {"PATH": "/usr/bin:/bin", "HOME": "/home/dev", "LANG": "en_US.UTF-8",
 SECRETS = {"AWG_TOKEN": "a", "GITHUB_TOKEN": "g", "GH_TOKEN": "h", "AWS_SECRET_ACCESS_KEY": "s",
            "OPENAI_API_KEY": "o", "ANTHROPIC_API_KEY": "k", "SSH_AUTH_SOCK": "/tmp/ssh",
            "FOO_TOKEN": "f", "GITLAB_TOKEN": "l", "MAGGY_API_SECRET": "m", "DB_PASSWORD": "p",
-           "LC_SECRET_TOKEN": "t", "AWS_PROFILE": "prod", "GEMINI_API_KEY": "gm"}
+           "LC_SECRET_TOKEN": "t", "AWS_PROFILE": "prod", "GEMINI_API_KEY": "gm",
+           "CODEX_API_KEY": "cx", "CLAUDE_CODE_OAUTH_TOKEN": "co", "OPENROUTER_API_KEY": "or"}
 BASE = {**SAFE, **SECRETS}
 
 
@@ -28,6 +29,12 @@ def test_claude_worker_keeps_only_its_key_and_allowlist():
 def test_codex_worker_keeps_only_openai_key_and_allowlist():
     env = build_worker_env(shipped("codex"), BASE)
     assert env == {**SAFE, "OPENAI_API_KEY": "o"}
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "opencode", "pi"])
+def test_every_shipped_worker_gets_at_most_one_provider_key(name):
+    env = build_worker_env(shipped(name), BASE)
+    assert len(set(env) & set(SECRETS)) <= 1
 
 
 def test_check_env_has_no_credentials_and_throwaway_home():

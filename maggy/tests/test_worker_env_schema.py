@@ -48,3 +48,8 @@ def test_auth_file_refs_expand_home_and_are_read_only():
     refs = auth_file_refs(spec, "/home/dev")
     assert [str(ref.path) for ref in refs] == ["/home/dev/.fake/auth.json", "/etc/fake.json"]
     assert all(ref.read_only for ref in refs)
+
+
+def test_more_than_one_provider_key_is_rejected():
+    with pytest.raises(ValidationError, match="provider_keys"):
+        AdapterSpec.model_validate(_env(provider_keys=["OPENAI_API_KEY", "CODEX_API_KEY"]))

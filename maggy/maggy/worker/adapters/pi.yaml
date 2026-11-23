@@ -11,6 +11,9 @@ model_flags: [--model, '{model}']
 permissions:
   read_only: [--tools, 'read,grep,find,ls']
   workspace: []
+# read_only allows only read,grep,find,ls; workspace has every tool (default grant).
+grants:
+  read_only: {write: false, shell: false}
 sandbox:
   native: false
   notes: tool allowlist only, no OS sandbox; writes/shell need isolation or allow_host_execution
@@ -18,7 +21,9 @@ output: pi-jsonl
 instruction_file: AGENTS.md
 quota_patterns: [rate limit, rate_limit, '429']
 env:
-  provider_keys: [ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY]
+  # One key only (RFC §2.6.1); other providers: auth file, or override this adapter
+  # in ~/.maggy/adapters/pi.yaml.
+  provider_keys: [ANTHROPIC_API_KEY]
   auth_files: [~/.pi/agent/auth.json]
 disable_awg:
   # No extension discovery: AWG's pi extension (and maggy-hooks.ts) are not loaded;

@@ -83,6 +83,10 @@ def _fake_cli_on_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_live_runs_the_cli_on_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     marker = _fake_cli_on_path(tmp_path, monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # a personal profile for this test only
+    personal = tmp_path / "home" / ".maggy" / "harness.yaml"
+    personal.parent.mkdir(parents=True)
+    personal.write_text("worker: {allow_host_execution: true}\n")
     opts = ReplayOptions(agents=["claude"], tasks=["ambiguous"], live=True,
                          work_dir=tmp_path / "w", state_dir=tmp_path / "state")
     [row] = run_replay(opts).rows
@@ -90,9 +94,15 @@ def test_live_runs_the_cli_on_path(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert (row.verdict, row.outcome, row.blocker) == ("pass", "blocked", "Which?")
 
 
-def test_live_refuses_unsandboxed_agents_without_host_opt_in(tmp_path: Path) -> None:
-    opts = ReplayOptions(agents=["opencode"], tasks=["implement"], live=True,
+@pytest.mark.parametrize("case", [("opencode", "no native sandbox"),
+                                  ("claude", "required checks")])
+def test_live_refuses_without_host_opt_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                          case: tuple[str, str]) -> None:
+    """opencode: no native sandbox; claude: its required checks would lack a boundary."""
+    agent, why = case
+    marker = _fake_cli_on_path(tmp_path, monkeypatch)
+    opts = ReplayOptions(agents=[agent], tasks=["implement"], live=True,
                          work_dir=tmp_path / "w", state_dir=tmp_path / "state")
     [row] = run_replay(opts).rows
-    assert (row.verdict, row.outcome) == ("refused", None)
-    assert "allow_host_execution" in (row.reason or "")
+    assert (row.verdict, row.outcome) == ("refused", None) and not marker.exists()
+    assert why in (row.reason or "") and "allow_host_execution" in (row.reason or "")

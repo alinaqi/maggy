@@ -19,6 +19,9 @@ permissions:
   # sandbox (failIfUnavailable: refuse rather than run unsandboxed).
   workspace: [--permission-mode, acceptEdits, --settings,
               '{"sandbox":{"enabled":true,"failIfUnavailable":true,"autoAllowBashIfSandboxed":true,"allowUnsandboxedCommands":false}}']
+# What each mapping really allows (the launch policy uses these, not the profile).
+grants:
+  read_only: {write: false, shell: false}
 sandbox:
   native: true
   notes: permission modes plus sandbox settings (Seatbelt/bubblewrap) for Bash
@@ -26,7 +29,8 @@ output: claude-json
 instruction_file: CLAUDE.md
 quota_patterns: [rate limit, rate_limit, usage limit, '429']
 env:
-  provider_keys: [ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN]
+  # One key only (RFC §2.6.1); a subscription login is read from the real HOME.
+  provider_keys: [ANTHROPIC_API_KEY]
   auth_files: []
 disable_awg:
   # --strict-mcp-config ignores .mcp.json/~/.claude.json servers but NOT plugin MCP

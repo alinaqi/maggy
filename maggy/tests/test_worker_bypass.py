@@ -26,6 +26,7 @@ PLACES = {
     "argv": lambda d, f: d.update(argv=["fake", f, "{prompt}"]),
     "permissions": lambda d, f: d["permissions"].update(read_only=["--mode", f]),
     "model_flags": lambda d, f: d.update(model_flags=[f, "--model", "{model}"]),
+    "budget_flags": lambda d, f: d.update(budget_flags=["--max-budget-usd", "{budget_usd}", f]),
     "disable_awg": lambda d, f: d["disable_awg"].update(flags=[f]),
     "env": lambda d, f: d["disable_awg"].update(env={"FAKE_MODE": f}),
 }
