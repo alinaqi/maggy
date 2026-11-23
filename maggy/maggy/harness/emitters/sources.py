@@ -19,8 +19,11 @@ _PROFILE = "<harness profile>"
 
 
 def default_sources() -> EmitterSources:
+    """Maggy repo (or MAGGY_HARNESS_SOURCES); AWG checkout from MAGGY_AWG_REPO, if set."""
     override = os.environ.get("MAGGY_HARNESS_SOURCES")
-    return EmitterSources(root=Path(override) if override else Path(__file__).resolve().parents[4])
+    awg = os.environ.get("MAGGY_AWG_REPO")
+    return EmitterSources(root=Path(override) if override else Path(__file__).resolve().parents[4],
+                          awg_repo=Path(awg).expanduser() if awg else None)
 
 
 def safe_name(key: str, name: str) -> str:

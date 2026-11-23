@@ -1,0 +1,73 @@
+=== <TMP>/repo/AGENTS.md [create/ok]
+<!-- maggy:begin instructions -->
+## TDD
+
+Write the failing test first.
+
+## Security
+
+No secrets in code.
+<!-- maggy:end instructions -->
+
+=== <TMP>/repo/.pi/skills/python/SKILL.md [create/ok]
+---
+name: python
+description: python skill
+---
+<!-- maggy:managed-skill -->
+
+# python
+
+Use python well.
+
+=== <TMP>/repo/.pi/skills/react-web/SKILL.md [create/ok]
+---
+name: react-web
+description: react-web skill
+---
+<!-- maggy:managed-skill -->
+
+# react-web
+
+Use react-web well.
+
+=== <TMP>/repo/.pi/extensions/maggy-hooks.ts [create/ok]
+// maggy:managed-extension
+// Maggy harness hooks for pi, generated from the harness profile; edits are reported as conflicts.
+import { spawnSync } from "node:child_process";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const HOOKS: Record<string, string[]> = {
+  "session_start": [
+    "load-memory"
+  ],
+  "after_edit": [
+    "lint-changed"
+  ],
+  "before_stop": [
+    "run-focused-tests"
+  ]
+};
+const EDIT_TOOLS = new Set(["edit", "write"]);
+
+function run(field: string): boolean {
+  for (const name of HOOKS[field] ?? []) {
+    const result = spawnSync(join(homedir(), ".maggy", "hooks", name), [], { stdio: "ignore" });
+    if (typeof result.status === "number" && result.status !== 0) return false;
+  }
+  return true;
+}
+
+export default function (pi: any) {
+  pi.on("session_start", async () => { run("session_start"); });
+  pi.on("tool_call", async () => (run("before_tool") ? undefined
+    : { block: true, reason: "Maggy before_tool hook failed" }));
+  pi.on("tool_result", async (event: any) => {
+    run("after_tool");
+    if (EDIT_TOOLS.has(event.toolName)) run("after_edit");
+  });
+  pi.on("agent_end", async () => { run("before_stop"); });
+  pi.on("session_before_compact", async () => { run("before_compact"); });
+  pi.on("session_shutdown", async () => { run("session_end"); });
+}

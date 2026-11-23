@@ -48,3 +48,19 @@ def codex_sandbox(profile: HarnessProfile) -> dict:
     if perm is not None and not read_only:
         regions["sandbox_workspace_write.network_access"] = perm.network is not False
     return regions
+
+
+def opencode_rules(profile: HarnessProfile) -> dict[str, object]:
+    """opencode.json permission.<tool>: edit, webfetch/websearch, bash. network=registries has no
+    rule; shell=allowlist asks for everything and allows each profile command (last match wins)."""
+    perm = active_permission(profile)
+    if perm is None:
+        return {}
+    rules: dict[str, object] = {}
+    for value, tools in ((perm.write, ["edit"]), (perm.network, ["webfetch", "websearch"]),
+                         (perm.shell, ["bash"])):
+        action = _bucket(value)
+        rules.update({tool: action for tool in tools if action})
+    if perm.shell == "allowlist":
+        rules["bash"] = {"*": "ask", **{cmd: "allow" for cmd in _commands(profile)}}
+    return rules

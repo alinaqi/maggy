@@ -1,0 +1,59 @@
+=== <TMP>/repo/AGENTS.md [create/ok]
+<!-- maggy:begin instructions -->
+## TDD
+
+Write the failing test first.
+
+## Security
+
+No secrets in code.
+<!-- maggy:end instructions -->
+
+=== <TMP>/repo/opencode.json [create/ok]
+{
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "*": "ask",
+      "pytest -q": "allow",
+      "ruff check .": "allow"
+    }
+  },
+  "mcp": {
+    "awg": {
+      "type": "local",
+      "command": [
+        "awg",
+        "mcp",
+        "--token-file",
+        "{env:HOME}/.maggy/tokens/opencode.token"
+      ],
+      "enabled": true
+    }
+  }
+}
+
+=== <TMP>/repo/.opencode/skills/python/SKILL.md [create/ok]
+---
+name: python
+description: python skill
+---
+<!-- maggy:managed-skill -->
+
+# python
+
+Use python well.
+
+=== <TMP>/repo/.opencode/skills/react-web/SKILL.md [create/ok]
+---
+name: react-web
+description: react-web skill
+---
+<!-- maggy:managed-skill -->
+
+# react-web
+
+Use react-web well.

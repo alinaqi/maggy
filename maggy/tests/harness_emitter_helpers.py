@@ -38,6 +38,23 @@ def make_sources(tmp_path: Path) -> EmitterSources:
     return EmitterSources(root=root)
 
 
+def make_awg_repo(tmp_path: Path) -> Path:
+    """A stand-in AWG checkout with the plugin files the OpenCode and pi emitters reference."""
+    repo = tmp_path / "awg-repo"
+    write(repo / "plugins" / "opencode" / "plugin" / "awg.js", "export default async () => ({})\n")
+    write(repo / "plugins" / "opencode" / "skills" / "awg" / "SKILL.md", SKILL.format(name="awg"))
+    ext = repo / "plugins" / "pi" / "extensions" / "awg"
+    write(ext / "index.ts", "import { register } from './run.ts'\n\nexport default register\n")
+    write(ext / "run.ts", "export function register (pi: any) {\n  pi.registerCommand('awg', "
+          "{ description: 'AWG', handler: async () => {} })\n}\n")
+    write(repo / "plugins" / "pi" / "skills" / "awg" / "SKILL.md", SKILL.format(name="awg"))
+    return repo
+
+
+def awg_sources(tmp_path: Path) -> EmitterSources:
+    return make_sources(tmp_path).model_copy(update={"awg_repo": make_awg_repo(tmp_path)})
+
+
 def user_scope(tmp_path: Path) -> Scope:
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)

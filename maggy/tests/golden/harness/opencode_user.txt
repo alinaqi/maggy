@@ -1,0 +1,72 @@
+=== <TMP>/home/.config/opencode/AGENTS.md [create/ok]
+<!-- maggy:begin instructions -->
+## TDD
+
+Write the failing test first.
+
+## Security
+
+No secrets in code.
+<!-- maggy:end instructions -->
+
+=== <TMP>/home/.config/opencode/opencode.json [create/ok]
+{
+  "instructions": [
+    "<TMP>/home/.config/opencode/AGENTS.md"
+  ],
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "*": "ask",
+      "pytest -q": "allow",
+      "ruff check .": "allow"
+    }
+  },
+  "mcp": {
+    "awg": {
+      "type": "local",
+      "command": [
+        "awg",
+        "mcp",
+        "--token-file",
+        "<TMP>/home/.maggy/tokens/opencode.token"
+      ],
+      "enabled": true
+    }
+  },
+  "plugin": [
+    [
+      "file://<TMP>/awg-repo/plugins/opencode/plugin/awg.js",
+      {
+        "tokenFile": "<TMP>/home/.maggy/tokens/opencode.token"
+      }
+    ]
+  ],
+  "skills": {
+    "paths": [
+      "<TMP>/awg-repo/plugins/opencode/skills"
+    ]
+  }
+}
+
+=== <TMP>/home/.config/opencode/skills/python/SKILL.md [create/ok]
+---
+name: python
+description: python skill
+---
+<!-- maggy:managed-skill -->
+
+# python
+
+Use python well.
+
+=== <TMP>/home/.config/opencode/skills/react-web/SKILL.md [create/ok]
+---
+name: react-web
+description: react-web skill
+---
+<!-- maggy:managed-skill -->
+
+# react-web
+
+Use react-web well.
