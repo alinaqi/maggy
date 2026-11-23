@@ -68,7 +68,16 @@ def _assert_published(rig: ExitRig, ref: str, sha: str) -> dict:
     return proof
 
 
+def _intake_straight_to_build(rig: ExitRig) -> None:
+    """Intake tags new items stage:spec by default; this profile sends them to build."""
+    profile = rig.home / ".maggy" / "harness.yaml"
+    data = json.loads(profile.read_text())
+    data["intake"] = {"capabilities": ["maggy-runner", "stage:build"]}
+    profile.write_text(json.dumps(data))
+
+
 def test_intake_then_run_once_publishes_with_ci_evidence(rig: ExitRig) -> None:
+    _intake_straight_to_build(rig)
     rig.gh.issues([issue(1, ["factory"]), issue(2, ["question"])])
     done = rig.maggy("run", "intake", "--repo", "acme/shop", "--label", "factory",
                      "--awg-bin", str(rig.awg_bin), "--checkout", str(rig.repo))

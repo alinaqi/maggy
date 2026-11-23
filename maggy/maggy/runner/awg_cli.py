@@ -37,7 +37,10 @@ class CliAwgClient(PlanCli):
         return cast(dict, self._agent(command("release", options, claim.ref)))
 
     def block(self, claim: Claim, question: str, human: bool = True) -> dict:
-        options = [*fence(claim), f"--reason={question}", *(["--human"] if human else [])]
+        """`awg block` takes no fence flags: callers fence it with `session.verify()` first.
+        A human block also posts the question as the item's comment."""
+        asked = ["--human", f"--question={question}"] if human else []
+        options = [f"--reason={question}", *asked]
         return cast(dict, self._agent(command("block", options, claim.ref)))
 
     def handoff(self, claim: Claim, text: str) -> dict:

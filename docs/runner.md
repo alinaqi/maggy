@@ -1,6 +1,7 @@
 # Maggy runner (`maggy run`)
 
-The runner claims AWG work items that need the `maggy-runner` and `stage:build` capabilities.
+The runner claims AWG work items that need the `maggy-runner` capability and one of
+`stage:spec`, `stage:plan` or `stage:build` (see Stages).
 Claiming is opt-in: it passes `--require-capabilities=maggy-runner`, so an item that declares
 no capabilities (a hand-made task, an unlabelled import) is never claimed.
 It runs a worker in the item's own worktree, runs the required checks itself, and attaches
@@ -55,11 +56,14 @@ maggy run intake --repo OWNER/REPO [--label factory] [--project KEY] [--checkout
 ```
 
 This wraps `awg sync github OWNER/REPO --label L --capability maggy-runner --capability
-stage:build --capability project:KEY --json`.
+stage:spec --capability project:KEY --json`, so every imported ticket starts at the spec
+stage.
 
 - **Label:** intake is opt-in by label. The label comes from `--label` or `intake.label`.
   Without either, intake refuses to run.
-- **Capabilities:** taken from `intake.capabilities`, defaulting to the runner's own.
+- **Capabilities:** taken from `intake.capabilities`, defaulting to `maggy-runner,
+  stage:spec`. Set `[maggy-runner, stage:build]` to skip spec and plan for tickets that
+  are already precise.
 - **Project binding:** every imported item also gets `project:KEY`. KEY is `--project`,
   else the checkout's repo name, the same default `maggy run` uses. A runner only claims
   items that declare `maggy-runner` and its own `project:KEY`, so a runner bound to repo A
@@ -78,7 +82,8 @@ maggy run --repo PATH          # loop until STOP; sleeps when idle or paused
 
 Each item goes through these steps:
 
-1. Claim, then show the item. Only the `build` stage runs; other stages are given back.
+1. Claim, then show the item. A `stage:spec` or `stage:plan` item goes to that stage (see
+   Stages); the steps below are the build stage.
 2. Open the worktree on `maggy/<ref>`. A branch from an earlier attempt is resumed, not reset.
 3. Run the worker under a heartbeat. If the heartbeat fails, the worker's process group is
    killed.
@@ -98,6 +103,41 @@ Two rules apply throughout:
   fencing token is still the live one.
 - **Branch rule:** the runner pushes only `maggy/*` branches. It never merges and never marks
   a PR ready.
+
+## Stages
+
+`maggy run` claims with `--capabilities=maggy-runner,stage:spec,stage:plan,stage:build,
+project:KEY`. `worker.stages` in the profile (default `[spec, plan, build]`) restricts which
+stages a runner holds, so one machine can, for example, only build. Each claimed item is
+driven by its `stage:<name>` capability:
+
+```
+intake -> stage:spec --(question)--> WAITING_HUMAN --(human answers, READY)--> stage:spec
+       -> spec approved -> stage:plan --(high-risk paths)--> WAITING_HUMAN (plan-approved)
+       -> children READY with stage:build, parent parked as stage:planned -> build -> draft PR
+```
+
+- **Spec** (`stage:spec`). A read-only author (`agents.default`) returns one fenced json
+  block of acceptance criteria; a reviewer in a fresh session (`agents.prefer.review`)
+  returns `ready`, `needs_clarification` or `blocked`. Malformed output gets one retry
+  with the validation error, then the attempt fails without touching the graph.
+  - `needs_clarification`: exactly ONE question, posted as the item's comment, and the
+    item goes WAITING_HUMAN. Answer with `awg comment REF "..."`, then
+    `awg state REF READY`; the next author run sees the comments.
+  - `ready`: the WORK criteria become `[AC1] ...` lines (bumping the WORK version), one
+    REQUIREMENT node per criterion, and a `spec-approved` DECISION recording the spec
+    version and the criteria fingerprint. The item is re-tagged `stage:plan`.
+- **Plan** (`stage:plan`). If the criteria changed since approval, the item goes back to
+  `stage:spec`. A read-only planner returns tasks (files, `depends_on`) and a per-criterion
+  test plan, checked as an acyclic DAG covering every criterion. Children are created in
+  BACKLOG with `stage:build`, linked DEPENDS_ON, and given one VALIDATION per test-plan
+  entry (linked to the criterion's REQUIREMENT node) before any of them is READY. Plans that
+  touch `risk.high` or the spec's risk paths wait for a human `plan-approved` DECISION.
+- **Build** (`stage:build`): the steps under Running, per child, in dependency order.
+
+The Phase 4 exit test (`tests/test_runner_phase4_exit.py`) runs this whole flow against the
+real awg CLI with recorded agent replies: an ambiguous ticket gets one question, the test
+answers it, and the first child ends as a draft PR with CI-trust evidence.
 
 ## Kill switch
 
