@@ -26,6 +26,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   when no awg with the runner flags is present.
 
 #### Fixed
+- **Runner claims are bound to the repo's project; pause covers intake** (`maggy/runner/config.py`,
+  `loop.py`, `intake.py`, `docs/runner.md`). A runner bound to repo A could claim any
+  `maggy-runner` item in the workspace, including project B's, and build, push and open a PR
+  for it in repo A; `maggy run pause --project B` did not stop that, and `maggy run intake`
+  ignored the pause flag. Intake now tags items `project:KEY` (KEY: `--project`, else the
+  checkout's repo name), the runner requires and holds `project:<its project>` when claiming,
+  and intake refuses while KEY is paused (new `--state-dir`). `awg next` has no `--project`
+  filter, so the binding rides on the required capability. Items created before this change
+  need a `project:KEY` capability to be claimed again.
 - **Runner review findings (Phase 3)** (`maggy/runner/loop.py`, `lock.py`, `retry.py`,
   `recovery.py`, `control.py`, `awg_cli.py`, `publish_gh.py`, `worker/pidfile.py`,
   `harness/cli/doctor_checks.py`, `docs/runner.md`). The runner claimed items that never

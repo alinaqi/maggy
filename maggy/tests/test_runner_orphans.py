@@ -22,7 +22,7 @@ def _orphan() -> subprocess.Popen:
 
 def test_reconcile_kills_the_orphaned_worker_and_unlinks_its_pid_file(tmp_path: Path) -> None:
     rig = make_rig(tmp_path, EDIT_AGENT)
-    claim = rig.awg.next_claim(CAPS)  # the crashed runner's lease
+    claim = rig.awg.next_claim([*CAPS, "project:demo"])  # the crashed runner's lease
     state_for(rig.runner.config).hold(claim)
     orphan, pid_file = _orphan(), pid_dir(rig.state) / f"{claim.attempt_id}.pid"
     try:

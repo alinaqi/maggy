@@ -31,7 +31,7 @@ def test_evidence_without_a_test_validation_is_unbound(tmp_path: Path) -> None:
 
 def test_evidence_is_attached_once_and_recorded_as_intent_and_result(tmp_path: Path) -> None:
     rig = make_rig(tmp_path, EDIT_AGENT)
-    session = Session(rig.awg, rig.awg.next_claim(CAPS), rig.runner.config)
+    session = Session(rig.awg, rig.awg.next_claim([*CAPS, "project:demo"]), rig.runner.config)
     result = result_for("a" * 40)
     attach_evidence(session, result)
     attach_evidence(session, result)  # a roll-forward re-runs conclude

@@ -9,6 +9,7 @@ from pathlib import Path
 from maggy.runner.awg_errors import FenceStale
 from maggy.runner.awg_fake import FakeAwg
 from maggy.runner.awg_types import Claim
+from maggy.runner.config import project_capability
 from maggy.runner.loop import Runner, RunnerConfig
 from worker_git_helpers import DUMP_CHECK, dump_command, fake_adapter, init_repo, profile, \
     write_script
@@ -64,25 +65,29 @@ class Rig:
 
 
 def make_rig(tmp_path: Path, agent: str, **options) -> Rig:
-    """`options`: awg, heartbeat_s, project, pr_step, capabilities, attributes, check_exit,
-    state_file."""
+    """`options`: awg, heartbeat_s, project, pr_step, capabilities (default: CAPS bound to
+    the project), attributes, check_exit, state_file."""
     awg = options.get("awg") or FakeAwg(lease_seconds=900)
-    ref = awg.add_item("Add feature", capabilities=options.get("capabilities", CAPS),
+    tagged = [*CAPS, project_capability(options.get("project", "demo"))]
+    ref = awg.add_item("Add feature", capabilities=options.get("capabilities", tagged),
                        acceptance_criteria=["feature.txt exists"])
     awg.items[ref].attributes.update(options.get("attributes", {}))
     repo, state = tmp_path / "repo", tmp_path / "state"
     repo.mkdir()
     init_repo(repo)
-    out = tmp_path / "check.json"
-    check = dump_command(write_script(tmp_path, "dump", DUMP_CHECK), out,
+    config = _config(tmp_path, agent, options)
+    return Rig(Runner(awg, config), awg, ref, repo, state, tmp_path / "check.json")
+
+
+def _config(tmp_path: Path, agent: str, options: dict) -> RunnerConfig:
+    check = dump_command(write_script(tmp_path, "dump", DUMP_CHECK), tmp_path / "check.json",
                          options.get("check_exit", 0))
-    config = RunnerConfig(repo=repo, state_dir=state,
-                          adapter=fake_adapter(write_script(tmp_path, "agent", agent)),
-                          profile=profile(commands={"test": check}, required=["test"]),
-                          project=options.get("project", "demo"),
-                          heartbeat_s=options.get("heartbeat_s", 30.0),
-                          pr_step=options.get("pr_step"), state_file=options.get("state_file"))
-    return Rig(Runner(awg, config), awg, ref, repo, state, out)
+    return RunnerConfig(repo=tmp_path / "repo", state_dir=tmp_path / "state",
+                        adapter=fake_adapter(write_script(tmp_path, "agent", agent)),
+                        profile=profile(commands={"test": check}, required=["test"]),
+                        project=options.get("project", "demo"),
+                        heartbeat_s=options.get("heartbeat_s", 30.0),
+                        pr_step=options.get("pr_step"), state_file=options.get("state_file"))
 
 
 def decisions(rig: Rig) -> list[str]:
