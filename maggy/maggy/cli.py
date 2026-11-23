@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from maggy.cli_analytics import register as _register_analytics
+from maggy.cli_extensions import register as _register_extensions
 from maggy.cli_client import MaggyClient
 from maggy.cli_output import (
     console,
@@ -296,7 +296,4 @@ def execute(
     )
 
 
-# Register analytics/reporting commands (route, budget, models, etc.)
-_register_analytics(app, _client, _ensure)
-from maggy.harness.cli import app as _harness_app  # noqa: E402
-app.add_typer(_harness_app, name="harness")
+_register_extensions(app, _client, _ensure)  # analytics + harness sub-commands

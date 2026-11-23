@@ -114,6 +114,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   otherwise) and `opencode.json` against the 1.19.6 schema.
 
 #### Changed
+- `maggy harness` (and the analytics commands) are registered through
+  `maggy/cli_extensions.py`, so the already oversized `maggy/cli.py` shrinks
+  (302 -> 299 lines) instead of growing.
+- Retroactive note for commit ea9f2a2 (test-only): the orchestrator auth test
+  in `tests/test_routes_orchestrator_auth.py` was reshaped to stay within the
+  3-parameter quality gate; no behaviour change. It landed without a changelog
+  line.
 - Repo `CLAUDE.md` now holds project-generic engineering policy only (TDD,
   quality gates, changelog, PR workflow); personal routing lives in the preset.
 
