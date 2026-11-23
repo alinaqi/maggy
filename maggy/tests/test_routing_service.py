@@ -16,7 +16,7 @@ class TestRoutingDecisions:
             if isinstance(decision.primary, str)
             else decision.primary.name
         )
-        assert name in ("local", "deepseek-flash", "deepseek-pro")
+        assert name == "local"
 
     def test_high_complexity_routes_premium(self, mock_cfg):
         rs = RoutingService(mock_cfg)
@@ -56,15 +56,16 @@ class TestRoutingDecisions:
         assert name not in ("local", "kimi")
 
     def test_rem_forces_premium(self, mock_cfg):
+        """REM fatigue escalates to the cheapest tier at cost_rank >= 4.
+
+        With the provider-config ladder that is the pro tier, never the
+        local/flash tiers a blast-2 task would otherwise get.
+        """
         rs = RoutingService(mock_cfg)
         ctx = RoutingContext(blast_score=2, fatigue_score=0.80)
         decision = rs.route(ctx)
-        name = (
-            decision.primary
-            if isinstance(decision.primary, str)
-            else decision.primary.name
-        )
-        assert name in ("codex", "claude", "kimi")
+        assert decision.primary.cost_rank >= 4
+        assert decision.primary.name.endswith("-pro")
 
 
 class TestRoutingLearning:

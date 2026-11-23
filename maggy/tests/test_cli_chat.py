@@ -38,6 +38,10 @@ HISTORY = {
 }
 
 
+# The REPL reads lines with builtins.input() via cli_chat._read_input (it
+# replaced rich Prompt.ask to get readline history), so tests feed input there.
+
+
 @pytest.fixture(autouse=True)
 def _no_detect(monkeypatch):
     """Prevent real CLI detection in tests."""
@@ -108,8 +112,8 @@ def test_chat_creates_session(mock_client, tmp_path, monkeypatch):
     """Creates new session when none match working_dir."""
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
     mock_client.chat_create.assert_called_once_with(
@@ -124,8 +128,8 @@ def test_chat_resumes_by_working_dir(mock_client, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     wd = str(tmp_path.resolve())
     _setup_resumed(mock_client, working_dir=wd)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
     assert "Resuming" in result.output
@@ -137,8 +141,8 @@ def test_chat_explicit_project_arg(mock_client, tmp_path, monkeypatch):
     """Explicit project arg is used as project name."""
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/quit"]
         result = runner.invoke(app, ["chat", "my-proj"])
     assert result.exit_code == 0
     mock_client.chat_create.assert_called_once_with(
@@ -158,8 +162,8 @@ def test_chat_routed_streams(mock_client, tmp_path, monkeypatch):
         {"type": "text", "content": "Hello"},
         {"type": "done"},
     ])
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["say hi", "/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["say hi", "/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
     mock_client.chat_send_routed.assert_called_once_with(
@@ -176,8 +180,8 @@ def test_chat_direct_mode(mock_client, tmp_path, monkeypatch):
         {"type": "text", "content": "Hi"},
         {"type": "done"},
     ])
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["say hi", "/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["say hi", "/quit"]
         result = runner.invoke(app, ["chat", "--direct"])
     assert result.exit_code == 0
     mock_client.chat_send_stream.assert_called_once_with(
@@ -190,8 +194,8 @@ def test_chat_history_command(mock_client, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
     mock_client.chat_history.return_value = HISTORY
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/history", "/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/history", "/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
 
@@ -207,8 +211,8 @@ def test_chat_blast_override(mock_client, tmp_path, monkeypatch):
         {"type": "text", "content": "Done"},
         {"type": "done"},
     ])
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/blast 8", "do it", "/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/blast 8", "do it", "/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
     mock_client.chat_send_routed.assert_called_once_with(
@@ -220,8 +224,8 @@ def test_chat_blast_override(mock_client, tmp_path, monkeypatch):
 def test_chat_ctrl_c_exits(mock_client, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = KeyboardInterrupt
+    with patch("builtins.input") as mp:
+        mp.side_effect = KeyboardInterrupt
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
 
@@ -230,8 +234,8 @@ def test_chat_ctrl_c_exits(mock_client, tmp_path, monkeypatch):
 def test_chat_empty_input_ignored(mock_client, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["", "  ", "/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["", "  ", "/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
     mock_client.chat_send_routed.assert_not_called()
@@ -245,8 +249,8 @@ def test_chat_error_displayed(mock_client, tmp_path, monkeypatch):
         {"type": "error", "content": "CLI not found"},
         {"type": "done"},
     ])
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["test", "/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["test", "/quit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
 
@@ -256,8 +260,8 @@ def test_chat_exit_word_quits(mock_client, tmp_path, monkeypatch):
     """Typing 'exit' terminates the REPL."""
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["exit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["exit"]
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 0
     mock_client.chat_send_routed.assert_not_called()
@@ -268,10 +272,10 @@ def test_chat_prompt_uses_angle_bracket(mock_client, tmp_path, monkeypatch):
     """Prompt uses '>' character."""
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/quit"]
         runner.invoke(app, ["chat"])
-    call_args = mp.ask.call_args[0][0]
+    call_args = mp.call_args[0][0]
     assert ">" in call_args
 
 
@@ -280,9 +284,9 @@ def test_screenshot_command_dispatches(mock_client, tmp_path, monkeypatch):
     """'/screenshot path.png' calls vision handler."""
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp, \
+    with patch("builtins.input") as mp, \
          patch("maggy.cli_chat._handle_screenshot") as mh:
-        mp.ask.side_effect = ["/screenshot test.png", "/quit"]
+        mp.side_effect = ["/screenshot test.png", "/quit"]
         runner.invoke(app, ["chat"])
     mh.assert_called_once()
     assert "test.png" in mh.call_args[0][0]
@@ -296,8 +300,8 @@ def test_main_always_enters_repl(mock_client, tmp_path, monkeypatch):
     """Running 'maggy' with no args enters REPL for cwd."""
     monkeypatch.chdir(tmp_path)
     _setup_new(mock_client)
-    with patch("maggy.cli_chat.Prompt") as mp:
-        mp.ask.side_effect = ["/quit"]
+    with patch("builtins.input") as mp:
+        mp.side_effect = ["/quit"]
         result = runner.invoke(app, [])
     assert result.exit_code == 0
     assert tmp_path.name in result.output

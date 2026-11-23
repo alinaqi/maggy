@@ -82,6 +82,7 @@ class TestCouncilRoster:
 
     def test_terra_factory_uses_terra_slug(self, monkeypatch):
         pytest.importorskip("pydantic_ai")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # provider needs a key; no call is made
         from maggy.review.config import _gpt_terra
         monkeypatch.delenv("OPENAI_TERRA_MODEL", raising=False)
         assert _gpt_terra().model_name == "gpt-5.6-terra"
@@ -89,12 +90,14 @@ class TestCouncilRoster:
     def test_terra_default_reasoning_effort_high(self, monkeypatch):
         # GPT-5.6 guide: set reasoning.effort intentionally; review is high-value.
         pytest.importorskip("pydantic_ai")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # provider needs a key; no call is made
         from maggy.review.config import _gpt_terra
         monkeypatch.delenv("OPENAI_TERRA_EFFORT", raising=False)
         assert dict(_gpt_terra().settings)["openai_reasoning_effort"] == "high"
 
     def test_terra_effort_env_override(self, monkeypatch):
         pytest.importorskip("pydantic_ai")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")  # provider needs a key; no call is made
         from maggy.review.config import _gpt_terra
         monkeypatch.setenv("OPENAI_TERRA_EFFORT", "xhigh")
         assert dict(_gpt_terra().settings)["openai_reasoning_effort"] == "xhigh"

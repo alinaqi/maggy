@@ -89,8 +89,8 @@ async def test_plan_mode_routes_high_blast_to_claude(
     task = _task(9, "general")
     ctx = _ctx(session, task, str(tmp_path))
     await executor._run(ctx, "plan")
-    # Blast 9 general → codex (cost_rank=3, covers 4-10)
-    assert models[0] == "codex"
+    # Blast 9 general → claude, the only active tier covering 6-10
+    assert models[0] == "claude"
 
 
 @pytest.mark.asyncio
@@ -124,6 +124,9 @@ async def test_plan_records_spend(mock_cfg, tmp_path, monkeypatch):
 async def test_tdd_high_blast_calls_dual_planner(
     mock_cfg, tmp_path, monkeypatch,
 ):
+    # Sequential TDD path: with the orchestrator on, blast >= 7 is
+    # dispatched to the parallel container branch instead (242fe8e).
+    mock_cfg.orchestrator.enabled = False
     provider = AsyncMock()
     executor = ExecutorService(mock_cfg, provider)
     session = _session()
@@ -286,4 +289,4 @@ async def test_status_shows_model_name(
     ctx = _ctx(session, task, str(tmp_path))
     await executor._run(ctx, "plan")
     agents = {s.get("agent") for s in statuses}
-    assert "codex" in agents
+    assert "claude" in agents

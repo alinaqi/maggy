@@ -77,20 +77,22 @@ class TestGroundingInstructions:
         text = grounding_instructions()
         assert "verify" in text.lower() or "read" in text.lower()
 
-    def test_covers_research_and_planning(self):
+    def test_instructs_autonomous_execution(self):
+        """Since 7e5f7a2 the agent acts instead of advising."""
         from maggy.services.chat_grounding import grounding_instructions
-        text = grounding_instructions()
-        assert "research" in text.lower() or "plan" in text.lower()
+        text = grounding_instructions().lower()
+        assert "execute tasks directly" in text
+        assert "do it yourself" in text
 
     def test_covers_tool_usage(self):
         from maggy.services.chat_grounding import grounding_instructions
         text = grounding_instructions()
         assert "grep" in text.lower() or "shell" in text.lower()
 
-    def test_covers_non_code_tasks(self):
+    def test_instructs_reporting_what_changed(self):
         from maggy.services.chat_grounding import grounding_instructions
-        text = grounding_instructions()
-        assert "brainstorm" in text.lower() or "discuss" in text.lower() or "question" in text.lower()
+        text = grounding_instructions().lower()
+        assert "report what you did and what changed" in text
 
 
 class TestBuildEnrichedPrompt:

@@ -13,7 +13,7 @@ class TestCmdAdd:
         d.mkdir()
         MnemosDB(d)
         result = subprocess.run(
-            [sys.executable, "-m", "mnemos", "add", "goal", "Test goal"],
+            [sys.executable, "-m", "maggy.mnemos", "add", "goal", "Test goal"],
             cwd=str(mock_cwd),
             capture_output=True, text=True,
         )
@@ -25,7 +25,7 @@ class TestCmdAdd:
         d.mkdir()
         MnemosDB(d)
         result = subprocess.run(
-            [sys.executable, "-m", "mnemos", "add", "constraint", "No deps"],
+            [sys.executable, "-m", "maggy.mnemos", "add", "constraint", "No deps"],
             cwd=str(mock_cwd),
             capture_output=True, text=True,
         )
@@ -39,7 +39,7 @@ class TestCmdListNodes:
         d.mkdir()
         MnemosDB(d)
         result = subprocess.run(
-            [sys.executable, "-m", "mnemos", "nodes"],
+            [sys.executable, "-m", "maggy.mnemos", "nodes"],
             cwd=str(mock_cwd),
             capture_output=True, text=True,
         )
@@ -58,7 +58,7 @@ class TestCmdListNodes:
             type="FactNode", task_id="t1", content="f",
         ))
         result = subprocess.run(
-            [sys.executable, "-m", "mnemos", "nodes", "--type", "GoalNode"],
+            [sys.executable, "-m", "maggy.mnemos", "nodes", "--type", "GoalNode"],
             cwd=str(mock_cwd),
             capture_output=True, text=True,
         )

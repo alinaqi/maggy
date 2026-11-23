@@ -12,8 +12,20 @@ def cfg_path(tmp_path: Path) -> Path:
     return tmp_path / "council.yaml"
 
 
+@pytest.fixture
+def fake_ollama(tmp_path: Path, monkeypatch) -> Path:
+    """An executable `ollama` on PATH, so CLI validation does not need a real install."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    exe = bin_dir / "ollama"
+    exe.write_text("#!/bin/sh\nexit 0\n")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    return exe
+
+
 class TestAddModel:
-    def test_adds_cli_model(self, cfg_path):
+    def test_adds_cli_model(self, cfg_path, fake_ollama):
         from maggy.services.model_registry import add_model
         result = add_model(
             model_id="my-llama",

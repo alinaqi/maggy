@@ -33,6 +33,7 @@ from maggy.coordination.lock_manager import LockManager
 from maggy.escalation.protocol import Escalator
 from maggy.mnemos import FatigueTracker, SignalLog
 from maggy.observability.collector import ObservabilityCollector
+from maggy.process.model_router import DEFAULT_TIERS
 from maggy.providers.base import Task
 from maggy.registry import ProjectRegistry
 from maggy.routing import RoutingContext, RoutingService
@@ -42,6 +43,11 @@ from maggy.services.planner import DualPlanner
 
 
 # -- fixtures ----------------------------------------------------------------
+
+# Active tier ladder (model_router.build_tiers, provider-config driven since
+# 9bb7980): local(1), gemini-flash-lite(2), <flash>(3), <pro>(4), claude(5).
+_BY_RANK = {t.cost_rank: t.name for t in DEFAULT_TIERS}
+FLASH, PRO = _BY_RANK[3], _BY_RANK[4]
 
 def _cfg(tmp_path) -> MaggyConfig:
     return MaggyConfig(
@@ -106,23 +112,22 @@ class TestRoutingAccuracy:
             name = decision.primary if isinstance(decision.primary, str) else decision.primary.name
             results[task.id] = name
 
-        # Low blast (1-3) → cheap tier unless rules override
-        # T-1 is docs → rules force deepseek-pro
-        assert results["T-1"] in ("deepseek-pro", "claude")
-        assert results["T-2"] in ("local", "deepseek-flash")
-        assert results["T-3"] in ("local", "deepseek-flash")
-        # Blast 5 → deepseek-flash(0-5) or deepseek-pro(2-8)
-        assert results["T-4"] in ("deepseek-flash", "deepseek-pro")
-        # Blast 6 → deepseek-pro(2-8) cheapest, kimi(3-8), claude(5-10)
-        assert results["T-5"] in ("deepseek-pro", "kimi", "claude")
-        # Blast 7 → deepseek-pro(2-8) or kimi(3-8) or claude
-        assert results["T-6"] in ("deepseek-pro", "kimi", "claude")
-        # Blast 8 → deepseek-pro(2-8) or kimi(3-8) or claude
-        assert results["T-7"] in ("deepseek-pro", "kimi", "claude")
-        # Security always premium (claude)
+        # Low blast (1-3) → local (0-3). T-1 docs: the rules override names
+        # deepseek-pro, which is not an active tier under the default (US)
+        # provider config, so _forced_decision falls back to blast routing.
+        assert results["T-1"] == "local"
+        assert results["T-2"] == "local"
+        assert results["T-3"] == "local"
+        # Blast 5 → flash (0-5) is the cheapest capable tier
+        assert results["T-4"] == FLASH
+        # Blast 6-8 → pro (2-8) is cheaper than claude (6-10)
+        assert results["T-5"] == PRO
+        assert results["T-6"] == PRO
+        assert results["T-7"] == PRO
+        # Security always premium (rules override → claude)
         assert results["T-8"] == "claude"
         assert results["T-9"] == "claude"
-        assert results["T-10"] in ("deepseek-pro", "kimi", "claude")
+        assert results["T-10"] == PRO
 
     def test_routing_accuracy_score(self, tmp_path):
         """Compute accuracy as % of correct routing decisions."""
@@ -131,21 +136,20 @@ class TestRoutingAccuracy:
         correct = 0
 
         expected_tiers = {
-            "T-1": "mid",     # docs → deepseek-pro override
+            "T-1": "cheap",   # docs override target inactive → local
             "T-2": "cheap",   # formatting → local/flash
             "T-3": "cheap",   # feature blast 3 → local/flash
             "T-4": "cheap",   # feature blast 5 → flash
-            "T-5": "mid",     # refactor blast 6 → deepseek-pro
-            "T-6": "mid",     # feature blast 7 → deepseek-pro
-            "T-7": "mid",     # refactor blast 8 → deepseek-pro
+            "T-5": "mid",     # refactor blast 6 → pro
+            "T-6": "mid",     # feature blast 7 → pro
+            "T-7": "mid",     # refactor blast 8 → pro
             "T-8": "premium", # security → claude
             "T-9": "premium", # security → claude
-            "T-10": "mid",    # perf blast 7 → deepseek-pro
+            "T-10": "mid",    # perf blast 7 → pro
         }
         tier_map = {
-            "local": "cheap", "deepseek-flash": "cheap",
-            "deepseek-pro": "mid", "kimi": "mid",
-            "codex": "mid", "claude": "premium",
+            "local": "cheap", "gemini-flash-lite": "cheap", FLASH: "cheap",
+            PRO: "mid", "claude": "premium",
         }
 
         for task in SPRINT_TASKS:
@@ -203,10 +207,12 @@ class TestFallbackResilience:
     async def test_quota_recovery(self):
         pi = PiAdapter()
         attempts: list[str] = []
+        # kimi and the next model in its fallback chain are both out of quota.
+        exhausted = {"kimi", pi.fallback_chain("kimi")[0]}
 
         async def fake_send(model, prompt, wd, max_turns=20, timeout=600):
             attempts.append(model)
-            if model in ("kimi", "deepseek"):
+            if model in exhausted:
                 return RunResult(model=model, success=False, error="quota", quota_hit=True)
             return RunResult(model=model, success=True, output="recovered")
 
@@ -216,7 +222,7 @@ class TestFallbackResilience:
         assert result.success
         assert len(attempts) >= 3, "Should try multiple models"
         assert attempts[0] == "kimi"
-        assert result.model not in ("kimi", "deepseek")
+        assert result.model not in exhausted
 
     @pytest.mark.asyncio
     async def test_full_chain_failure(self):

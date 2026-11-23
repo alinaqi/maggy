@@ -12,8 +12,21 @@ from maggy.services.model_escalation import (
 )
 
 
+@pytest.fixture
+def no_cli_fallbacks():
+    """The kimi and deepseek-flash cascade levels are unavailable."""
+    with patch(
+        "maggy.services.model_escalation._kimi_request",
+        new=AsyncMock(return_value=None),
+    ) as kimi, patch(
+        "maggy.services.model_escalation._deepseek_request",
+        new=AsyncMock(return_value=None),
+    ) as deepseek:
+        yield kimi, deepseek
+
+
 class TestOllamaWithEscalation:
-    """Text classification escalation."""
+    """Text classification escalation: ollama → kimi → deepseek → Claude."""
 
     @pytest.mark.asyncio
     async def test_ollama_success_no_escalation(self):
@@ -25,7 +38,7 @@ class TestOllamaWithEscalation:
         assert result == "result text"
 
     @pytest.mark.asyncio
-    async def test_ollama_fail_escalates_to_claude(self):
+    async def test_ollama_fail_escalates_to_claude(self, no_cli_fallbacks):
         with patch(
             "maggy.services.model_escalation._ollama_request",
             new=AsyncMock(return_value=None),
@@ -35,9 +48,12 @@ class TestOllamaWithEscalation:
         ):
             result = await ollama_with_escalation("classify this")
         assert result == "claude result"
+        kimi, deepseek = no_cli_fallbacks
+        kimi.assert_awaited_once()
+        deepseek.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_both_fail_returns_none(self):
+    async def test_both_fail_returns_none(self, no_cli_fallbacks):
         with patch(
             "maggy.services.model_escalation._ollama_request",
             new=AsyncMock(return_value=None),
