@@ -18,6 +18,13 @@ class Stopped(Exception):
     """The kill switch was pulled mid-attempt."""
 
 
+def verify_live(awg: AwgClient, claim: Claim, state_dir: Path) -> None:
+    """STOP not pulled and `claim` still the live fence (Stopped / LeaseLost otherwise)."""
+    if stop_file(state_dir).exists():
+        raise Stopped("STOP file present")
+    awg.heartbeat(claim)
+
+
 @dataclass(frozen=True)
 class RunReport:
     """outcome: idle, stopped, paused, submitted, waiting_human, interrupted, spec_review,
@@ -50,9 +57,7 @@ class Session:
 
     def verify(self) -> None:
         """Before any side effect: STOP not pulled and our fence still live (raises)."""
-        if stop_file(self.config.state_dir).exists():
-            raise Stopped("STOP file present")
-        self.awg.heartbeat(self.claim)
+        verify_live(self.awg, self.claim, self.config.state_dir)
 
     def give_back(self, outcome: str, reason: str) -> RunReport:
         """Release the item with a handoff; an AWG failure here is logged, not raised."""

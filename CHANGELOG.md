@@ -11,6 +11,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 3)
 
 #### Added
+- **Stable-branch push and idempotent draft PR with intent records** (`maggy/runner/publish.py`,
+  `publish_git.py`, `publish_gh.py`, `publish_body.py`; RFC personal-harness §2.4, §2.6.3,
+  §2.6.5). `maggy run` now uses `Publisher` as its PR step. For each external action the
+  fence (STOP + live lease) is verified, an intent annotation keyed
+  `<ref>:<attempt>:<action>:<sha>` is written, the action runs, and a `<key>:result`
+  annotation records the outcome.
+  - Push: only `refs/heads/maggy/<ref>` (anything else is refused), argv-only through the
+    hardened `run_git`, `git push --force-with-lease=refs/heads/maggy/<ref>:<expected>
+    origin <sha>:refs/heads/maggy/<ref>`. The expected SHA is the remote's when absent or one
+    we recorded, else our last recorded push, so a remote that moved unexpectedly rejects the
+    push. A remote already at the candidate is not re-pushed. Maggy injects no credentials;
+    the user's git config (and `SSH_AUTH_SOCK`) authenticate.
+  - PR: `gh pr list --head maggy/<ref> --state open --json number,url,isDraft,state`; none
+    -> `gh pr create --draft --head --base <origin default branch> --title --body-file`,
+    otherwise `gh pr edit N --body-file`, so re-runs and new attempts never duplicate. The gh
+    wrapper refuses anything but `pr list/create/edit` (no merge, no ready) and gets the
+    scrubbed env plus the user's own `GH_*` settings, never AWG tokens. The body carries a
+    summary, AWG ref, candidate SHA, attempt and a checks table (name, result, SHA).
+  - Crash recovery: a crash between intent and result reconciles from external state (remote
+    SHA, PR lookup by stable head) without a second push or PR.
+  - `session.verify_live()` factored out of `Session.verify` so the publisher fences the same
+    way.
 - **Runner loop `maggy run [--once] [--project KEY] [--adapter X]`** (`maggy/runner/loop.py`,
   `drive.py`, `conclude.py`; RFC personal-harness §2.4, §2.6.1/3/5/8). Per item: STOP and
   per-project pause checked before every claim; claim with `[maggy-runner, stage:build]`
