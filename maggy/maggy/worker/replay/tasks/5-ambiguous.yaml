@@ -1,0 +1,35 @@
+# Replay task 5: an under-specified task; the right outcome is a blocker question.
+id: ambiguous
+title: Ambiguous task (should raise a blocker)
+expect: blocker
+prompt: |
+  Update `price` in pricing.py so it applies the new discount rules for customers.
+files:
+  pricing.py: |
+    """Pricing."""
+
+
+    def price(amount: float, customer: str) -> float:
+        """The final price `customer` pays for `amount`."""
+        return round(amount, 2)
+  test_pricing.py: |
+    import unittest
+
+    from pricing import price
+
+
+    class PriceTest(unittest.TestCase):
+        def test_rounds_to_cents(self):
+            self.assertEqual(price(10.004, "anyone"), 10.0)
+accept:
+  accept_pricing.py: |
+    import unittest
+
+    from pricing import price
+
+
+    class AcceptPricing(unittest.TestCase):
+        def test_unchanged_without_rules(self):
+            self.assertEqual(price(10.004, "anyone"), 10.0)
+solution: {}
+fake_reply: 'QUESTION: What are the new discount rules (which customers get which percentage)?'

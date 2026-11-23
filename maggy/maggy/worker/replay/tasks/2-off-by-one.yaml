@@ -1,0 +1,52 @@
+# Replay task 2: fix an off-by-one bug described by failing tests.
+id: off_by_one
+title: Fix an off-by-one bug
+expect: pass
+prompt: |
+  `page()` in pager.py returns the wrong items: page 1 must be the first page.
+  Fix the off-by-one bug. The tests in test_pager.py describe the expected behaviour;
+  do not change them.
+files:
+  pager.py: |
+    """Pagination helper."""
+
+
+    def page(items: list, number: int, size: int) -> list:
+        """The items on 1-based page `number`, `size` items per page."""
+        start = number * size
+        return items[start:start + size]
+  test_pager.py: |
+    import unittest
+
+    from pager import page
+
+
+    class PageTest(unittest.TestCase):
+        def test_first_page(self):
+            self.assertEqual(page(list(range(10)), 1, 3), [0, 1, 2])
+
+        def test_last_partial_page(self):
+            self.assertEqual(page(list(range(10)), 4, 3), [9])
+accept:
+  accept_pager.py: |
+    import unittest
+
+    from pager import page
+
+
+    class AcceptPage(unittest.TestCase):
+        def test_pages(self):
+            items = list(range(10))
+            self.assertEqual(page(items, 1, 3), [0, 1, 2])
+            self.assertEqual(page(items, 2, 3), [3, 4, 5])
+            self.assertEqual(page(items, 4, 3), [9])
+            self.assertEqual(page(items, 5, 3), [])
+solution:
+  pager.py: |
+    """Pagination helper."""
+
+
+    def page(items: list, number: int, size: int) -> list:
+        """The items on 1-based page `number`, `size` items per page."""
+        start = (number - 1) * size
+        return items[start:start + size]

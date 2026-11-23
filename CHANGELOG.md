@@ -11,6 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Replay set and `maggy worker replay` (Phase 2 exit)** (RFC personal-harness §2.3,
+  §3 Phase 2). `maggy/worker/replay/`: five self-contained tasks (`implement`,
+  `off_by_one`, `cli_flag`, `refactor`, `ambiguous`), each a YAML with fixture repo files
+  (git-initialised in a temp dir at runtime), a prompt, hidden acceptance tests kept
+  outside the repo and a reference solution. Each task x agent runs through the full
+  pipeline with required checks `test` (repo suite) and `e2e` (hidden acceptance); the
+  report (table + `--json`) gives verdict, outcome, checks passed, changed files, cost,
+  elapsed and model per row. Offline (default) puts fake `claude`/`codex`/`opencode`/`pi`
+  CLIs first on the worker PATH (new `Attempt.path_prefix`, `env.with_path_prefix`) that
+  replay recorded output (`replay/recordings/`, packaged) via the shipped adapter argv;
+  `--live` runs the real CLIs under the personal launch policy and budget. Live results
+  for claude and codex are in `docs/worker-replay.md`.
 - **Agent-raised blockers** (RFC personal-harness §2.3). `maggy/worker/blocker.py`: a
   line starting with `QUESTION:` in the agent's final text (markdown emphasis tolerated)
   becomes the result's `Blocker` and turns a succeeded run into `outcome: blocked`;

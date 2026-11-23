@@ -1,0 +1,7 @@
+# Recorded CLI output replayed by the offline fake agents of `maggy worker replay`.
+# Copies of the success fixtures in maggy/tests/fixtures/worker/<cli>/ (a test keeps them
+# in sync). The fake substitutes the JSON string "done" with the task's reply.
+claude: {file: claude.json, synthetic: false, version: 2.1.330, recorded: '2026-11-23'}
+codex: {file: codex.jsonl, synthetic: false, version: 0.163.0, recorded: '2026-11-23'}
+opencode: {file: opencode.jsonl, synthetic: true, version: 1.19.6, recorded: '2026-11-23'}
+pi: {file: pi.jsonl, synthetic: true, version: 0.73.1, recorded: '2026-11-23'}

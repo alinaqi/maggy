@@ -13,6 +13,7 @@ from maggy.worker.assemble import RunOptions, local_attempt
 from maggy.worker.git_ops import GitError
 from maggy.worker.launch import Refused
 from maggy.worker.pipeline import run_attempt
+from maggy.worker.replay.cli import ReplayCliOptions, replay
 
 app = typer.Typer(help="Headless worker runs (adapters, runner-side commit and checks).",
                   no_args_is_help=True)
@@ -42,3 +43,10 @@ def run(ctx: typer.Context, opts: RunCliOptions) -> None:
         typer.echo(f"refused: {exc}", err=True)
         raise typer.Exit(2) from exc
     typer.echo(result.model_dump_json(indent=2))
+
+
+@app.command("replay")
+@options_command(ReplayCliOptions)
+def replay_command(ctx: typer.Context, opts: ReplayCliOptions) -> None:
+    """Run the 5-task replay set per agent; print a comparison table (and JSON)."""
+    replay(opts)

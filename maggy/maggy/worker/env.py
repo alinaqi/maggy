@@ -15,6 +15,7 @@ resolve node/python through PATH, which is kept.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +42,13 @@ def build_worker_env(adapter: AdapterSpec, base_env: Mapping[str, str]) -> dict[
 def build_check_env(base_env: Mapping[str, str], home: str) -> dict[str, str]:
     """Allowlisted vars only (no credentials, no provider keys), HOME = throwaway `home`."""
     return {**_allowlisted(base_env), "HOME": home}
+
+
+def with_path_prefix(env: dict[str, str], prefix: Path | None) -> dict[str, str]:
+    """`env` with `prefix` searched first on PATH (replay's fake CLIs); None: unchanged."""
+    if prefix is None:
+        return env
+    return {**env, "PATH": os.pathsep.join([str(prefix), env.get("PATH", "")])}
 
 
 def auth_file_refs(adapter: AdapterSpec, home: str) -> list[AuthFileRef]:
