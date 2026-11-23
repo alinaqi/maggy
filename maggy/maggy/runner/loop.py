@@ -19,7 +19,7 @@ from maggy.runner.session import RunReport, Session
 from maggy.runner.state import state_for
 
 __all__ = ["CAPABILITIES", "RunReport", "Runner", "RunnerConfig"]
-PROGRESS = frozenset({"submitted", "waiting_human", "spec_review"})
+PROGRESS = frozenset({"submitted", "waiting_human", "spec_review", "spec_approved"})
 
 
 class Runner:

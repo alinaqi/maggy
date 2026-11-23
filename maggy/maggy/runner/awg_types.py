@@ -66,3 +66,22 @@ def claim_from_lease(lease: dict) -> Claim:
                  title=context.get("goal", ""), description=context.get("description", ""),
                  acceptance_criteria=list(context.get("acceptance_criteria") or []),
                  context=json.dumps(context, indent=2, default=str))
+
+
+class WorkUpdate(BaseModel):
+    """Fields `awg update` replaces on a work item; None leaves a field unchanged."""
+
+    model_config = ConfigDict(frozen=True)
+
+    acceptance_criteria: list[str] | None = None
+    capabilities: list[str] | None = None
+
+
+class NodeSpec(BaseModel):
+    """A graph node created under a work item (REQUIREMENT, VALIDATION, ...)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str = Field(pattern=r"^[A-Z_]+$")
+    title: str = Field(min_length=1)
+    data: dict = Field(default_factory=dict)
