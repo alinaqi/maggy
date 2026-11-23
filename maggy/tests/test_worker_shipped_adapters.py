@@ -16,7 +16,8 @@ CASES = [(name, perm) for name in SHIPPED for perm in ("read_only", "workspace")
 
 
 def _flags(adapter) -> set[str]:
-    lists = [adapter.argv, adapter.model_flags, adapter.disable_awg.flags,
+    lists = [adapter.argv, adapter.model_flags, adapter.budget_flags,
+             adapter.disable_awg.flags,
              *adapter.permissions.values()]
     return {item for items in lists for item in items if item.startswith("-")}
 

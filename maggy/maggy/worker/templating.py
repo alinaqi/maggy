@@ -10,7 +10,8 @@ import re
 from dataclasses import dataclass
 
 WHOLE = frozenset({"{prompt}", "{model}", "{workspace}"})
-SPLATS = frozenset({"{permission_flags}", "{model_flags}", "{awg_off_flags}"})
+SPLATS = frozenset({"{permission_flags}", "{model_flags}", "{awg_off_flags}",
+                    "{budget_flags}"})
 _PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
 
 
@@ -20,6 +21,7 @@ class ArgvValues:
     workspace: str
     permission: str
     model: str | None = None
+    budget_usd: float | None = None
 
 
 def placeholder_problem(element: str, allowed: frozenset[str]) -> str | None:
@@ -59,12 +61,20 @@ def _splat(adapter, element: str, values: ArgvValues) -> list[str]:
     if element == "{awg_off_flags}":
         return list(adapter.disable_awg.flags)
     if element == "{model_flags}":
-        if values.model is None:
-            return []
-        return [values.model if flag == "{model}" else flag for flag in adapter.model_flags]
+        return _fill(adapter.model_flags, "{model}", values.model)
+    if element == "{budget_flags}":
+        budget = None if values.budget_usd is None else f"{values.budget_usd:.4f}"
+        return _fill(adapter.budget_flags, "{budget_usd}", budget)
     if values.permission not in adapter.permissions:
         raise ValueError(f"adapter {adapter.name} has no permission profile {values.permission!r}")
     return list(adapter.permissions[values.permission])
+
+
+def _fill(flags: list[str], placeholder: str, value: str | None) -> list[str]:
+    """`flags` with `placeholder` replaced by `value`; no value drops the flags."""
+    if value is None:
+        return []
+    return [value if flag == placeholder else flag for flag in flags]
 
 
 def _require_model(values: ArgvValues) -> str:

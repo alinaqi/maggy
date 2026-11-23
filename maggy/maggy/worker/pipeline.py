@@ -62,7 +62,9 @@ def _job(attempt: Attempt) -> Job:
     spec, adapter = attempt.spec, attempt.adapter
     plan = resolve_launch(adapter, attempt.profile, spec.permission)
     workspace = str(spec.workspace)
-    argv = plan.argv(ArgvValues(spec.prompt, workspace, spec.permission, attempt.model))
+    values = ArgvValues(spec.prompt, workspace, spec.permission, attempt.model,
+                        _budget(attempt).per_run_usd)
+    argv = plan.argv(values)
     return Job(run_id=spec.attempt_id, argv=argv, cwd=Path(render_cwd(adapter, workspace)),
                env={**build_worker_env(adapter, os.environ), **plan.env},
                attempt_dir=attempt.attempt_dir, deadline_s=spec.deadline_s,
