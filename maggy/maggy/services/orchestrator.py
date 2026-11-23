@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING
 
 from maggy.orchestrator.async_runtime import (
     async_create_container,
+    async_remove_container,
     async_start_container,
     async_wait_container,
-    async_remove_container,
     container_logs,
 )
 from maggy.orchestrator.decomposer import decompose_task
@@ -30,6 +30,7 @@ from maggy.orchestrator.isolation import (
     detect_capabilities,
     provision_workspace,
 )
+from maggy.orchestrator.merge import merge_changes
 from maggy.orchestrator.models import Result, RunSpec, Task
 
 if TYPE_CHECKING:
@@ -156,26 +157,42 @@ class OrchestratorService:
         session_id = f"{session.team_id}-{subtask.id[:8]}"
         workspace, provisioned = self._provision(level, session.repo_dir, session_id)
         spec = route_subtask(subtask, self._cfg.orchestrator.image, workspace)
+        status = await self._execute(level, spec, subtask)
+        result = Result(
+            task_id=subtask.id, run_spec_id=spec.id,
+            agent=spec.agent, status=status,
+        )
+        if provisioned and session.repo_dir:
+            self._settle(Path(session.repo_dir), workspace, result)
+        return result
+
+    async def _execute(
+        self, level: IsolationLevel, spec: RunSpec, subtask: Task,
+    ) -> str:
+        """Run the agent; return "succeeded" or "failed"."""
         try:
             if level == IsolationLevel.CONTAINER:
                 code = await self._run_container(spec)
             else:
                 code = await self._run_local(spec, subtask)
-            status = "succeeded" if code == 0 else "failed"
-        except Exception as exc:
+            return "succeeded" if code == 0 else "failed"
+        except Exception as exc:  # noqa: BLE001 - any agent error fails the subtask
             logger.warning("Subtask %s failed: %s", subtask.id, exc)
-            status = "failed"
-        finally:
-            if provisioned and session.repo_dir:
-                try:
-                    cleanup_workspace(level, Path(session.repo_dir), workspace)
-                except Exception as exc:
-                    logger.warning("Workspace cleanup failed for %s: %s",
-                                   session_id, exc)
-        return Result(
-            task_id=subtask.id, run_spec_id=spec.id,
-            agent=spec.agent, status=status,
-        )
+            return "failed"
+
+    def _settle(self, repo: Path, workspace: str, result: Result) -> None:
+        """Merge a successful workspace and clean it; otherwise keep it."""
+        ok = result.status == "succeeded"
+        if ok and merge_changes(repo, Path(workspace)):
+            try:
+                cleanup_workspace(self._isolation, repo, workspace)
+            except Exception as exc:  # noqa: BLE001 - cleanup is best-effort
+                logger.warning("Workspace cleanup failed for %s: %s",
+                               workspace, exc)
+            return
+        result.status = "failed"
+        result.artifacts["workspace"] = workspace
+        logger.warning("Keeping unmerged subtask workspace %s", workspace)
 
     def _provision(
         self, level: IsolationLevel, repo_dir: str | None, session_id: str,
