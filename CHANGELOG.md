@@ -113,6 +113,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   Codex config is checked with the real `codex mcp list --json` (tomllib
   otherwise) and `opencode.json` against the 1.19.6 schema.
 
+#### Added (docs)
+- `docs/rfc-personal-harness.md`: the Personal Harness RFC this phase implements,
+  now tracked in the repo.
+
 #### Changed
 - `maggy harness` (and the analytics commands) are registered through
   `maggy/cli_extensions.py`, so the already oversized `maggy/cli.py` shrinks
