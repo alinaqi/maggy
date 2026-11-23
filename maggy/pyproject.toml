@@ -75,3 +75,9 @@ maggy = [
     "**/*.yaml",
     "**/*.yml",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Repo-level scripts/ (skill_lint, mnemos, icpg, ...) importable without PYTHONPATH.
+pythonpath = ["../scripts"]
+asyncio_default_fixture_loop_scope = "function"

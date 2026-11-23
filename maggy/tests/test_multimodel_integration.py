@@ -22,6 +22,7 @@ from maggy.config import (
 )
 from maggy.coordination.lock_manager import LockManager
 from maggy.mnemos import FatigueTracker
+from maggy.process.model_router import DEFAULT_TIERS
 from maggy.providers.base import Task
 from maggy.routing import RoutingContext, RoutingService
 from maggy.services.executor import ExecutorService
@@ -30,6 +31,11 @@ from maggy.services.planner import DualPlanner
 
 
 # -- helpers ---------------------------------------------------------------
+
+# Active ladder (provider-config driven): local, gemini-flash-lite,
+# <flash>(rank 3, 0-5), <pro>(rank 4, 2-8), claude(rank 5, 6-10).
+_BY_RANK = {t.cost_rank: t.name for t in DEFAULT_TIERS}
+FLASH, PRO = _BY_RANK[3], _BY_RANK[4]
 
 def _project_cfg(tmp_path) -> MaggyConfig:
     return MaggyConfig(
@@ -84,34 +90,28 @@ class TestRoutingDecisions:
             assert decision.primary.cost_rank <= 2, (
                 f"blast={blast} should route to cheap tier"
             )
-            assert decision.primary.name in ("local", "deepseek-flash")
+            assert decision.primary.name in ("local", "gemini-flash-lite")
 
     def test_mid_blast_routes_to_cheapest_capable(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=5, task_type="feature")
         decision = svc.route(ctx)
-        assert decision.primary.name in (
-            "deepseek-flash", "deepseek-pro",
-        )
+        assert decision.primary.name == FLASH
 
-    def test_blast_6_routes_to_deepseek_pro(self, tmp_path):
+    def test_blast_6_routes_to_pro_tier(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=6, task_type="feature")
         decision = svc.route(ctx)
-        assert decision.primary.name in (
-            "deepseek-pro", "kimi",
-        )
+        assert decision.primary.name == PRO
 
     def test_high_blast_routes_to_premium(self, tmp_path):
         cfg = _project_cfg(tmp_path)
         svc = RoutingService(cfg)
         ctx = RoutingContext(blast_score=9, task_type="refactor")
         decision = svc.route(ctx)
-        assert decision.primary.name in (
-            "deepseek-pro", "kimi", "claude",
-        )
+        assert decision.primary.name == "claude"
 
     def test_security_routes_to_claude(self, tmp_path):
         cfg = _project_cfg(tmp_path)

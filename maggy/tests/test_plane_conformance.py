@@ -31,6 +31,21 @@ compute_f1 = _conformance.compute_f1
 run_tests = _conformance.run_tests
 
 
+@pytest.fixture
+def python3_with_pytest(tmp_path, monkeypatch):
+    """run_tests() shells out to `python3 -m pytest`; make that `python3`
+    the interpreter running this suite (which has pytest) instead of
+    whatever python3 the machine has first on PATH."""
+    bin_dir = tmp_path / "shim-bin"
+    bin_dir.mkdir()
+    shim = bin_dir / "python3"
+    shim.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    shim.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    return shim
+
+
+@pytest.mark.usefixtures("python3_with_pytest")
 class TestRunTests:
 
     def test_pytest_pass(self, tmp_path):

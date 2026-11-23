@@ -12,7 +12,7 @@ from maggy.mnemos.constants import MNEMOS_DIR
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "mnemos", *args],
+        [sys.executable, "-m", "maggy.mnemos", *args],
         capture_output=True, text=True, cwd=str(cwd),
     )
 

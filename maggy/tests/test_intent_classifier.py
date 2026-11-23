@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -14,6 +14,20 @@ from maggy.services.intent_classifier import (
     _parse_blast,
     _parse_response,
 )
+
+
+@pytest.fixture(autouse=True)
+def _only_ollama_level():
+    """Stub the kimi / deepseek / Claude escalation levels as unavailable.
+
+    These tests drive the Ollama level through a patched httpx client; the
+    later cascade levels must not reach a real kimi CLI or provider API.
+    """
+    base = "maggy.services.model_escalation."
+    with patch(base + "_kimi_request", new=AsyncMock(return_value=None)), \
+         patch(base + "_deepseek_request", new=AsyncMock(return_value=None)), \
+         patch(base + "_claude_request", new=AsyncMock(return_value=None)):
+        yield
 
 
 def test_parse_valid_type():

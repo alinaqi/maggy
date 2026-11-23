@@ -18,6 +18,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   even under US sovereignty. Only user-added models become extra tiers now;
   `claude-fable-5` (the council chief) joins the built-in model ids.
 
+### Maggy test suite: green, hermetic, no PYTHONPATH
+
+#### Added
+- **`maggy/mnemos/__main__.py`** — `python -m maggy.mnemos` runs the Mnemos
+  CLI (`maggy.mnemos.cli`). Its CLI tests ran `python -m mnemos`, which only
+  ever resolved when a separate `mnemos` package was installed.
+- **`tests/test_suite_hermetic.py`** — guards the isolation below.
+
+#### Changed
+- **`maggy/pyproject.toml`** — `[tool.pytest.ini_options]` with
+  `pythonpath = ["../scripts"]`, `testpaths` and the asyncio loop scope, so
+  `cd maggy && .venv/bin/python -m pytest tests` works without PYTHONPATH.
+- **`tests/conftest.py`** — before any maggy import, HOME becomes a temp dir
+  (no reads of `~/.maggy`, `~/.claude/council.yaml` or `~/bin`), `~/bin` is
+  dropped from PATH, and provider API keys are hidden.
+- Tests updated to current behaviour: the provider-config tier ladder
+  (`local`, `gemini-flash-lite`, `<flash>`, `<pro>`, `claude`); the
+  ollama → kimi → deepseek → Claude escalation cascade; REPL input through
+  `input()` rather than `Prompt.ask`; `raw["blast_score"]` in chat tasks; the
+  autonomous-agent grounding text; and the orchestrator taking blast >= 7 to
+  the parallel path. CLI discovery, model registry and Telos conformance
+  tests use fake binaries and shims, so they no longer need installed CLIs.
+  52 failures → 0. No tests were deleted or skipped.
+
 ## [6.67.0] - 2026-10-13
 
 ### Routing hook: no more qwen3 tier, missing tools fall back to Claude

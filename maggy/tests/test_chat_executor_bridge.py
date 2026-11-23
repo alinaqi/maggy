@@ -66,7 +66,8 @@ def test_task_from_chat_creates_task():
     assert task.title == "Fix the auth bug in login.py"
     assert task.description != ""
     assert task.id.startswith("chat-")
-    assert task.raw["blast"] == 5
+    # executor_helpers.blast_score() reads raw["blast_score"] (559d79f)
+    assert task.raw["blast_score"] == 5
     assert task.raw["task_type"] == "code"
 
 

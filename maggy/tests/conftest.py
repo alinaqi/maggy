@@ -2,12 +2,45 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
+# -- Hermetic environment (must run before any maggy import) --
+# Many maggy modules resolve ~/.maggy, ~/.claude and ~/bin at import time, so
+# the throwaway HOME has to be in place before `from maggy...` below.
+
+_PROVIDER_KEYS = (
+    "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "XAI_API_KEY", "GROQ_API_KEY",
+    "TOGETHER_API_KEY", "MOONSHOT_API_KEY", "KIMI_API_KEY",
+    "OPENROUTER_API_KEY",
+)
+
+
+def _isolate_environment() -> str:
+    """Point HOME at a temp dir, drop ~/bin from PATH, hide provider keys."""
+    real_bin = str(Path.home() / "bin")
+    home = tempfile.mkdtemp(prefix="maggy-test-home-")
+    os.environ["HOME"] = home
+    paths = os.environ.get("PATH", "").split(os.pathsep)
+    os.environ["PATH"] = os.pathsep.join(p for p in paths if p != real_bin)
+    for key in _PROVIDER_KEYS:
+        os.environ.pop(key, None)
+    return home
+
+
+_TEST_HOME = _isolate_environment()
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    shutil.rmtree(_TEST_HOME, ignore_errors=True)
+
+
+# Imported after _isolate_environment() on purpose (see above).
 from maggy.config import (
     BudgetConfig,
     DashboardConfig,
