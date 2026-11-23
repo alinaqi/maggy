@@ -4,6 +4,8 @@ name: pi
 tested_version: 0.73.1
 version_range: '>=0.73,<1'
 detect: [pi, --version]
+# pi has no end-of-options marker (`pi -p -- --version` still prints the version), so the
+# runner refuses a prompt that starts with '-' for this adapter (templating.prompt_problem).
 argv: [pi, -p, --mode, json, --no-session, '{awg_off_flags}', '{model_flags}',
        '{permission_flags}', '{prompt}']
 cwd: '{workspace}'

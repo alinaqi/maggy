@@ -11,6 +11,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Security
+- **Phase 2 review fixes, round 2: no settings-file plugins/hooks, no prompt-as-option**
+  (RFC personal-harness §2.6.1 invariant 1, §2.6.7).
+  - The Claude worker now runs with `--setting-sources ''`: no user/project/local settings
+    file is read, so no enabled plugins (the awg plugin's lease heartbeat and
+    TodoWrite/Task* mirroring hooks, which wrote to AWG with the user's credential;
+    clawalkietalkie) and no settings hooks run in a worker. `--strict-mcp-config` and
+    `--disallowedTools mcp__awg` stay as a second line. Verified from the stream-json
+    init event (also against a repo `.claude/settings.json` enabling awg) and one live
+    read_only run confirming subscription auth still works.
+  - A prompt starting with `-` can no longer reach a CLI as an option: the claude, codex
+    and opencode adapters put `--` before `{prompt}` (each CLI verified to treat
+    `-- --version` as a prompt); `render_argv` raises and `LaunchPlan.argv` refuses such a
+    prompt for adapters without `--` before `{prompt}` (pi, whose parser ignores `--`).
 - **Phase 2 review fixes: fail-closed worker boundaries** (RFC personal-harness §2.3,
   §2.6.1, §2.6.4, §2.6.7, §2.6.8).
   - Bypass check now covers adapter `budget_flags`, so `--dangerously-skip-permissions`

@@ -8,6 +8,8 @@ verified:
   - 'adapter flags: help.txt excerpt regenerated from pi --help 0.73.1 on 2026-11-23 (includes the
     read-only example and built-in tool names read, bash, edit, write, grep, find, ls)'
   - 'not run live: pi has no configured provider here'
+  - 'no end-of-options marker: `pi -p --mode json --no-session --no-extensions -- --version` (PI_OFFLINE=1,
+    scratch PI_CODING_AGENT_DIR) still prints 0.73.1, so the runner refuses prompts starting with -'
 cases:
   success:
     file: success.jsonl

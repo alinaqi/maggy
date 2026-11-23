@@ -8,7 +8,7 @@ from maggy.harness.schema import HarnessProfile
 from maggy.harness.schema_sections import PermissionProfile
 from maggy.worker.adapter_spec import AdapterSpec
 from maggy.worker.bypass import bypass_flags
-from maggy.worker.templating import ArgvValues, render_argv
+from maggy.worker.templating import ArgvValues, prompt_problem, render_argv
 
 HOST_HINT = ("set worker.allow_host_execution: true in ~/.maggy/harness.yaml to run on the host, "
              "or use isolation: container")
@@ -26,7 +26,11 @@ class LaunchPlan:
     host_execution: bool
 
     def argv(self, values: ArgvValues) -> list[str]:
-        """The run's argv, always with this plan's permission flags."""
+        """The run's argv, always with this plan's permission flags; Refused for a prompt
+        the CLI would read as an option."""
+        problem = prompt_problem(self.adapter, values.prompt)
+        if problem:
+            raise Refused(problem)
         return render_argv(self.adapter, replace(values, permission=self.permission))
 
 
