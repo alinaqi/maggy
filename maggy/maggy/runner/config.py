@@ -12,7 +12,8 @@ from maggy.worker.adapter_spec import AdapterSpec
 from maggy.worker.models import WorkerResult
 
 PrStep = Callable[[Claim, WorkerResult], object]
-CAPABILITIES = ["maggy-runner", "stage:build"]  # later stages arrive in Phase 4
+CAPABILITIES = ["maggy-runner", "stage:build"]
+REQUIRED = ["maggy-runner"]  # opt-in: untagged items are never claimed (RFC §2.4)  # later stages arrive in Phase 4
 
 
 @dataclass(frozen=True)
@@ -25,3 +26,4 @@ class RunnerConfig:
     heartbeat_s: float | None = None  # None: a third of the remaining lease
     pr_step: PrStep | None = None  # runner.publish.Publisher in `maggy run`; fenced per action
     state_file: Path | None = None  # held leases; None: <state_dir>/runner/state.json
+    max_failures: int = 3  # consecutive failed attempts before the item waits for a human

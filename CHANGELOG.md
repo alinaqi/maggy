@@ -26,6 +26,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   when no awg with the runner flags is present.
 
 #### Fixed
+- **Runner review findings (Phase 3)** (`maggy/runner/loop.py`, `lock.py`, `retry.py`,
+  `recovery.py`, `control.py`, `awg_cli.py`, `publish_gh.py`, `worker/pidfile.py`,
+  `harness/cli/doctor_checks.py`, `docs/runner.md`). The runner claimed items that never
+  opted in: it now passes `--require-capabilities=maggy-runner`, so untagged items are left
+  alone. A second `maggy run` on the same state dir released the live runner's lease as if it
+  had crashed: an exclusive `runner/runner.lock` (flock) now makes it report `locked`. A
+  failing item was re-run in a hot loop: the loop now backs off after every pass without
+  progress, and after three consecutive failed attempts the item is blocked for a human.
+  Crash recovery left the dead runner's worker group running in the worktree: reconcile now
+  kills it and removes its pid entry, and pid entries record the leader's start time so
+  `maggy run stop` never kills a process that reused the pid. The PR lookup by head branch
+  could adopt a fork's PR named `maggy/<ref>`: only same-repository PRs are used now. CI
+  trust is not enforceable under host execution (agent-written code runs as the same user as
+  the ci token): `docs/runner.md` states the limit, and `harness doctor` and `maggy run`
+  warn about it.
 - **Runner against the real AWG CLI:** these mismatches with the real CLI turned up in the
   exit test.
   - `next` now gets comma-separated `--capabilities`. Repeated flags kept only the last one,

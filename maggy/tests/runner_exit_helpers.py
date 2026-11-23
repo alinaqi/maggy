@@ -21,7 +21,7 @@ from runner_exit_gh import ExitGh
 from worker_git_helpers import fake_adapter_data, git, init_repo, profile_data, write_script
 from worker_helpers import write_adapter
 
-NEEDED = {("next",): ["--capabilities"], ("submit",): ["--attempt", "--fencing-token"],
+NEEDED = {("next",): ["--capabilities", "--require-capabilities"], ("submit",): ["--attempt", "--fencing-token"],
           ("evidence",): ["--commit-sha", "--meta", "--validation", "--attempt"],
           ("annotate",): ["--key"], ("annotations",): ["--json"], ("proof",): ["--json"],
           ("sync", "github"): ["--label", "--capability", "--json"]}

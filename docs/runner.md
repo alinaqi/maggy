@@ -1,6 +1,8 @@
 # Maggy runner (`maggy run`)
 
 The runner claims AWG work items that need the `maggy-runner` and `stage:build` capabilities.
+Claiming is opt-in: it passes `--require-capabilities=maggy-runner`, so an item that declares
+no capabilities (a hand-made task, an unlabelled import) is never claimed.
 It runs a worker in the item's own worktree, runs the required checks itself, and attaches
 evidence tied to the candidate commit. It then pushes `maggy/<ref>`, opens or updates a
 **draft** PR, and submits the item. AWG's completion contract decides whether the item ends
@@ -33,7 +35,17 @@ up DONE or VERIFYING. The design is in RFC personal-harness §2.4 and §2.6.
 - The child environment drops `AWG_TOKEN`.
 - Worker (agent) sessions get no AWG credential at all.
 - The default `test` validation requires CI trust (3). Evidence written with an agent token
-  (trust 1) cannot satisfy it, so an agent cannot mark its own work as tested.
+  (trust 1) cannot satisfy it, so an agent cannot mark its own work as tested **through
+  AWG's credential split**.
+- **Limit: CI trust is not enforceable under host execution.** The ci token is a 0600 file
+  owned by the same user that runs the worker and the required checks, and container
+  isolation is not implemented yet, so the runner can only run with
+  `worker.allow_host_execution: true`. Code the agent writes (for example a test the checks
+  execute) can read `~/.maggy/tokens/runner-ci.token` and attach trust-3 evidence itself.
+  Mode 0600 does not protect against the same uid. Until the ci credential lives outside the
+  worker's reach (a separate uid or keychain, or a sandbox that denies reading
+  `~/.maggy/tokens`), treat CI evidence from the runner as produced on a trusted host by
+  untrusted code, and review the PR. `maggy harness doctor` and `maggy run` warn about this.
 
 ## Intake
 
@@ -83,20 +95,36 @@ Two rules apply throughout:
 ## Kill switch
 
 - `maggy run stop` creates `~/.maggy/STOP` and SIGKILLs every registered worker process group.
+  Each entry records the leader's pid and start time; a group is killed only while its leader
+  is still that process, so a reused pid is never signalled.
   While STOP exists, nothing is claimed, reconciled, pushed or submitted. Delete the file to
   resume.
 - `maggy run pause --project KEY` and `maggy run resume --project KEY` stop and restart intake
   for one project.
+
+## One runner per state dir, and retries
+
+`maggy run` takes an exclusive lock on `~/.maggy/runner/runner.lock` (the kernel releases it
+when the process dies, even on SIGKILL). A second runner on the same state dir reports
+`locked` and touches nothing, so it never mistakes a live runner's lease for a crash.
+
+After any pass that made no progress (idle, paused, failed, unsupported, interrupted) the loop
+sleeps before the next claim. After three consecutive failed attempts on one item
+(`max_failures`), the next claim blocks the item for a human instead of running the agent
+again. A human comment or unblock resets the count.
 
 ## Crash recovery
 
 `~/.maggy/runner/state.json` records each held lease: the claim, plus the WorkerResult once the
 checks have run. Writes are atomic.
 
-On startup (and before every claim), the runner reconciles each held item:
+On startup (and before every claim), the runner reconciles each held item. It first kills
+the dead run's worker process group, which outlives the runner because it has its own
+session, and removes its pid entry, so no orphan keeps editing the worktree.
 
 1. **Settle dangling push/PR intents.** It looks each one up by its stable name (the remote
-   `maggy/<ref>`, the open PR whose head is that branch) and records a `reconciled` result.
+   `maggy/<ref>`, the open same-repository PR whose head is that branch) and records a
+   `reconciled` result. A fork PR from a branch with the same name is never adopted.
 2. **Roll forward** when the lease is still live and the worker had finished. It re-runs the
    conclusion: evidence already attached is skipped, the push is skipped when the remote
    already holds the SHA, the PR is edited rather than created again, and then it submits.

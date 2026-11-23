@@ -12,9 +12,9 @@ from maggy.runner.awg_types import TRUST, Claim, EvidenceSpec
 
 
 class FakeAwg(FakeAwgState):
-    def next_claim(self, capabilities: list[str]) -> Claim | None:
+    def next_claim(self, capabilities: list[str], require: list[str] | None = None) -> Claim | None:
         for item in self.items.values():
-            if self._claimable(item, capabilities):
+            if self._claimable(item, capabilities, require or []):
                 return self._grant(item)
         return None
 

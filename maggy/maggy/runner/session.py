@@ -27,7 +27,7 @@ def verify_live(awg: AwgClient, claim: Claim, state_dir: Path) -> None:
 
 @dataclass(frozen=True)
 class RunReport:
-    """outcome: idle, stopped, paused, submitted, waiting_human, interrupted, spec_review,
+    """outcome: idle, locked, stopped, paused, submitted, waiting_human, interrupted, spec_review,
     unsupported or failed."""
 
     outcome: str

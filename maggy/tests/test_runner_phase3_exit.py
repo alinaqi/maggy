@@ -82,6 +82,13 @@ def test_intake_then_run_once_publishes_with_ci_evidence(rig: ExitRig) -> None:
     assert _run_once(rig)[0] == "idle"
 
 
+def test_untagged_hand_made_item_is_never_claimed(rig: ExitRig) -> None:
+    rig.awg("create", "My own personal task, not for the runner", "--json")
+    assert _run_once(rig)[0] == "idle"
+    [item] = rig.awg("list", "--json")["items"]
+    assert item["state"] == "READY"
+
+
 def test_agent_token_evidence_does_not_satisfy_the_ci_validation(rig: ExitRig) -> None:
     created = rig.awg("create", "Add feature", "--ac", "feature.txt exists", *RUNNER_CAPS,
                       "--json")

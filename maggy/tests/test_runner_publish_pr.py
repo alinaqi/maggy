@@ -19,7 +19,7 @@ def test_first_run_creates_a_draft_pr(tmp_path: Path, monkeypatch) -> None:
     lookup, create, relookup = rig.gh.calls()
     assert relookup == lookup
     assert lookup[:2] == ["pr", "list"] and lookup[lookup.index("--head") + 1] == head
-    assert "number,url,isDraft,state" in lookup
+    assert "number,url,isDraft,state,isCrossRepository,headRepositoryOwner" in lookup
     assert create[:3] == ["pr", "create", "--draft"]
     [pr] = rig.gh.prs()
     assert pr["isDraft"] and pr["head"] == head and pr["base"] == "main"

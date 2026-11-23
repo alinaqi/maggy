@@ -13,6 +13,7 @@ from maggy.worker.env import allowlisted
 
 ALLOWED = frozenset({("pr", "list"), ("pr", "create"), ("pr", "edit")})
 FORBIDDEN = frozenset({"merge", "ready", "--ready", "--auto"})
+PR_FIELDS = "number,url,isDraft,state,isCrossRepository,headRepositoryOwner"
 GH_AUTH = ("GH_TOKEN", "GH_HOST", "GH_ENTERPRISE_TOKEN", "GH_CONFIG_DIR")
 
 
@@ -43,11 +44,12 @@ class GhCli:
         return done.stdout
 
     def find(self, head: str) -> dict | None:
-        """The open PR whose head is `head`, if any."""
-        out = self.run(["pr", "list", "--head", head, "--state", "open",
-                        "--json", "number,url,isDraft,state"])
-        found = json.loads(out or "[]")
-        return found[0] if found else None
+        """The open same-repository PR whose head is `head`, if any. `--head` matches the
+        branch name only, so a fork's PR from a branch named maggy/<ref> would match too;
+        it is never adopted (edited, or recorded as ours)."""
+        out = self.run(["pr", "list", "--head", head, "--state", "open", "--json", PR_FIELDS])
+        ours = [pr for pr in json.loads(out or "[]") if pr.get("isCrossRepository") is False]
+        return ours[0] if ours else None
 
     def create(self, request: PrRequest) -> None:
         self.run(["pr", "create", "--draft", "--head", request.head, "--base", request.base,
