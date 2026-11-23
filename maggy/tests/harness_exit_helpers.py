@@ -24,8 +24,26 @@ def rules_block(path: Path) -> str:
     return found
 
 
-def skill_names(skills_dir: Path) -> set[str]:
+def _names(skills_dir: Path) -> set[str]:
     return {p.parent.name for p in skills_dir.glob("*/SKILL.md")}
+
+
+def _configured_dirs(home: Path, agent: str) -> list[str]:
+    """Extra skill dirs an agent loads by config: opencode skills.paths, pi settings skills."""
+    if agent == "opencode":
+        return opencode_config(home).get("skills", {}).get("paths", [])
+    settings = home / ".pi" / "agent" / "settings.json"
+    if agent == "pi" and settings.is_file():
+        return json.loads(settings.read_text()).get("skills", [])
+    return []
+
+
+def skill_names(home: Path, agent: str) -> set[str]:
+    """Every skill the agent loads: its skills dir plus dirs named in its config."""
+    found = _names(agent_dirs(home)[agent] / "skills")
+    for extra in _configured_dirs(home, agent):
+        found |= _names(Path(extra))
+    return found
 
 
 def awg_token_refs(home: Path) -> dict[str, str]:

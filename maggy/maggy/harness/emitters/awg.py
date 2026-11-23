@@ -13,6 +13,9 @@ from importlib.resources import files
 from pathlib import Path
 
 from maggy.harness.emitters.base import EmitterSources, Scope
+from maggy.harness.schema import HarnessProfile
+
+AWG_PLUGINS = {"claude": "claude-code", "codex": "codex"}
 
 
 def token_file(scope: Scope, agent: str) -> str:
@@ -46,3 +49,14 @@ def awg_plugin_dir(sources: EmitterSources, agent: str) -> Path | None:
 def codex_awg_section() -> str:
     asset = files("maggy.harness.emitters") / "assets" / "awg_codex_agents.md"
     return asset.read_text(encoding="utf-8").strip()
+
+
+def awg_skill(sources: EmitterSources, agent: str, wiring: tuple[HarnessProfile, Scope]) -> dict[str, str]:
+    """{'awg': SKILL.md} from <awg_repo>/plugins/<claude-code|codex>/skills/awg (user scope only,
+    like OpenCode's skills.paths and pi's settings skills); {} when not wired."""
+    profile, scope = wiring
+    if profile.work.provider != "awg" or scope.kind != "user":
+        return {}
+    plugin = awg_plugin_dir(sources, AWG_PLUGINS[agent])
+    skill = plugin / "skills" / "awg" / "SKILL.md" if plugin else None
+    return {"awg": skill.read_text(encoding="utf-8")} if skill and skill.is_file() else {}

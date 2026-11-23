@@ -47,7 +47,8 @@ def make_awg_repo(tmp_path: Path) -> Path:
     write(ext / "index.ts", "import { register } from './run.ts'\n\nexport default register\n")
     write(ext / "run.ts", "export function register (pi: any) {\n  pi.registerCommand('awg', "
           "{ description: 'AWG', handler: async () => {} })\n}\n")
-    write(repo / "plugins" / "pi" / "skills" / "awg" / "SKILL.md", SKILL.format(name="awg"))
+    for agent in ("pi", "claude-code", "codex"):
+        write(repo / "plugins" / agent / "skills" / "awg" / "SKILL.md", SKILL.format(name="awg"))
     return repo
 
 

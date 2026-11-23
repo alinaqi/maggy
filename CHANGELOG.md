@@ -125,6 +125,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `--take-mine` keeps (and pins) the user's value. An equal value is adopted
   silently. Codex `sandbox_mode`/`approval_policy` are emitted only when
   `worker.permission` names a permission profile (Claude already emitted none).
+- **Claude Code and Codex get AWG's skill.** With `work.provider: awg` and an
+  AWG checkout (`MAGGY_AWG_REPO`), user scope now copies
+  `plugins/claude-code/skills/awg` to `~/.claude/skills/awg/` and
+  `plugins/codex/skills/awg` to `~/.codex/skills/awg/` (managed skill copies),
+  matching OpenCode's `skills.paths` and pi's `skills`. The Phase 1 exit test
+  now counts skills an agent loads through its config, not only its skills dir.
 - **Dropped regions are removed.** harness.lock now records each region's
   format, scope root and owning agents, and keeps (merges) entries for regions
   outside the current run. A region the profile no longer emits (for example AWG

@@ -12,7 +12,7 @@ from harness_emitter_helpers import (
 
 from maggy.harness.apply import apply_changes
 from maggy.harness.emitters import ClaudeEmitter, CodexEmitter
-from maggy.harness.emitters.skills import managed_text, plan_skills
+from maggy.harness.emitters.skills import SkillSet, managed_text, plan_skills
 
 LOCKED_DOWN = {"profiles": {"ro": {"write": False, "network": False, "shell": False}}}
 
@@ -63,10 +63,10 @@ def test_take_mine_keeps_edit_and_take_profile_restores(tmp_path: Path) -> None:
     scope, emitter, skill = _edited_skill(tmp_path)
     ctx = scope.context().model_copy(update={"resolution": "take_mine"})
     names = ["python", "react-web"]
-    kept = by_name(plan_skills(names, skill.parent.parent, (emitter.sources, ctx)), "python/SKILL.md")
+    kept = by_name(plan_skills(SkillSet(names, skill.parent.parent), (emitter.sources, ctx)), "python/SKILL.md")
     assert kept.status == "ok" and kept.kind == "unchanged"
     ctx = ctx.model_copy(update={"resolution": "take_profile"})
-    restored = by_name(plan_skills(names, skill.parent.parent, (emitter.sources, ctx)),
+    restored = by_name(plan_skills(SkillSet(names, skill.parent.parent), (emitter.sources, ctx)),
                        "python/SKILL.md")
     assert restored.kind == "update" and "my note" not in restored.after
 

@@ -15,6 +15,7 @@ from maggy.harness.changes import FileChange, ManagedFile
 from maggy.harness.emitters.awg import awg_plugin_dir, token_file
 from maggy.harness.emitters.base import Capabilities, Capability, EmitterSources, Scope
 from maggy.harness.emitters.common import markdown, run_plan
+from maggy.harness.emitters.skills import SkillSet
 from maggy.harness.emitters.copies import plan_copies
 from maggy.harness.emitters.pi_hooks import EXTENSION, MARKER, hooks_extension
 from maggy.harness.emitters.sources import instructions_body
@@ -57,7 +58,7 @@ class PiEmitter:
         return CAPABILITIES
 
     def plan(self, profile: HarnessProfile, scope: Scope) -> list[FileChange]:
-        skills = (list(profile.skills), agent_dir(scope) / "skills")
+        skills = SkillSet(list(profile.skills), agent_dir(scope) / "skills")
         planned = run_plan(self.managed_files(profile, scope), skills, (self.sources, scope))
         ext = agent_dir(scope) / "extensions"
         candidates = _files_under(ext / "awg") + [p for p in [ext / "maggy-hooks.ts"] if p.is_file()]
