@@ -83,8 +83,10 @@ def test_take_profile_and_take_mine_resolve_conflicts(env) -> None:
     mine = invoke(env, ["apply", "--yes", "--agent", "claude", "--take-mine"])
     assert mine.exit_code == 0, mine.output
     assert "My edit." in target.read_text()
-    assert invoke(env, ["apply", "--yes", "--agent", "claude"]).exit_code == 0
+    again = invoke(env, ["apply", "--yes", "--agent", "claude"])
+    assert again.exit_code == 0 and "My edit." in target.read_text(), again.output
     target.write_text(target.read_text().replace("My edit.", "Other edit."))
+    assert invoke(env, ["apply", "--yes", "--agent", "claude"]).exit_code == 1
     theirs = invoke(env, ["apply", "--yes", "--agent", "claude", "--take-profile"])
     assert theirs.exit_code == 0, theirs.output
     assert "Write the failing test first." in target.read_text()

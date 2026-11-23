@@ -1,13 +1,13 @@
 """opencode.json managed keys (verified against opencode 1.19.6).
 
-Lists (instructions, plugin, skills.paths) keep the user's entries first and
-append Maggy's. permission.bash objects keep the user's patterns; opencode
+Lists (instructions, plugin, skills.paths) are list regions (region_lists):
+the region holds only Maggy's entries, appended after the user's, which are
+kept and never conflict. permission.bash objects keep the user's patterns; opencode
 evaluates the last matching rule, so the broad "*" stays first.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from maggy.harness.emitters.awg import awg_plugin_dir, opencode_awg_server, token_file
@@ -16,19 +16,6 @@ from maggy.harness.emitters.claude_settings import load_settings
 from maggy.harness.emitters.permissions import opencode_rules
 from maggy.harness.region_keys import get_path
 from maggy.harness.schema import HarnessProfile
-
-PLUGIN_SUFFIX = "plugins/opencode/plugin/awg.js"
-
-
-def merged(current: object, ours: list, is_ours: Callable[[object], bool]) -> list:
-    """The user's list entries (minus Maggy's) followed by Maggy's."""
-    have = current if isinstance(current, list) else []
-    return [x for x in have if not is_ours(x)] + ours
-
-
-def _is_awg_plugin(entry: object) -> bool:
-    spec = entry[0] if isinstance(entry, list) and entry else entry
-    return isinstance(spec, str) and spec.endswith(PLUGIN_SUFFIX)
 
 
 class OpenCodeConfig:
@@ -41,8 +28,7 @@ class OpenCodeConfig:
     def regions(self, profile: HarnessProfile, agents_ref: str | None) -> dict[str, object]:
         out: dict[str, object] = {}
         if agents_ref:
-            have = get_path(self.current, "instructions")
-            out["instructions"] = merged(have, [agents_ref], lambda x: x == agents_ref)
+            out["instructions[]"] = [agents_ref]
         out.update(self._permissions(profile))
         if profile.work.provider == "awg":
             out["mcp.awg"] = opencode_awg_server(self.scope)
@@ -63,7 +49,4 @@ class OpenCodeConfig:
         if plugin_dir is None or self.scope.kind != "user":
             return {}
         entry = [f"file://{plugin_dir / 'plugin' / 'awg.js'}", {"tokenFile": token_file(self.scope, "opencode")}]
-        skills = str(plugin_dir / "skills")
-        return {"plugin": merged(get_path(self.current, "plugin"), [entry], _is_awg_plugin),
-                "skills.paths": merged(get_path(self.current, "skills.paths"), [skills],
-                                       lambda x: x == skills)}
+        return {"plugin[]": [entry], "skills.paths[]": [str(plugin_dir / "skills")]}

@@ -11,6 +11,16 @@ from maggy.harness.region_errors import RegionError
 MISSING = object()
 
 
+class _Remove:
+    """Region value meaning: remove this managed key / block."""
+
+    def __repr__(self) -> str:
+        return "REMOVE"
+
+
+REMOVE = _Remove()
+
+
 def unwrap(value: Any) -> Any:
     """Plain Python value (tomlkit items carry formatting wrappers)."""
     return value.unwrap() if hasattr(value, "unwrap") else value
@@ -43,8 +53,15 @@ def canonical(value: Any) -> str:
     return json.dumps(unwrap(value), indent=2, sort_keys=True, ensure_ascii=False)
 
 
+def _differs(data: Any, path: str, value: Any) -> bool:
+    have = get_path(data, path)
+    if value is REMOVE:
+        return have is not MISSING
+    return have is MISSING or unwrap(have) != value
+
+
 def changed_paths(data: Any, regions: dict[str, Any]) -> list[str]:
-    return [p for p, v in regions.items() if unwrap(get_path(data, p)) != v]
+    return [p for p, v in regions.items() if _differs(data, p, v)]
 
 
 def extract_keys(data: Any, ids: list[str]) -> dict[str, str | None]:

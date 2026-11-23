@@ -1,7 +1,9 @@
 """Read instruction includes and skills from the Maggy source tree.
 
 Includes (e.g. `rules/tdd.md`) and skills (`skills/<name>/SKILL.md`) resolve
-against EmitterSources.root: the Maggy repo by default, or MAGGY_HARNESS_SOURCES.
+against EmitterSources.root: MAGGY_HARNESS_SOURCES if set, else the Maggy repo
+when running from a source checkout, else the copy of the repo's skills/ and
+rules/ bundled into the installed package (maggy/harness/library, see setup.py).
 `preset:<file>` includes resolve to the shipped presets (maggy/harness/presets).
 """
 
@@ -20,11 +22,19 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 _PROFILE = "<harness profile>"
 
 
+def sources_root(module: Path) -> Path:
+    """The repo root when `module` (this file) lives in a checkout, else the bundled library."""
+    checkout = module.resolve().parents[4]
+    if (checkout / "skills").is_dir() and (checkout / "rules").is_dir():
+        return checkout
+    return module.resolve().parents[1] / "library"
+
+
 def default_sources() -> EmitterSources:
-    """Maggy repo (or MAGGY_HARNESS_SOURCES); AWG checkout from MAGGY_AWG_REPO, if set."""
+    """Skills/rules root (see sources_root); AWG checkout from MAGGY_AWG_REPO, if set."""
     override = os.environ.get("MAGGY_HARNESS_SOURCES")
     awg = os.environ.get("MAGGY_AWG_REPO")
-    return EmitterSources(root=Path(override) if override else Path(__file__).resolve().parents[4],
+    return EmitterSources(root=Path(override) if override else sources_root(Path(__file__)),
                           awg_repo=Path(awg).expanduser() if awg else None)
 
 

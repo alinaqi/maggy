@@ -49,7 +49,7 @@ def test_take_mine_adopts_on_disk_and_updates_lock(tmp_path: Path) -> None:
     assert "mine" in path.read_text()
     assert load_lock(ctx.lock_path).get(path, "awg").sha256 == region_hash("mine")
     again = plan_files(specs, make_ctx(tmp_path))
-    assert (again[0].status, again[0].kind) == ("ok", "update")
+    assert (again[0].status, again[0].kind) == ("ok", "unchanged")
 
 
 def test_take_profile_overwrites_region_only(tmp_path: Path) -> None:

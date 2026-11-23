@@ -8,7 +8,7 @@ import tomlkit
 from tomlkit.exceptions import TOMLKitError
 
 from maggy.harness.region_errors import RegionError
-from maggy.harness.region_keys import changed_paths, extract_keys, parent_of
+from maggy.harness.region_keys import REMOVE, changed_paths, extract_keys, get_path, parent_of
 
 
 def _load(content: str | None) -> tomlkit.TOMLDocument:
@@ -28,9 +28,18 @@ def render_toml(content: str | None, regions: dict[str, Any]) -> str:
     if content is not None and not changed:
         return content
     for path in changed:
+        if regions[path] is REMOVE:
+            _remove(doc, path)
+            continue
         parent, last = parent_of(doc, path, _super_table)
         parent[last] = regions[path]
     return tomlkit.dumps(doc)
+
+
+def _remove(doc: tomlkit.TOMLDocument, path: str) -> None:
+    head, _, last = path.rpartition(".")
+    parent = get_path(doc, head) if head else doc
+    del parent[last]
 
 
 def extract_toml(content: str | None, ids: list[str]) -> dict[str, str | None]:

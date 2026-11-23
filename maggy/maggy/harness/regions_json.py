@@ -1,4 +1,5 @@
-"""Managed keys in JSON files: merge without touching other keys or order.
+"""Managed keys in JSON files: edited in place (json_edit), so every byte
+outside the managed keys is preserved.
 
 JSONC (comments) is not supported: such files are reported, never rewritten.
 """
@@ -10,7 +11,8 @@ import re
 from typing import Any
 
 from maggy.harness.region_errors import RegionError
-from maggy.harness.region_keys import changed_paths, extract_keys, parent_of
+from maggy.harness.json_edit import remove_value, set_value
+from maggy.harness.region_keys import REMOVE, changed_paths, extract_keys
 
 
 def _load(content: str | None) -> dict:
@@ -37,11 +39,11 @@ def render_json(content: str | None, regions: dict[str, Any]) -> str:
     changed = changed_paths(data, regions)
     if content is not None and not changed:
         return content
+    text, unit = ("{}\n" if content is None else content), _indent_of(content)
     for path in changed:
-        parent, last = parent_of(data, path, dict)
-        parent[last] = regions[path]
-    text = json.dumps(data, indent=_indent_of(content), ensure_ascii=False)
-    return text + "\n" if content is None or content.endswith("\n") else text
+        value = regions[path]
+        text = remove_value(text, path) if value is REMOVE else set_value(text, (path, value), unit)
+    return text
 
 
 def extract_json(content: str | None, ids: list[str]) -> dict[str, str | None]:

@@ -14,10 +14,8 @@ from pathlib import Path
 from maggy.harness.changes import FileChange, ManagedFile
 from maggy.harness.emitters.awg import awg_plugin_dir, token_file
 from maggy.harness.emitters.base import Capabilities, Capability, EmitterSources, Scope
-from maggy.harness.emitters.claude_settings import load_settings
 from maggy.harness.emitters.common import markdown, run_plan
 from maggy.harness.emitters.copies import plan_copies
-from maggy.harness.emitters.opencode_config import merged
 from maggy.harness.emitters.pi_hooks import EXTENSION, MARKER, hooks_extension
 from maggy.harness.emitters.sources import instructions_body
 from maggy.harness.schema import HarnessProfile
@@ -74,11 +72,8 @@ class PiEmitter:
         if plugin is None:
             return files
         settings = agent_dir(scope) / "settings.json"
-        skills = str(plugin / "skills")
-        have = load_settings(settings).get("skills")
         return files + [
-            ManagedFile(path=settings, format="json",
-                        regions={"skills": merged(have, [skills], lambda x: x == skills)}),
+            ManagedFile(path=settings, format="json", regions={"skills[]": [str(plugin / "skills")]}),
             ManagedFile(path=agent_dir(scope) / "awg.json", format="json", references_token=True,
                         regions={"tokenFile": token_file(scope, "pi")})]
 

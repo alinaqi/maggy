@@ -78,6 +78,8 @@ maggy = [
     "prompt/*.md",
     "harness/emitters/assets/*.md",
     "harness/presets/*.md",
+    # Repo skills/ and rules/, copied in by setup.py (sync_library) at build time.
+    "harness/library/**/*",
     "**/*.yaml",
     "**/*.yml",
 ]
