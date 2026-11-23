@@ -24,8 +24,9 @@ __all__ = ["TRUST", "AwgCliConfig", "AwgClient", "AwgError", "AwgUnavailable", "
 
 @runtime_checkable
 class AwgClient(Protocol):
-    def next_claim(self, capabilities: list[str]) -> Claim | None:
-        """Claim the best ready item whose capabilities we hold; None when nothing is ready."""
+    def next_claim(self, capabilities: list[str], require: list[str] | None = None) -> Claim | None:
+        """Claim the best ready item whose capabilities we hold and that declares every
+        `require` capability (opt-in); None when nothing is ready."""
 
     def heartbeat(self, claim: Claim) -> Claim:
         """Extend the lease; raises LeaseLost/FenceStale when it is gone."""

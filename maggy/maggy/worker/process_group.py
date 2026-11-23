@@ -11,6 +11,7 @@ import signal
 import subprocess
 
 from maggy.worker.job import Job
+from maggy.worker.pidfile import write_pid_file
 
 
 class LaunchFailed(OSError):
@@ -27,8 +28,7 @@ def launch(job: Job) -> subprocess.Popen:
         except OSError as exc:
             raise LaunchFailed(f"could not start {job.argv[0]!r}: {exc}") from exc
     if job.pid_file is not None:  # the leader's pid is its group id (new session)
-        job.pid_file.parent.mkdir(parents=True, exist_ok=True)
-        job.pid_file.write_text(f"{proc.pid}\n")
+        write_pid_file(job.pid_file, proc.pid)
     return proc
 
 

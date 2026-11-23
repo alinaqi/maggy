@@ -30,6 +30,7 @@ elif args[:2] == ['pr', 'create']:
     url = 'https://example.invalid/pr/%d' % (len(prs) + 1)
     prs.append({{'number': len(prs) + 1, 'url': url, 'isDraft': '--draft' in args,
                 'state': 'OPEN', 'head': opt('--head'), 'base': opt('--base'),
+                'isCrossRepository': False, 'headRepositoryOwner': {{'login': 'me'}},
                 'title': opt('--title'), 'body': open(opt('--body-file')).read()}})
     print(url)
 elif args[:2] == ['pr', 'edit']:

@@ -14,6 +14,7 @@ from maggy.runner.attempt import build_attempt, item_stage, workspace_for
 from maggy.runner.awg_errors import LeaseLost
 from maggy.runner.conclude import conclude
 from maggy.runner.heartbeat import Heartbeat
+from maggy.runner.retry import block_after_failures, trailing_failures
 from maggy.runner.session import RunReport, Session, Stopped
 from maggy.runner.state import latest_handoff, state_for
 from maggy.runner.workspace import prepare_workspace
@@ -44,6 +45,9 @@ def guarded(session: Session, step: Callable[[], RunReport]) -> RunReport:
 
 def _drive(session: Session) -> RunReport:
     shown = session.awg.show(session.claim.ref)
+    failures = trailing_failures(shown)
+    if failures >= session.config.max_failures:
+        return block_after_failures(session, failures)
     stage = item_stage(shown)
     if stage != "build":
         return session.give_back("unsupported", f"stage {stage!r} is not supported yet")

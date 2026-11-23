@@ -11,10 +11,11 @@ from maggy.runner.awg_types import Claim, EvidenceSpec, claim_from_lease
 
 
 class CliAwgClient(CliBase):
-    def next_claim(self, capabilities: list[str]) -> Claim | None:
-        wanted = f"--capabilities={','.join(capabilities)}"
+    def next_claim(self, capabilities: list[str], require: list[str] | None = None) -> Claim | None:
+        wanted = [f"--capabilities={','.join(capabilities)}",
+                  *([f"--require-capabilities={','.join(require)}"] if require else [])]
         try:
-            lease = self._agent(["next", "--claim", wanted, "--json"])
+            lease = self._agent(["next", "--claim", *wanted, "--json"])
         except AwgError as exc:
             if exc.code == "conflict":
                 return None

@@ -17,6 +17,10 @@ T3_ADVICE = [
     "T3: Claude profiles with a custom home read only project/local settings: "
     "run `maggy harness apply --scope project` in each repo you open from T3.",
 ]
+CI_TRUST_WARNING = (
+    "CI trust is not enforceable under host execution: the worker and the required checks run "
+    "as your user, so agent-written code can read ~/.maggy/tokens/runner-ci.token and attach "
+    "trust-3 evidence itself (see docs/runner.md)")
 
 
 @dataclass
@@ -94,4 +98,5 @@ def host_execution_warnings(profile: HarnessProfile) -> list[str]:
     if not profile.worker.allow_host_execution:
         return []
     return ["worker.allow_host_execution is true: write- or shell-capable runs on adapters "
-            "without a native sandbox (opencode, pi) execute directly on this host"]
+            "without a native sandbox (opencode, pi) execute directly on this host",
+            CI_TRUST_WARNING]

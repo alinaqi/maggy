@@ -48,9 +48,11 @@ class FakeAwgState:
             raise NotFound("not_found", f"no work item {ref}")
         return self.items[ref]
 
-    def _claimable(self, item: FakeItem, capabilities: list[str]) -> bool:
+    def _claimable(self, item: FakeItem, capabilities: list[str], require: list[str]) -> bool:
+        """AWG's rule: needed <= held, and every required capability declared by the item."""
         lapsed = item.state == "ACTIVE" and item.lease_expires < self.clock()
-        return item.capabilities <= set(capabilities) and (item.state == "READY" or lapsed)
+        matches = set(require) <= item.capabilities <= set(capabilities)
+        return matches and (item.state == "READY" or lapsed)
 
     def _grant(self, item: FakeItem) -> Claim:
         self._attempts += 1

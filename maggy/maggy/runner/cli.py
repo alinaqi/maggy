@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 
 from maggy.harness.cli.command import options_command
+from maggy.harness.cli.doctor_checks import host_execution_warnings
 from maggy.harness.errors import HarnessConfigError
 from maggy.runner.awg_errors import AwgError
 from maggy.runner.cli_setup import STATE_HELP, RunCliOptions, awg_binary, build_runner, state_of
@@ -28,7 +29,10 @@ def run(ctx: typer.Context, opts: RunCliOptions) -> None:
     if ctx.invoked_subcommand is not None:
         return
     try:
-        reports = build_runner(opts).run(once=opts.once)
+        runner = build_runner(opts)
+        for warning in host_execution_warnings(runner.config.profile):
+            typer.echo(f"warning: {warning}", err=True)
+        reports = runner.run(once=opts.once)
     except (Refused, HarnessConfigError, GitError, KeyError, AwgError) as exc:
         typer.echo(f"refused: {exc}", err=True)
         raise typer.Exit(2) from exc

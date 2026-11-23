@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from maggy.runner.cli import app
 from maggy.runner.control import is_paused, pid_dir, stop_file
+from maggy.worker.pidfile import write_pid_file
 from runner_loop_helpers import EDIT_AGENT, make_rig
 
 
@@ -33,7 +34,7 @@ def test_run_stop_creates_stop_and_kills_registered_groups(tmp_path: Path) -> No
     proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
                             start_new_session=True)
     pid_dir(state).mkdir(parents=True)
-    (pid_dir(state) / "att-1.pid").write_text(f"{proc.pid}\n")
+    write_pid_file(pid_dir(state) / "att-1.pid", proc.pid)
     try:
         result = CliRunner().invoke(_cli(), ["run", "stop", "--state-dir", str(state)])
         assert result.exit_code == 0, result.output
