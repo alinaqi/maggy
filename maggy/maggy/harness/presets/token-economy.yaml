@@ -1,0 +1,9 @@
+# Personal "token economy" preset: cheap-first model tiers and the routing rules
+# that go with them. `maggy harness init --preset token-economy` merges this
+# under the interview answers.
+models:
+  strategy: cost
+  tiers: { cheap: deepseek-flash, main: deepseek-pro, premium: claude-opus }
+instructions:
+  include: ["preset:token-economy.md"]
+skills: [model-routing]

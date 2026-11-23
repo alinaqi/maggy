@@ -95,6 +95,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   write and update `harness.lock`; a second apply is a no-op. Conflicts are
   listed with `--take-mine` / `--take-profile` (now passed through `Scope`).
   Exit codes: 0 ok, 1 conflicts/errors, 2 usage. Subprocesses use argv lists.
+- **`token-economy` preset** (`maggy/harness/presets/`): the personal model-tier
+  table, routing heuristic and personal tool invocations (deepseek / kimi /
+  gemini / grok, `~/bin/*` scripts, `pr-review`, hook signals) moved out of the
+  repo `CLAUDE.md` into `presets/token-economy.md`, with a preset profile layer
+  (`token-economy.yaml`: cost tiers, `preset:token-economy.md` include,
+  `model-routing` skill). `maggy harness init --preset token-economy` merges it
+  under the interview answers; unknown presets fail and list the choices.
+  Instruction includes of the form `preset:<file>.md` resolve inside the package.
+  `harness doctor` now prints a `GAP <agent> <capability>=<level>: <notes>` line
+  for every non-native capability.
+- **Phase 1 exit test** (`tests/test_harness_phase1_exit.py`): temp HOME + temp
+  repo, `init --yes --preset token-economy` with all four agents and awg faked,
+  `apply --yes`: Claude (`CLAUDE.md` -> `@AGENTS.md`), Codex, OpenCode and pi get
+  the identical rules block, the same skills and AWG wiring to their own token
+  file; second apply is a no-op; doctor exits 0 listing every gap. The emitted
+  Codex config is checked with the real `codex mcp list --json` (tomllib
+  otherwise) and `opencode.json` against the 1.19.6 schema.
+
+#### Changed
+- Repo `CLAUDE.md` now holds project-generic engineering policy only (TDD,
+  quality gates, changelog, PR workflow); personal routing lives in the preset.
 
 ### Maggy: Phase 0 hardening (review leftovers)
 

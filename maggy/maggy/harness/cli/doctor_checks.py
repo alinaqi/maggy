@@ -37,6 +37,13 @@ def capability_rows(env: ToolEnv, agents: list[str], found: Findings) -> list[st
     return rows
 
 
+def capability_gaps(env: ToolEnv, agents: list[str]) -> list[str]:
+    """Every non-native capability, with what falls back (RFC §2.2: report gaps honestly)."""
+    return [f"GAP {emitter.agent} {name}={cap['level']}: {cap['notes']}"
+            for emitter in emitters_for(agents, env.sources)
+            for name, cap in emitter.capabilities().model_dump().items() if cap["level"] != "native"]
+
+
 def _version_finding(agent: str, version: str | None, found: Findings) -> None:
     tested = TESTED_VERSIONS[agent]
     if version is None:
