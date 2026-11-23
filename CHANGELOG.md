@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Personal Harness (Phase 1)
+
+#### Added
+- **`maggy/harness/`** — harness profile schema and layering (RFC personal-harness
+  §2.1). Strict Pydantic v2 models (unknown keys rejected) for agents, surfaces,
+  models, instructions, skills, hooks, permissions, gates, work, budget and the
+  repo-level commands, intake, worker, risk, validation and `locked`.
+  `resolve_profile(repo_root, personal_path)` merges shipped defaults < repo
+  (unlocked) < personal (`~/.maggy/harness.yaml`) < repo-locked: keys (or dotted
+  paths) listed in the repo's `locked:` cannot be changed by the personal file.
+  Dicts deep-merge, lists replace. It returns the profile plus a provenance map
+  (`default|repo|personal|repo-locked`) for every top-level and nested key.
+  Invalid YAML, unknown keys, bad types and credential-looking keys (token,
+  api_key, secret, password, ...) fail with the file and key path; missing or
+  empty files fall back to defaults; `locked` is rejected in the personal file.
+
 ### Maggy: Phase 0 hardening (review leftovers)
 
 #### Fixed
