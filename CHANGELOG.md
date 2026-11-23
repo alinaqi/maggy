@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### install.sh works on a clean HOME
+
+#### Fixed
+- **`install.sh`** — wrote `~/.claude/.bootstrap-dir` before creating
+  `~/.claude`, so under `set -e` a fresh install aborted at once. Directory
+  creation now runs first; install behaviour is otherwise unchanged.
+  Covered by `maggy/tests/test_install_script.py`, which runs the installer
+  against an empty temp HOME with a minimal PATH.
+
 ### Maggy: isolated workspaces no longer lose agent work
 
 #### Fixed

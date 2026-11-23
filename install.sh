@@ -10,15 +10,15 @@ CLAUDE_DIR="$HOME/.claude"
 echo "Installing Claude Bootstrap v6.35.0..."
 echo ""
 
-# Save bootstrap directory location for other scripts
-echo "$SCRIPT_DIR" > "$HOME/.claude/.bootstrap-dir"
-
-# Create directories
+# Create directories (before any write into $CLAUDE_DIR; set -e aborts otherwise)
 mkdir -p "$CLAUDE_DIR/commands"
 mkdir -p "$CLAUDE_DIR/skills"
 mkdir -p "$CLAUDE_DIR/hooks"
 mkdir -p "$CLAUDE_DIR/rules"
 mkdir -p "$HOME/bin"
+
+# Save bootstrap directory location for other scripts
+echo "$SCRIPT_DIR" > "$CLAUDE_DIR/.bootstrap-dir"
 
 # Copy all commands
 cp "$SCRIPT_DIR/commands/"*.md "$CLAUDE_DIR/commands/"
