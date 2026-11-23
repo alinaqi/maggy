@@ -31,8 +31,9 @@ def app():
     return app
 
 
-@pytest.mark.parametrize(("method", "path", "body"), ROUTES)
-def test_missing_key_is_rejected(app, method, path, body):
+@pytest.mark.parametrize("route", ROUTES)
+def test_missing_key_is_rejected(app, route):
+    method, path, body = route
     resp = getattr(TestClient(app), method)(path, **({"json": body} if body else {}))
     assert resp.status_code == 401
     app.state.orchestrator.spawn_team.assert_not_called()
