@@ -10,6 +10,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Maggy: Personal Harness (Phase 2)
 
+#### Security
+- **Phase 2 review fixes: fail-closed worker boundaries** (RFC personal-harness §2.3,
+  §2.6.1, §2.6.4, §2.6.7, §2.6.8).
+  - Bypass check now covers adapter `budget_flags`, so `--dangerously-skip-permissions`
+    hidden there is refused like anywhere else in an adapter.
+  - `run_attempt` re-checks the STOP kill switch after the worker ends and before the
+    checks: once STOP is pulled there is no runner commit and no check run, and the
+    attempt is `failed`.
+  - Claude's own budget stop (`subtype: error_max_budget_usd`, new
+    `ParsedRun.budget_hit`) is reported as `budget_exceeded`, not `failed`. Result
+    assembly moved to `maggy/worker/outcome.py`.
+  - The host-execution decision uses what the adapter mapping really grants (new adapter
+    `grants: {<permission>: {write, shell}}`; undeclared mappings grant both). A repo
+    profile can no longer redefine or lock `permissions.profiles.workspace` as read-only
+    to launch opencode/pi on the host with edit and bash.
+  - Runner git runs with the scrubbed allowlist env (plus `GIT_CONFIG_NOSYSTEM`, no
+    inherited `GIT_*`). `commit_candidate` pins `--git-dir`/`--work-tree` to the admin dir
+    recorded in the main repo, refuses a worktree whose `.git` file was rewritten, and
+    diffs with `--no-ext-diff --no-textconv`. This stops agent-defined filters from
+    running with runner credentials.
+  - Required checks run candidate code and have no sandbox yet, so they need the personal
+    `worker.allow_host_execution: true`. Without it the runner refuses before launch
+    (even for natively sandboxed claude/codex) and `run_checks` refuses on its own.
+  - Each adapter declares at most one provider key (schema-enforced). claude:
+    `ANTHROPIC_API_KEY`, codex: `OPENAI_API_KEY`, opencode/pi: `ANTHROPIC_API_KEY`.
+    Other providers use the auth file or a `~/.maggy/adapters/` override.
+
 #### Added
 - **Replay set and `maggy worker replay` (Phase 2 exit)** (RFC personal-harness §2.3,
   §3 Phase 2). `maggy/worker/replay/`: five self-contained tasks (`implement`,

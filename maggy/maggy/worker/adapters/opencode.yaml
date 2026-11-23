@@ -17,6 +17,9 @@ permission_env:
     OPENCODE_PERMISSION: '{"edit":"deny","bash":"deny","webfetch":"deny","websearch":"deny","task":"deny","external_directory":"deny"}'
   workspace:
     OPENCODE_PERMISSION: '{"edit":"allow","bash":"allow","webfetch":"deny","websearch":"deny","external_directory":"deny"}'
+# read_only denies edit and bash; workspace allows both (default grant).
+grants:
+  read_only: {write: false, shell: false}
 sandbox:
   native: false
   notes: permission rules only, no OS sandbox; writes/shell need isolation or allow_host_execution
@@ -24,7 +27,9 @@ output: opencode-json
 instruction_file: AGENTS.md
 quota_patterns: [rate limit, '429']
 env:
-  provider_keys: [ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY]
+  # One key only (RFC §2.6.1); other providers: auth file, or override this adapter
+  # in ~/.maggy/adapters/opencode.yaml.
+  provider_keys: [ANTHROPIC_API_KEY]
   auth_files: [~/.local/share/opencode/auth.json]
 disable_awg:
   # --pure drops external plugins (AWG's heartbeat plugin); the config content

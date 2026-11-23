@@ -25,6 +25,6 @@ def is_bypass(item: str) -> bool:
 
 def _elements(adapter: AdapterSpec) -> list[str]:
     envs = [adapter.disable_awg.env, *adapter.permission_env.values()]
-    lists = [adapter.argv, adapter.model_flags, adapter.disable_awg.flags,
+    lists = [adapter.argv, adapter.model_flags, adapter.budget_flags, adapter.disable_awg.flags,
              *adapter.permissions.values(), *(list(env.values()) for env in envs)]
     return [item for items in lists for item in items]

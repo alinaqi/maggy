@@ -39,11 +39,17 @@ candidate, or for `ambiguous`, outcome `blocked` with no candidate commit.
   maggy's own scripts, so offline runs allow host execution; state stays in the run dir.
 - **Live (`--live`).** The real CLIs on PATH, under the personal profile's fail-closed
   launch policy: adapters without a native sandbox (opencode, pi) are refused unless
-  `worker.allow_host_execution: true` is set in `~/.maggy/harness.yaml`. The per-run budget
+  `worker.allow_host_execution: true` is set in `~/.maggy/harness.yaml`. Required checks
+  run candidate code and there is no check sandbox yet, so since the review fixes every
+  live replay (claude and codex too) needs that opt-in; without it the row is refused
+  before launch. The per-run budget
   (`--budget`, default 0.25) is reserved in the ledger and passed to Claude as
   `--max-budget-usd`. State (ledger, logs, STOP file) defaults to `~/.maggy`.
 
 ## Live run, 2026-11-23
+
+Note: this run predates the check-boundary fix. Its claude and codex rows ran the
+required checks on the host without `allow_host_execution`; the runner now refuses that.
 
 Claude Code 2.1.330 (`--model haiku`, `--max-budget-usd 0.2500`) and codex-cli 0.163.0
 (default model), permission `workspace`, deadline 300 s, throwaway repos and state dir under

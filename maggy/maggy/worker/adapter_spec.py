@@ -59,8 +59,16 @@ def _each(rule):
 
 
 class AdapterEnv(Strict):
-    provider_keys: Annotated[list[str], _each(provider_key_problem)] = []
+    # At most one: the worker gets only the single provider key its adapter declares (§2.6.1).
+    provider_keys: Annotated[list[str], Field(max_length=1), _each(provider_key_problem)] = []
     auth_files: Annotated[list[str], _each(auth_file_problem)] = []
+
+
+class Grant(Strict):
+    """What a permission mapping really lets the CLI do; unlisted mappings grant both."""
+
+    write: bool = True
+    shell: bool = True
 
 
 class DisableAwg(Strict):
@@ -84,6 +92,7 @@ class AdapterSpec(Strict):
     budget_flags: BudgetFlags = []  # rendered with per_run_usd; dropped when unset
     permissions: dict[str, Literals] = {}
     permission_env: dict[str, dict[str, str]] = {}
+    grants: dict[str, Grant] = {}  # launch policy reads these, not the profile's own words
     sandbox: Sandbox = Sandbox()
     output: Parser
     instruction_file: str | None = None
@@ -92,11 +101,16 @@ class AdapterSpec(Strict):
     disable_awg: DisableAwg = DisableAwg()
     cost: Cost = Cost()
 
+    def grant(self, permission: str) -> Grant:
+        """The declared grant for a mapping; fail closed (write and shell) when undeclared."""
+        return self.grants.get(permission, Grant())
+
     @model_validator(mode="after")
     def _permission_env_is_safe(self) -> AdapterSpec:
-        unknown = sorted(set(self.permission_env) - set(self.permissions))
-        if unknown:
-            raise ValueError(f"permission_env names unknown profile(s): {', '.join(unknown)}")
+        for label, names in (("permission_env", self.permission_env), ("grants", self.grants)):
+            unknown = sorted(set(names) - set(self.permissions))
+            if unknown:
+                raise ValueError(f"{label} names unknown profile(s): {', '.join(unknown)}")
         clash = sorted({key for env in self.permission_env.values() for key in env}
                        & set(self.disable_awg.env))
         if clash:

@@ -9,6 +9,7 @@ from maggy.worker.parsers.base import (
 USAGE = {"input_tokens": "input_tokens", "output_tokens": "output_tokens",
          "cache_read_tokens": "cache_read_input_tokens",
          "cache_write_tokens": "cache_creation_input_tokens"}
+BUDGET_SUBTYPE = "error_max_budget_usd"  # --max-budget-usd reached (recorded error.json)
 MISSING = "claude-json: no result object in output (malformed or truncated)"
 
 
@@ -45,4 +46,5 @@ def parse_claude(stdout: str) -> ParsedRun:
         usage=pick_usage(result.get("usage"), USAGE),
         error=_error(result) if failed else None,
         session_ref=text_or_none(result.get("session_id")),
+        budget_hit=result.get("subtype") == BUDGET_SUBTYPE,
     )

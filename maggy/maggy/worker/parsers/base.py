@@ -25,6 +25,7 @@ class ParsedRun(BaseModel):
     usage: dict[str, int] = {}
     error: str | None = None
     quota_hit: bool = False
+    budget_hit: bool = False  # the CLI stopped itself at its own spend cap
     session_ref: str | None = None
 
 

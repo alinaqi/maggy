@@ -17,6 +17,7 @@ VALID_ADAPTER: dict = {
     "cwd": "{workspace}",
     "model_flags": ["--model", "{model}"],
     "permissions": {"read_only": ["--read-only"], "workspace": []},
+    "grants": {"read_only": {"write": False, "shell": False}},
     "sandbox": {"native": False, "notes": "no OS sandbox"},
     "output": "text",
     "instruction_file": "AGENTS.md",

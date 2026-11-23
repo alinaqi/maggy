@@ -12,6 +12,9 @@ model_flags: [-m, '{model}']
 permissions:
   read_only: [--sandbox, read-only]
   workspace: [--sandbox, workspace-write]
+# read-only still runs shell commands, inside the read-only OS sandbox.
+grants:
+  read_only: {write: false, shell: true}
 sandbox:
   native: true
   notes: --sandbox read-only / workspace-write (Seatbelt/Landlock), network off by default
@@ -19,7 +22,7 @@ output: codex-jsonl
 instruction_file: AGENTS.md
 quota_patterns: [rate limit, usage limit, '429']
 env:
-  provider_keys: [OPENAI_API_KEY, CODEX_API_KEY]
+  provider_keys: [OPENAI_API_KEY]
   auth_files: [~/.codex/auth.json]
 disable_awg:
   # enabled=false alone fails ("invalid transport") when no awg server is configured;
