@@ -15,7 +15,7 @@ _BUILTIN_IDS = {
     "qwen3", "gemini-flash-lite", "deepseek-flash",
     "gemini-flash", "deepseek-pro", "gemini-cli", "agy",
     "kimi", "gemini-pro", "grok", "codex",
-    "claude-sonnet", "claude-opus",
+    "claude-sonnet", "claude-opus", "claude-fable-5",
 }
 
 _PERSONAS = [
@@ -122,24 +122,29 @@ def list_models(cfg_path: Path | None = None) -> list[dict]:
 def build_routing_tiers(
     cfg_path: Path | None = None,
 ) -> list:
+    """Router tiers plus one tier per user-added model.
+
+    Council defaults (_BUILTIN_IDS, e.g. qwen3 at tier 0) are not routing
+    tiers; promoting them made qwen3 win every routing decision.
+    """
     from maggy.process.model_router import DEFAULT_TIERS
+    skip = {t.name for t in DEFAULT_TIERS} | _BUILTIN_IDS
+    models = load_council_config(cfg_path).models
+    custom = [_custom_tier(m) for m in models if m.id not in skip]
+    return list(DEFAULT_TIERS) + custom
+
+
+def _custom_tier(m: ModelDef):
     from maggy.process.models import ModelTier
-    cfg = load_council_config(cfg_path)
-    builtin_names = {t.name for t in DEFAULT_TIERS}
-    custom_tiers = []
-    for m in cfg.models:
-        if m.id in builtin_names:
-            continue
-        custom_tiers.append(ModelTier(
-            name=m.id,
-            provider="custom",
-            model=m.id,
-            cost_rank=m.tier,
-            complexity_min=0,
-            complexity_max=10,
-            strengths=["custom"],
-        ))
-    return list(DEFAULT_TIERS) + custom_tiers
+    return ModelTier(
+        name=m.id,
+        provider="custom",
+        model=m.id,
+        cost_rank=m.tier,
+        complexity_min=0,
+        complexity_max=10,
+        strengths=["custom"],
+    )
 
 
 def build_council_reviewers(
