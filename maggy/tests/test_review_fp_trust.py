@@ -5,9 +5,12 @@ from __future__ import annotations
 import pytest
 
 from maggy.review.models import Finding, Severity
+from maggy.review.fp_filter import FPFilterRun
 from maggy.review.pipeline import deterministic_fp_filter
 from maggy.review.repo_config import CONFIG_PATH, load_review_config
-from test_review_fp_filter import _repo, _write, publish_base
+from fp_filter_helpers import make_repo as _repo
+from fp_filter_helpers import publish_base
+from fp_filter_helpers import write as _write
 
 SQLI = "SQL injection executed unconditionally"
 
@@ -17,7 +20,7 @@ def _sqli():
 
 
 def _filter(root, base_ref="main"):
-    return deterministic_fp_filter([_sqli()], str(root), lambda _m: None, base_ref)
+    return deterministic_fp_filter([_sqli()], FPFilterRun(str(root), lambda _m: None, base_ref))
 
 
 def test_config_added_only_by_pr_head_is_ignored(tmp_path):

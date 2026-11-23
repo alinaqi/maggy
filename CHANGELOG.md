@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Phase 0 hardening (review leftovers)
+
+#### Fixed
+- **`maggy/review/fp_filter.py`** — the det-fp log line was built by calling
+  `.format(title)` on a template that contained the reviewed file's stem, so a file
+  named e.g. `src/a{0}b.tsx` crashed the whole review (`ValueError`/`KeyError`). The
+  message is now assembled with an f-string; file names and titles are never treated
+  as format templates. `deterministic_fp_filter` now takes `(findings, FPFilterRun)`
+  instead of four positional arguments.
+
 ### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
 
 #### Fixed
