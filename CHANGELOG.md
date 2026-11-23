@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Adapter `budget_flags`: CLIs that can cap their own spend get `per_run_usd`**
+  (RFC personal-harness §2.6.4). Adapters may declare `budget_flags` (only the
+  `{budget_usd}` placeholder is allowed) and splat them with `{budget_flags}`; the
+  pipeline renders them with the attempt's per-run budget (4 decimals) and drops them
+  when no budget is set. The shipped Claude adapter now passes
+  `--max-budget-usd <per_run_usd>` (flag checked against the recorded `claude --help`),
+  so a non-streaming Claude run stops itself at the per-run budget.
 - **Runner-side commit, diff and checks, plus `maggy worker run`** (RFC personal-harness
   §2.3, §2.6.2, §2.6.5, §2.6.7). `maggy/worker/worktree.py` creates each attempt's
   worktree on branch `maggy/<awg-ref>` from `base_commit` (an existing branch is refused,

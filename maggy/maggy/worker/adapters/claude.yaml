@@ -7,9 +7,11 @@ detect: [claude, --version]
 # Variadic flags (--tools, --mcp-config, --disallowedTools) are always followed by
 # another flag, so the prompt is never swallowed as a list value.
 argv: [claude, -p, --no-session-persistence, '{permission_flags}', '{awg_off_flags}',
-       '{model_flags}', --output-format, json, '{prompt}']
+       '{model_flags}', '{budget_flags}', --output-format, json, '{prompt}']
 cwd: '{workspace}'
 model_flags: [--model, '{model}']
+# Claude stops itself once a run has spent budget.per_run_usd (dropped when unset).
+budget_flags: [--max-budget-usd, '{budget_usd}']
 permissions:
   # Plan mode plus a read-only built-in tool set: no edits, no shell.
   read_only: [--permission-mode, plan, --tools, 'Read,Grep,Glob']

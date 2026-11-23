@@ -40,6 +40,7 @@ Literals = Annotated[list[str], _elements(frozenset())]
 Template = Annotated[list[str], Field(min_length=1), _elements(WHOLE | SPLATS),
                      AfterValidator(_one_prompt)]
 ModelFlags = Annotated[list[str], _elements(frozenset({"{model}"}))]
+BudgetFlags = Annotated[list[str], _elements(frozenset({"{budget_usd}"}))]
 Cwd = Annotated[str, AfterValidator(_cwd)]
 
 
@@ -80,6 +81,7 @@ class AdapterSpec(Strict):
     argv: Template
     cwd: Cwd = "{workspace}"
     model_flags: ModelFlags = []
+    budget_flags: BudgetFlags = []  # rendered with per_run_usd; dropped when unset
     permissions: dict[str, Literals] = {}
     permission_env: dict[str, dict[str, str]] = {}
     sandbox: Sandbox = Sandbox()
