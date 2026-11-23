@@ -38,6 +38,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   before an atomic temp+rename write, refuses paths whose symlinks leave the
   target root, skips files changed since plan, and sets 0600 on files that
   reference token files. Adds the `tomlkit` dependency.
+- **Claude Code and Codex emitters** (`maggy/harness/emitters/`; RFC §2.2).
+  `Emitter` protocol: `agent`, `capabilities()` (instructions, skills, hooks,
+  mcp, permissions as native/partial/none + notes) and `plan(profile, scope)`,
+  which returns `FileChange`s without writing; `Scope` is user (HOME) or
+  project (repo root). Instruction includes are read from the Maggy repo
+  (`rules/…`, or `MAGGY_HARNESS_SOURCES`) into an `AGENTS.md` managed block;
+  Claude gets a `CLAUDE.md` block with `@AGENTS.md` (user scope: `~/.claude/`).
+  Skills are copied to `.claude/skills/` / `~/.codex/skills/` (project:
+  `.agents/skills/`) with a `maggy:managed-skill` marker: only marked copies are
+  updated or removed when dropped from the profile; same-named user skills and
+  edited copies are conflicts. Claude hooks map to `settings.json` hook events
+  (commands `$HOME/.maggy/hooks/<name>`, user entries kept); permissions map the
+  `worker.permission` profile to `permissions.allow/deny` (added to user rules)
+  and to Codex `sandbox_mode` + `approval_policy`. AWG: Claude
+  `mcpServers.awg` in `~/.claude.json` / `.mcp.json`, Codex
+  `[mcp_servers.awg]` plus the AWG `AGENTS.md` section (vendored from AWG
+  `plugins/codex/AGENTS.md`); both use `awg mcp --token-file
+  ~/.maggy/tokens/<agent>.token` and never inline a token. Codex reports
+  hooks=none (the runner enforces). `apply_changes` now supports `delete`
+  changes (backup, remove, forget lock entry).
 
 ### Maggy: Phase 0 hardening (review leftovers)
 

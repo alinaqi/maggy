@@ -41,13 +41,14 @@ class HarnessContext(BaseModel):
 class FileChange(BaseModel):
     """The planned outcome for one managed file.
 
+    kind delete removes a whole Maggy-owned file (e.g. a managed skill copy).
     status: ok (apply writes it), conflict (user edited a managed region),
     invalid (existing file unparseable), refused (path escapes the root).
     Only ok changes are written; the others are reported and skipped.
     """
 
     path: Path
-    kind: Literal["create", "update", "unchanged"]
+    kind: Literal["create", "update", "unchanged", "delete"]
     before: str | None
     after: str | None
     managed_ids: list[str]

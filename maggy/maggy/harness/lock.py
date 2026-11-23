@@ -30,6 +30,9 @@ class HarnessLock(BaseModel):
         entries = {rid: LockEntry(sha256=region_hash(t), content=t) for rid, t in texts.items()}
         self.files[str(real(path))] = entries
 
+    def forget(self, path: Path) -> None:
+        self.files.pop(str(real(path)), None)
+
 
 def region_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
