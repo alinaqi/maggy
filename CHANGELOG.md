@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   and lost the subtask result. It now uses `workspace_guard.safe_merge` (the
   executor's guard, formerly `_merge`): any exception counts as a failed merge, the
   workspace is kept and the subtask reports `failed`.
+- **`maggy/orchestrator/merge_rollback.py`** — the pre-merge snapshot skipped
+  symlinks, so when a 3-way apply conflicted on one file but retargeted a tracked
+  symlink cleanly, the rollback left the symlink changed. Snapshots now record a
+  symlink's target and restore it, so a failed merge leaves the repo untouched.
 
 ### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
 
