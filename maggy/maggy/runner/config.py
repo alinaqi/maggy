@@ -23,4 +23,4 @@ class RunnerConfig:
     profile: HarnessProfile
     project: str = "default"
     heartbeat_s: float | None = None  # None: a third of the remaining lease
-    pr_step: PrStep | None = None  # the draft-PR step (task 3.3); fenced like every side effect
+    pr_step: PrStep | None = None  # runner.publish.Publisher in `maggy run`; fenced per action

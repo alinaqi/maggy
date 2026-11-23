@@ -13,6 +13,7 @@ from maggy.runner.awg_cli import CliAwgClient
 from maggy.runner.awg_types import AwgCliConfig
 from maggy.runner.config import RunnerConfig
 from maggy.runner.loop import Runner
+from maggy.runner.publish import publisher_for
 from maggy.worker.adapter_loader import load_adapter
 from maggy.worker.assemble import default_state_dir
 from maggy.worker.git_ops import run_git
@@ -45,9 +46,11 @@ def build_runner(opts: RunCliOptions) -> Runner:
         raise Refused("no adapter: pass --adapter or set worker.adapter in the profile")
     adapter = load_adapter(name)
     resolve_launch(adapter, profile, profile.worker.permission)
+    client = CliAwgClient(_awg_config(state, opts.awg_bin))
     config = RunnerConfig(repo=repo, state_dir=state, adapter=adapter, profile=profile,
-                          project=opts.project or repo.name)
-    return Runner(CliAwgClient(_awg_config(state, opts.awg_bin)), config)
+                          project=opts.project or repo.name,
+                          pr_step=publisher_for(client, repo, state))
+    return Runner(client, config)
 
 
 def _awg_config(state: Path, awg_bin: Path | None) -> AwgCliConfig:
