@@ -118,6 +118,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   quality gates, changelog, PR workflow); personal routing lives in the preset.
 
 #### Fixed
+- **First apply never loosens existing settings.** A managed key with no
+  harness.lock entry whose on-disk value differs from the profile (e.g. Codex
+  `sandbox_mode = "read-only"`, OpenCode `permission.bash = "deny"`) is now a
+  conflict instead of being overwritten; `--take-profile` writes the profile,
+  `--take-mine` keeps (and pins) the user's value. An equal value is adopted
+  silently. Codex `sandbox_mode`/`approval_policy` are emitted only when
+  `worker.permission` names a permission profile (Claude already emitted none).
 - **Dropped regions are removed.** harness.lock now records each region's
   format, scope root and owning agents, and keeps (merges) entries for regions
   outside the current run. A region the profile no longer emits (for example AWG

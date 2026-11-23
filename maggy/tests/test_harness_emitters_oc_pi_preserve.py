@@ -35,7 +35,10 @@ def test_opencode_user_content_preserved(tmp_path: Path) -> None:
     scope = user_scope(tmp_path)
     cfg = write(scope.home / ".config" / "opencode" / "opencode.json", json.dumps(USER_OC, indent=2))
     agents = write(scope.home / ".config" / "opencode" / "AGENTS.md", "# Mine\n\nkeep\n")
-    _apply(OpenCodeEmitter(awg_sources(tmp_path)), fixture_profile(), scope)
+    first = by_name(OpenCodeEmitter(awg_sources(tmp_path)).plan(fixture_profile(), scope), "opencode.json")
+    assert first.status == "conflict" and first.conflicts == ["permission.bash"]
+    taking = scope.model_copy(update={"resolution": "take_profile"})
+    _apply(OpenCodeEmitter(awg_sources(tmp_path)), fixture_profile(), taking)
     data = json.loads(cfg.read_text())
     assert data["model"] == "anthropic/x" and data["mcp"]["other"] == USER_OC["mcp"]["other"]
     assert data["instructions"][0] == "docs/style.md" and len(data["instructions"]) == 2

@@ -38,6 +38,8 @@ def _disk_text(spec: ManagedFile, content: str | None, item: tuple[str, LockEntr
     rid, entry = item
     if not is_list(rid):
         return extract(spec.format, content, [rid])[rid]
+    if entry is None:
+        return None  # Maggy owns no entries yet; the user's stay beside its own
     return owned_text(on_disk(spec.format, content, rid), _previous(entry))
 
 

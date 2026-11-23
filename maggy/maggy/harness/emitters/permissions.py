@@ -40,12 +40,15 @@ def claude_rules(profile: HarnessProfile) -> dict[str, list[str]]:
 
 
 def codex_sandbox(profile: HarnessProfile) -> dict:
-    """config.toml sandbox defaults: read-only when writes are off, else workspace-write."""
+    """config.toml sandbox defaults: read-only when writes are off, else workspace-write.
+    Nothing without an active permission profile (the user's own settings stay)."""
     perm = active_permission(profile)
-    read_only = perm is not None and perm.write is False
+    if perm is None:
+        return {}
+    read_only = perm.write is False
     regions: dict = {"sandbox_mode": "read-only" if read_only else "workspace-write",
                      "approval_policy": "on-request"}
-    if perm is not None and not read_only:
+    if not read_only:
         regions["sandbox_workspace_write.network_access"] = perm.network is not False
     return regions
 
