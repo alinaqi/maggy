@@ -16,6 +16,7 @@ from maggy.runner.awg_errors import (
     NotFound,
     Unauthorized,
 )
+from maggy.runner.awg_graph import AwgGraph
 from maggy.runner.awg_types import TRUST, AwgCliConfig, Claim, EvidenceSpec
 
 __all__ = ["TRUST", "AwgCliConfig", "AwgClient", "AwgError", "AwgUnavailable", "Claim",
@@ -23,7 +24,7 @@ __all__ = ["TRUST", "AwgCliConfig", "AwgClient", "AwgError", "AwgUnavailable", "
 
 
 @runtime_checkable
-class AwgClient(Protocol):
+class AwgClient(AwgGraph, Protocol):
     def next_claim(self, capabilities: list[str], require: list[str] | None = None) -> Claim | None:
         """Claim the best ready item whose capabilities we hold and that declares every
         `require` capability (opt-in); None when nothing is ready."""

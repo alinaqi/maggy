@@ -14,7 +14,7 @@ from maggy.runner.awg_types import AwgCliConfig
 from maggy.runner.config import RunnerConfig
 from maggy.runner.loop import Runner
 from maggy.runner.publish import publisher_for
-from maggy.worker.adapter_loader import load_adapter
+from maggy.worker.adapter_loader import load_adapter, load_adapters
 from maggy.worker.assemble import default_state_dir
 from maggy.worker.git_ops import run_git
 from maggy.worker.launch import Refused, resolve_launch
@@ -48,7 +48,7 @@ def build_runner(opts: RunCliOptions) -> Runner:
     resolve_launch(adapter, profile, profile.worker.permission)
     client = CliAwgClient(_awg_config(state, opts.awg_bin))
     config = RunnerConfig(repo=repo, state_dir=state, adapter=adapter, profile=profile,
-                          project=opts.project or repo.name,
+                          project=opts.project or repo.name, adapters=load_adapters(),
                           pr_step=publisher_for(client, repo, state))
     return Runner(client, config)
 

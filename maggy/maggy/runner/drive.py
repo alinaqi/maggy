@@ -16,6 +16,8 @@ from maggy.runner.conclude import conclude
 from maggy.runner.heartbeat import Heartbeat
 from maggy.runner.retry import block_after_failures, trailing_failures
 from maggy.runner.session import RunReport, Session, Stopped
+from maggy.runner.stages.spec import run_spec
+from maggy.runner.stages.worker import heartbeat_interval
 from maggy.runner.state import latest_handoff, state_for
 from maggy.runner.workspace import prepare_workspace
 from maggy.worker.models import WorkerResult
@@ -49,6 +51,8 @@ def _drive(session: Session) -> RunReport:
     if failures >= session.config.max_failures:
         return block_after_failures(session, failures)
     stage = item_stage(shown)
+    if stage == "spec":
+        return run_spec(session, shown)
     if stage != "build":
         return session.give_back("unsupported", f"stage {stage!r} is not supported yet")
     session.handoff = latest_handoff(shown)
@@ -63,7 +67,7 @@ def _drive(session: Session) -> RunReport:
 
 def _run_worker(session: Session, base: str) -> WorkerResult:
     attempt = build_attempt(session, base)
-    with Heartbeat(session.awg, session.claim, (_interval(session), attempt.interrupt_file)) as hb:
+    with Heartbeat(session.awg, session.claim, (heartbeat_interval(session), attempt.interrupt_file)) as hb:
         session.log("worker_started", {"adapter": attempt.adapter.name})
         result = run_attempt(attempt)
     if hb.lost:
@@ -72,9 +76,3 @@ def _run_worker(session: Session, base: str) -> WorkerResult:
                                     "candidate": result.candidate_commit})
     return result
 
-
-def _interval(session: Session) -> float:
-    configured = session.config.heartbeat_s
-    if configured is not None:
-        return configured
-    return max(1.0, (session.claim.lease_expires - time.time()) / 3)

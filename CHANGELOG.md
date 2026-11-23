@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Personal Harness (Phase 4)
+
+#### Added
+- **Spec stage: author + independent reviewer, one-question round-trip**
+  (`maggy/runner/stages/`, RFC §2.4/§2.5). Items claimed with `stage:spec` (the runner now
+  holds it) get a read-only author run (`agents.default`) that must return one fenced json
+  `SpecDraft` (criteria with id/text/kind/testable, open questions, assumptions, risk paths),
+  then a fresh read-only reviewer run (`agents.prefer.review`, else default) returning
+  `SpecReview` (`ready` / `needs_clarification` with exactly one question / `blocked`).
+  Invalid output gets one retry with the validation error, then the attempt fails with no
+  graph mutation. `needs_clarification`/`blocked` annotate the draft and move the item to
+  WAITING_HUMAN with the single question (or reason); the human's answer comment is in the
+  next round's context. `ready` replaces the WORK criteria (spec version bump), creates one
+  REQUIREMENT node per criterion, records a `spec-approved` DECISION with `spec_version`,
+  re-tags the item `stage:plan` and releases it. Ticket, comments, drafts and repo context
+  (AGENTS.md, file list) stay inside one delimited untrusted-data block. `AwgClient` gains
+  `update`, `create_node` and `decision` (FakeAwg in memory; CLI via `awg update`,
+  `awg node create`, `awg decision`). Legacy spec/planner code is untouched (Phase 6 deletion).
+
 ### Maggy: Personal Harness (Phase 3)
 
 #### Added

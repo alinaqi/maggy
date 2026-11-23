@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from typing import cast
 
-from maggy.runner.awg_cli_base import CliBase, command, fence
+from maggy.runner.awg_cli_base import command, fence
+from maggy.runner.awg_cli_graph import GraphCli
 from maggy.runner.awg_errors import AwgError
 from maggy.runner.awg_types import Claim, EvidenceSpec, claim_from_lease
 
 
-class CliAwgClient(CliBase):
+class CliAwgClient(GraphCli):
     def next_claim(self, capabilities: list[str], require: list[str] | None = None) -> Claim | None:
         wanted = [f"--capabilities={','.join(capabilities)}",
                   *([f"--require-capabilities={','.join(require)}"] if require else [])]

@@ -27,6 +27,7 @@ class FakeItem:
     evidence: list[dict] = field(default_factory=list)
     attributes: dict = field(default_factory=dict)
     validations: list[dict] = field(default_factory=list)
+    description: str = ""
 
 
 class FakeAwgState:
@@ -35,6 +36,8 @@ class FakeAwgState:
         self.clock, self.lease_seconds = clock, lease_seconds
         self.evidence_credential = evidence_credential
         self.items: dict[str, FakeItem] = {}
+        self.nodes: list[dict] = []  # REQUIREMENT/DECISION/... nodes, oldest first
+        self.criteria_versions: dict[str, list[int]] = {}  # versions criteria were set at
         self._attempts = 0
 
     def add_item(self, title: str, capabilities: list[str] | tuple = (),
@@ -61,7 +64,7 @@ class FakeAwgState:
         item.lease_expires = self.clock() + self.lease_seconds
         return Claim(ref=item.ref, work_id=item.ref, attempt_id=item.attempt_id,
                      fencing_token=item.fencing_token, lease_expires=item.lease_expires,
-                     version=item.version, title=item.title,
+                     version=item.version, title=item.title, description=item.description,
                      acceptance_criteria=list(item.acceptance_criteria), context=item.title)
 
     def _live(self, claim: Claim) -> FakeItem:
