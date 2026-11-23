@@ -1,0 +1,85 @@
+# Replay task 3: add a CLI flag together with a test for it.
+id: cli_flag
+title: Add a CLI flag with a test
+expect: pass
+prompt: |
+  Add a `--shout` flag to greet.py that prints the greeting in upper case
+  (for example `greet.py --shout Ada` prints `HELLO, ADA!`). `main()` must keep
+  returning the printed message. Add a test for the new flag to test_greet.py.
+files:
+  greet.py: |
+    """Tiny greeting CLI."""
+
+    import argparse
+
+
+    def main(argv: list[str] | None = None) -> str:
+        parser = argparse.ArgumentParser(prog="greet")
+        parser.add_argument("name")
+        args = parser.parse_args(argv)
+        message = f"Hello, {args.name}!"
+        print(message)
+        return message
+
+
+    if __name__ == "__main__":
+        main()
+  test_greet.py: |
+    import unittest
+
+    from greet import main
+
+
+    class GreetTest(unittest.TestCase):
+        def test_greets_by_name(self):
+            self.assertEqual(main(["Ada"]), "Hello, Ada!")
+accept:
+  accept_greet.py: |
+    import unittest
+    from pathlib import Path
+
+    from greet import main
+
+
+    class AcceptGreet(unittest.TestCase):
+        def test_shout(self):
+            self.assertEqual(main(["--shout", "Ada"]), "HELLO, ADA!")
+
+        def test_default_unchanged(self):
+            self.assertEqual(main(["Ada"]), "Hello, Ada!")
+
+        def test_flag_has_a_test(self):
+            self.assertIn("--shout", Path("test_greet.py").read_text())
+solution:
+  greet.py: |
+    """Tiny greeting CLI."""
+
+    import argparse
+
+
+    def main(argv: list[str] | None = None) -> str:
+        parser = argparse.ArgumentParser(prog="greet")
+        parser.add_argument("name")
+        parser.add_argument("--shout", action="store_true", help="greet in upper case")
+        args = parser.parse_args(argv)
+        message = f"Hello, {args.name}!"
+        if args.shout:
+            message = message.upper()
+        print(message)
+        return message
+
+
+    if __name__ == "__main__":
+        main()
+  test_greet.py: |
+    import unittest
+
+    from greet import main
+
+
+    class GreetTest(unittest.TestCase):
+        def test_greets_by_name(self):
+            self.assertEqual(main(["Ada"]), "Hello, Ada!")
+
+        def test_shout(self):
+            self.assertEqual(main(["--shout", "Ada"]), "HELLO, ADA!")

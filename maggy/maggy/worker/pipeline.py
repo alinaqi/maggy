@@ -13,7 +13,7 @@ from maggy.worker.blocker import agent_blocker
 from maggy.worker.budgeted import cost_limit_usd, reservation_usd, run_budgeted
 from maggy.worker.checks import CheckPlan, required_commands, run_checks
 from maggy.worker.commit import Candidate, commit_candidate
-from maggy.worker.env import build_worker_env
+from maggy.worker.env import build_worker_env, with_path_prefix
 from maggy.worker.job import Job, Supervised
 from maggy.worker.launch import resolve_launch
 from maggy.worker.ledger import BudgetLedger
@@ -32,6 +32,7 @@ class Attempt:
     profile: HarnessProfile
     state_dir: Path
     model: str | None = None
+    path_prefix: Path | None = None  # dir searched first for the CLI (replay fakes)
 
     @property
     def attempt_dir(self) -> Path:
@@ -67,7 +68,8 @@ def _job(attempt: Attempt) -> Job:
                         _budget(attempt).per_run_usd)
     argv = plan.argv(values)
     return Job(run_id=spec.attempt_id, argv=argv, cwd=Path(render_cwd(adapter, workspace)),
-               env={**build_worker_env(adapter, os.environ), **plan.env},
+               env={**with_path_prefix(build_worker_env(adapter, os.environ), attempt.path_prefix),
+                    **plan.env},
                attempt_dir=attempt.attempt_dir, deadline_s=spec.deadline_s,
                parser=adapter.output, cost_limit_usd=cost_limit_usd(adapter, _budget(attempt)),
                stop_file=attempt.state_dir / "STOP")

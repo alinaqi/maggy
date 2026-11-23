@@ -1,0 +1,50 @@
+# Replay task 1: implement a stub so a failing test passes.
+id: implement
+title: Implement a function to make a failing test pass
+expect: pass
+prompt: |
+  Implement `slugify` in textutil.py so that the tests in test_textutil.py pass.
+  Do not change the tests.
+files:
+  textutil.py: |
+    """Small text helpers."""
+
+
+    def slugify(text: str) -> str:
+        """Lower-case `text`, keep letters and digits, join the words with single hyphens."""
+        raise NotImplementedError
+  test_textutil.py: |
+    import unittest
+
+    from textutil import slugify
+
+
+    class SlugifyTest(unittest.TestCase):
+        def test_words(self):
+            self.assertEqual(slugify("Hello World"), "hello-world")
+
+        def test_punctuation_and_spaces(self):
+            self.assertEqual(slugify("  Ready, set... go!  "), "ready-set-go")
+accept:
+  accept_textutil.py: |
+    import unittest
+
+    from textutil import slugify
+
+
+    class AcceptSlugify(unittest.TestCase):
+        def test_examples(self):
+            self.assertEqual(slugify("Hello World"), "hello-world")
+            self.assertEqual(slugify("  Ready, set... go!  "), "ready-set-go")
+            self.assertEqual(slugify("Already-Slugged 42"), "already-slugged-42")
+            self.assertEqual(slugify(""), "")
+solution:
+  textutil.py: |
+    """Small text helpers."""
+
+    import re
+
+
+    def slugify(text: str) -> str:
+        """Lower-case `text`, keep letters and digits, join the words with single hyphens."""
+        return "-".join(re.findall(r"[a-z0-9]+", text.lower()))

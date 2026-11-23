@@ -1,0 +1,75 @@
+# Replay task 4: refactor without changing behaviour; the tests must stay green.
+id: refactor
+title: Refactor without behaviour change
+expect: pass
+prompt: |
+  Refactor report.py: extract the repeated line formatting in `summary` into a
+  module-level helper `format_line(label: str, amount: float) -> str` and use it for
+  every line. Behaviour must not change: keep test_report.py passing and do not edit it.
+files:
+  report.py: |
+    """Order report."""
+
+
+    def summary(orders: list[dict]) -> str:
+        lines = []
+        total = 0.0
+        for order in orders:
+            if order["status"] == "paid":
+                lines.append(order["id"].ljust(8) + " " + ("%.2f" % order["amount"]).rjust(10))
+                total += order["amount"]
+        lines.append("TOTAL".ljust(8) + " " + ("%.2f" % total).rjust(10))
+        return "\n".join(lines)
+  test_report.py: |
+    import unittest
+
+    from report import summary
+
+    ORDERS = [{"id": "A1", "status": "paid", "amount": 12.5},
+              {"id": "B2", "status": "open", "amount": 99.0},
+              {"id": "C3", "status": "paid", "amount": 0.25}]
+
+
+    class SummaryTest(unittest.TestCase):
+        def test_paid_orders_and_total(self):
+            self.assertEqual(summary(ORDERS).splitlines(),
+                             ["A1            12.50", "C3             0.25",
+                              "TOTAL         12.75"])
+
+        def test_no_orders(self):
+            self.assertEqual(summary([]), "TOTAL          0.00")
+accept:
+  accept_report.py: |
+    import unittest
+
+    import report
+
+    ORDERS = [{"id": "A1", "status": "paid", "amount": 12.5},
+              {"id": "B2", "status": "open", "amount": 99.0},
+              {"id": "C3", "status": "paid", "amount": 0.25},
+              {"id": "LONGID99", "status": "paid", "amount": 1000}]
+
+
+    class AcceptReport(unittest.TestCase):
+        def test_behaviour_unchanged(self):
+            self.assertEqual(report.summary(ORDERS).splitlines(),
+                             ["A1            12.50", "C3             0.25",
+                              "LONGID99    1000.00", "TOTAL       1012.75"])
+            self.assertEqual(report.summary([]), "TOTAL          0.00")
+
+        def test_helper_extracted(self):
+            self.assertEqual(report.format_line("X", 1.5), "X              1.50")
+solution:
+  report.py: |
+    """Order report."""
+
+
+    def format_line(label: str, amount: float) -> str:
+        return label.ljust(8) + " " + ("%.2f" % amount).rjust(10)
+
+
+    def summary(orders: list[dict]) -> str:
+        paid = [order for order in orders if order["status"] == "paid"]
+        lines = [format_line(order["id"], order["amount"]) for order in paid]
+        lines.append(format_line("TOTAL", sum(order["amount"] for order in paid)))
+        return "\n".join(lines)
