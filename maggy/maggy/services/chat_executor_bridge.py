@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import AsyncGenerator
@@ -45,7 +46,7 @@ def task_from_chat(
 
 _POLL_INTERVAL = 2.0
 _POLL_TIMEOUT = 600.0
-_RUNNING = frozenset({"running", "parallel_running"})
+_RUNNING = frozenset({"running"})
 
 
 async def executor_stream(
@@ -80,27 +81,42 @@ async def _poll_session(
     executor, sid: str,
 ) -> AsyncGenerator[dict, None]:
     """Poll executor session until done, yielding output."""
-    import time
-    deadline = time.monotonic() + _POLL_TIMEOUT
-    last_len, polls = 0, 0
-    while time.monotonic() < deadline:
-        session = executor.get_session(sid)
-        if not session:
-            yield {"type": "error", "content": "Session lost"}
+    state = {"start": time.monotonic(), "last_len": 0, "polls": 0}
+    while time.monotonic() < state["start"] + _POLL_TIMEOUT:
+        chunks, done = _poll_step(executor.get_session(sid), state)
+        for chunk in chunks:
+            yield chunk
+        if done:
             return
-        output = session.get("output", "")
-        new = output[last_len:]
-        if new:
-            yield {"type": "text", "content": new[:5000]}
-            last_len = len(output)
-        status = session.get("status", "")
-        if status not in _RUNNING:
-            if status == "failed":
-                yield {"type": "error", "content": session.get("error", "Failed")}
-            return
-        polls += 1
-        if polls % _HEARTBEAT_EVERY == 0:
-            elapsed = int(time.monotonic() - (deadline - _POLL_TIMEOUT))
-            yield {"type": "agent_status", "status": f"Working... ({elapsed}s)"}
         await asyncio.sleep(_POLL_INTERVAL)
     yield {"type": "error", "content": "Executor timed out"}
+
+
+def _poll_step(session: dict | None, state: dict) -> tuple[list[dict], bool]:
+    """One poll: new output, terminal errors or a heartbeat; True when finished."""
+    if not session:
+        return [{"type": "error", "content": "Session lost"}], True
+    output = session.get("output", "")
+    chunks = []
+    if output[state["last_len"]:]:
+        chunks.append({"type": "text", "content": output[state["last_len"]:][:5000]})
+        state["last_len"] = len(output)
+    if session.get("status", "") not in _RUNNING:
+        return chunks + _terminal_chunks(session), True
+    state["polls"] += 1
+    if state["polls"] % _HEARTBEAT_EVERY == 0:
+        elapsed = int(time.monotonic() - state["start"])
+        chunks.append({"type": "agent_status", "status": f"Working... ({elapsed}s)"})
+    return chunks, False
+
+
+def _terminal_chunks(session: dict) -> list[dict]:
+    """Error chunks for a finished session: failures and unmerged work."""
+    status = session.get("status", "")
+    if status == "failed":
+        return [{"type": "error", "content": session.get("error", "Failed")}]
+    if status == "merge_failed":
+        ws = session.get("preserved_workspace", "")
+        msg = f"Merge failed; your work is preserved in {ws}" if ws else session.get("error", "Merge failed")
+        return [{"type": "error", "content": msg}]
+    return []

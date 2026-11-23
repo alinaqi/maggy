@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   message is now assembled with an f-string; file names and titles are never treated
   as format templates. `deterministic_fp_filter` now takes `(findings, FPFilterRun)`
   instead of four positional arguments.
+- **`maggy/services/chat_executor_bridge.py`** — `_poll_session` ended silently when
+  an executor session finished as `merge_failed`, so chat users saw no error while
+  their work sat unmerged. It now yields an error naming the preserved workspace path.
+  The dead `parallel_running` status (no longer produced) was dropped from the
+  running set.
 
 ### Maggy: failed merges leave the repo clean; FP-filter config trusted only from base
 
