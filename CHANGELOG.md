@@ -11,6 +11,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 2)
 
 #### Added
+- **Shipped worker adapters and fail-closed launch policy** (RFC personal-harness
+  §2.3, §2.6.1, §2.6.7). `maggy/worker/adapters/{claude,codex,opencode,pi}.yaml`
+  with headless argv verified against each CLI's recorded `--help` excerpt
+  (versions in the fixtures): `claude -p --output-format json` (read_only = plan
+  mode + `--tools Read,Grep,Glob`; workspace = acceptEdits + sandbox settings that
+  fail if unavailable), `codex exec --json --sandbox read-only|workspace-write`,
+  `opencode run --format json` (permissions via `OPENCODE_PERMISSION`), `pi -p
+  --mode json --no-session` (read_only = `--tools read,grep,find,ls`). Every
+  launch disables AWG for the worker: claude `--strict-mcp-config` plus
+  `--disallowedTools mcp__awg` (a live check showed strict MCP config alone keeps
+  plugin MCP servers), codex `-c mcp_servers.awg.enabled=false` (with a command
+  stub so it is valid when no awg server exists), opencode `--pure` plus
+  `OPENCODE_CONFIG_CONTENT` disabling `mcp.awg`, pi `--no-extensions`. New
+  `AdapterSpec.permission_env` (per-profile env; may not override the AWG-off env).
+  `resolve_launch(adapter, profile, permission)` returns a `LaunchPlan` (argv, env,
+  host_execution) or raises `Refused`: write/shell profiles on adapters without a
+  native sandbox need `worker.allow_host_execution: true`; permission-bypass flags
+  (`--dangerously-*`, `--yolo`, opencode `--auto`, `bypassPermissions`,
+  `danger-full-access`) are refused anywhere in an adapter; `isolation: container`
+  is refused as not implemented yet. Harness profile gains `worker.isolation`
+  (`worktree`|`container`) and `worker.allow_host_execution` (personal profile
+  only; a repo profile setting it is a config error); `harness doctor` warns when
+  host execution is allowed.
 - **`maggy/worker/`** — worker interface models and data-driven adapters (RFC
   personal-harness §2.3, §2.6). Strict Pydantic models `WorkerSpec` (AWG ref,
   attempt id and fencing token carried as plain data), `WorkerResult` (a

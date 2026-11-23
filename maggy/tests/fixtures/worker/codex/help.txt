@@ -1,19 +1,33 @@
 # codex exec --help excerpt, codex-cli 0.163.0
+  -c, --config <key=value>
+          Override a configuration value that would otherwise be loaded from `~/.codex/config.toml`.
+          Use a dotted path (`foo.bar.baz`) to override nested values. The `value` portion is parsed
+          as TOML. If it fails to parse as TOML, the raw string is used as a literal.
+--
   -m, --model <MODEL>
           Model the agent should use
-
 --
   -s, --sandbox <SANDBOX_MODE>
           Select the sandbox policy to use when executing model-generated shell commands
           
+          [possible values: read-only, workspace-write, danger-full-access]
+--
+      --dangerously-bypass-approvals-and-sandbox
+          Skip all confirmation prompts and execute commands without sandboxing. EXTREMELY
+          DANGEROUS. Intended solely for running in environments that are externally sandboxed
+--
+      --dangerously-bypass-hook-trust
+          Run enabled hooks without requiring persisted hook trust for this invocation. DANGEROUS.
+          Intended only for automation that already vets hook sources
+--
+      --skip-git-repo-check
+          Allow running Codex outside a Git repository
 --
       --ephemeral
           Run without persisting session files to disk
-
 --
       --json
           Print events to stdout as JSONL
-
+--
   -o, --output-last-message <FILE>
           Specifies file where the last message from the agent should be written
-

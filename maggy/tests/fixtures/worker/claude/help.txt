@@ -1,45 +1,88 @@
 # claude --help excerpt, 2.1.330 (Claude Code)
-                                        --output-format=stream-json)
+  --allow-dangerously-skip-permissions  Enable bypassing all permission checks
+                                        as an option, without it being enabled
+                                        by default. Recommended only for
+                                        sandboxes with no internet access.
+--
+  --dangerously-skip-permissions        Bypass all permission checks.
+                                        Recommended only for sandboxes with no
+                                        internet access.
+--
+  --disallowedTools, --disallowed-tools <tools...>
+      Comma or space-separated list of tool names to deny (e.g. "Bash(git *)
+      Edit")
+--
   --include-partial-messages            Include partial message chunks as they
                                         arrive (only works with --print and
                                         --output-format=stream-json)
+--
   --input-format <format>               Input format (only works with --print):
                                         "text" (default), or "stream-json"
+                                        (realtime streaming input) (choices:
+                                        "text", "stream-json")
 --
   --max-budget-usd <amount>             Maximum dollar amount to spend on API
                                         calls (only works with --print)
+--
   --mcp-config <configs...>             Load MCP servers from JSON files or
+                                        strings (space-separated)
 --
   --model <model>                       Model for the current session. Use an
                                         alias for the latest model (e.g.
                                         'fable', 'opus', or 'sonnet') or a
+                                        model's full name.
 --
   --no-session-persistence              Don't save sessions to disk; they can't
                                         be resumed (only works with --print)
+--
   --output-format <format>              Output format (only works with --print):
                                         "text" (default), "json" (single
                                         result), or "stream-json" (realtime
+                                        streaming) (choices: "text", "json",
+                                        "stream-json")
 --
   --permission-mode <mode>              Permission mode to use for the session
                                         (choices: "acceptEdits", "auto",
                                         "bypassPermissions", "manual",
+                                        "dontAsk", "plan")
 --
   -p, --print                           Print response and exit (useful for
                                         pipes). Note: The workspace trust dialog
                                         is skipped when Claude is run in
+                                        non-interactive mode (via -p, or when
+                                        stdout is not a TTY, e.g. piped or
+                                        redirected output). Only use this in
+                                        directories you trust. Settings files
+                                        that fail validation are silently
+                                        ignored in this mode (no error dialog is
+                                        shown).
 --
-                                        --output-format=stream-json)
   --restricted                          Restricted mode: removes the built-in
                                         tools that run commands or code (Bash,
---
+                                        PowerShell and the other code-running
+                                        tools) and WebFetch unless --tools names
+                                        them, and ignores user, project and
+                                        local settings files (managed settings
+                                        and --settings still apply; add
                                         --strict-mcp-config to skip MCP servers
                                         too). Also starts no plugin language
                                         servers, confines the file tools to the
+                                        working directories (--add-dir
+                                        included), refuses bypassPermissions,
+                                        and lets only a person or the configured
+                                        permission handler approve writes to
+                                        settings, git and tool-configuration
+                                        files.
 --
   --setting-sources <sources>           Comma-separated list of setting sources
                                         to load (user, project, local).
+--
   --settings <file-or-json>             Settings file or JSON string to load
+                                        more settings from
 --
   --strict-mcp-config                   Only use MCP servers from --mcp-config,
                                         ignoring all other MCP configurations
-  --system-prompt <prompt>              System prompt to use for the session
+--
+  --tools <tools...>                    Built-in tools to make available: "" for
+                                        none, "default" for the default set, or
+                                        tool names (e.g. "Bash,Edit,Read")

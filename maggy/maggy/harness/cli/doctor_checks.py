@@ -76,3 +76,11 @@ def awg_checks(env: ToolEnv, profile: HarnessProfile, agents: list[str]) -> Find
     if "t3" in profile.surfaces:
         found.info += T3_ADVICE
     return found
+
+
+def host_execution_warnings(profile: HarnessProfile) -> list[str]:
+    """RFC §2.6.7: running unsandboxed agents on the host is an explicit, flagged opt-in."""
+    if not profile.worker.allow_host_execution:
+        return []
+    return ["worker.allow_host_execution is true: write- or shell-capable runs on adapters "
+            "without a native sandbox (opencode, pi) execute directly on this host"]

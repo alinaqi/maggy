@@ -3,6 +3,14 @@ version: 2.1.330 (Claude Code)
 parser: claude-json
 help: help.txt
 quota_patterns: [rate limit, rate_limit, usage limit, '429']
+verified:
+  - 'adapter flags: help.txt excerpt regenerated from claude --help 2.1.330 on 2026-11-23'
+  - 'live read_only run (scratch git repo, haiku, --max-budget-usd 0.25, stream-json init event):
+    --strict-mcp-config with --mcp-config {"mcpServers":{}} still listed plugin-sourced awg tools;
+    adding --disallowedTools mcp__awg removed every mcp__awg__* tool; tools were Glob, Grep, Read;
+    permissionMode plan; result OK'
+  - 'sandbox settings keys (enabled, failIfUnavailable, autoAllowBashIfSandboxed, allowUnsandboxedCommands)
+    found in the 2.1.330 settings schema; not exercised live'
 cases:
   success:
     file: success.json

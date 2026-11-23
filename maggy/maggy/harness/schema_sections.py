@@ -94,6 +94,8 @@ class Worker(Strict):
     adapter: str | None = None
     permission: str = "workspace"
     timeout_minutes: int = Field(30, gt=0)
+    isolation: Literal["worktree", "container"] = "worktree"
+    allow_host_execution: bool = False  # personal profile only (loader enforces)
 
 
 class RiskRule(Strict):
