@@ -110,3 +110,23 @@ class TestDeliberationWithPersonas:
         ctx = ContextPackage(goal="g", plan_text="p", code_diff="d")
         result = await d.run(ctx, ["a", "b", "c"], threshold=2)
         assert result.approved
+
+
+class TestBuiltinCouncilModelsAreNotCustomTiers:
+    """Council default models are not user-added custom routing tiers.
+
+    Regression: build_routing_tiers promoted every council default whose id is
+    not a router tier name (qwen3 at tier 0, the claude-fable-5 chief) to a
+    "custom" tier covering complexity 0-10, so qwen3 won every routing call.
+    """
+
+    def test_defaults_add_no_custom_tiers(self, cfg_path):
+        from maggy.services.model_registry import build_routing_tiers
+        tiers = build_routing_tiers(cfg_path=cfg_path)
+        assert [t.name for t in tiers if t.provider == "custom"] == []
+
+    def test_qwen3_default_never_routes(self, cfg_path):
+        from maggy.services.model_registry import build_routing_tiers
+        names = {t.name for t in build_routing_tiers(cfg_path=cfg_path)}
+        assert "qwen3" not in names
+        assert "claude-fable-5" not in names

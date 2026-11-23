@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Maggy: council default models are no longer routing tiers
+
+#### Fixed
+- **`maggy/services/model_registry.py`** — `build_routing_tiers()` promoted
+  every council default model whose id is not a router tier name to a
+  "custom" tier covering complexity 0-10. `qwen3` (council tier 0) therefore
+  won every routing decision, and deepseek/kimi/codex leaked into the ladder
+  even under US sovereignty. Only user-added models become extra tiers now;
+  `claude-fable-5` (the council chief) joins the built-in model ids.
+
 ## [6.67.0] - 2026-10-13
 
 ### Routing hook: no more qwen3 tier, missing tools fall back to Claude
