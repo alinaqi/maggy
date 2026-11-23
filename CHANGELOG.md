@@ -78,6 +78,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `MAGGY_AWG_REPO` (`EmitterSources.awg_repo`); without it the AWG plugin pieces
   are skipped. Managed whole-file copies (skills, extensions) now share
   `emitters/copies.py`. Adds `jsonschema` to the `test` extra.
+- **`maggy harness` CLI** (`maggy/harness/cli/`, registered on `maggy.cli:app`):
+  `init` detects agent CLIs (`which` + `--version`), asks four short questions
+  (`--yes` takes defaults), writes `~/.maggy/harness.yaml` (kept unless
+  `--force`), runs `awg init` when `awg status` fails, and mints one `agent`
+  token per agent (`awg token mint maggy-<agent> --kind agent --json`) into
+  `~/.maggy/tokens/<agent>.token` (0600, never printed). `show` prints every
+  resolved key with its source. `doctor` prints a per-agent capability table
+  (native/partial/none), warns when a CLI drifts from the tested version
+  (claude 2.1.330, codex 0.163.0, opencode 1.19.6, pi 0.73.1), and reports
+  missing agents, missing token files and AWG reachability per token
+  (`awg --token-file F status`), plus T3 advice when `t3` is a surface. `diff`
+  and `apply` (`--agent`, `--scope user|project`, `--repo`) compile one plan
+  across agents (`harness/compile.py` merges files several emitters manage,
+  such as the repo `AGENTS.md`), show unified diffs, confirm (`--yes`), back up,
+  write and update `harness.lock`; a second apply is a no-op. Conflicts are
+  listed with `--take-mine` / `--take-profile` (now passed through `Scope`).
+  Exit codes: 0 ok, 1 conflicts/errors, 2 usage. Subprocesses use argv lists.
 
 ### Maggy: Phase 0 hardening (review leftovers)
 
