@@ -23,6 +23,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   Invalid YAML, unknown keys, bad types and credential-looking keys (token,
   api_key, secret, password, ...) fail with the file and key path; missing or
   empty files fall back to defaults; `locked` is rejected in the personal file.
+- **Managed regions engine** (`maggy/harness/regions*.py`, `plan.py`, `apply.py`,
+  `lock.py`; RFC §2.2). Pure `render`/`extract` for Markdown
+  (`<!-- maggy:begin id -->` blocks), hash-comment text, JSON (managed keys at
+  dotted paths, user key order kept) and TOML (via `tomlkit`, comments kept);
+  content outside managed regions is preserved byte for byte. Invalid JSON/TOML
+  and JSONC with comments are reported and never overwritten. `plan_files`
+  returns `FileChange`s (create/update/unchanged; ok/conflict/invalid/refused).
+  `~/.maggy/harness.lock` (path injectable) stores the sha256 and text of each
+  region last written; a user edit inside a region is a conflict with a 3-way
+  diff (last-written / on-disk / profile), resolved with `take_mine` (adopt
+  on-disk, update lock) or `take_profile` (overwrite region). `apply_changes`
+  backs up each touched file to `~/.maggy/backups/<ts>/` (mirroring paths)
+  before an atomic temp+rename write, refuses paths whose symlinks leave the
+  target root, skips files changed since plan, and sets 0600 on files that
+  reference token files. Adds the `tomlkit` dependency.
 
 ### Maggy: Phase 0 hardening (review leftovers)
 
