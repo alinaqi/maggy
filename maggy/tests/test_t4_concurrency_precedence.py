@@ -15,22 +15,6 @@ from maggy.memory_precedence import (
 
 # ── Part 2: busy_timeout on the concurrent multi-agent stores ──────────
 
-def _busy_timeout(conn: sqlite3.Connection) -> int:
-    return conn.execute("PRAGMA busy_timeout").fetchone()[0]
-
-
-def test_polyphony_store_sets_busy_timeout(tmp_path):
-    from maggy.orchestrator.store import PolyphonyStore
-    store = PolyphonyStore(tmp_path)
-    store.init_db()
-    conn = store._connect()
-    try:
-        assert _busy_timeout(conn) >= 5000
-        assert conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
-    finally:
-        conn.close()
-
-
 def test_concurrent_writers_wait_not_error(tmp_path):
     """With busy_timeout, a second writer waits instead of raising 'locked'."""
     db = str(tmp_path / "t.db")

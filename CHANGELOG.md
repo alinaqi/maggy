@@ -18,6 +18,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `orchestrator/config.py` is KEPT: `orchestrator/__main__.py` still imports it. New guard
   `tests/test_orchestrator_dead_modules_removed.py` asserts the dead modules stay gone and
   that `worktree`, `merge`, `merge_rollback` and `config` still import.
+- **Orchestrator store/state machine/supervisor/CLI** `maggy/orchestrator/{store.py,
+  state_machine.py,orchestrator.py,__main__.py,workspace.py}`: AWG is now the task state
+  machine and store, so the Polyphony SQLite store, 7-state machine, supervisor loop,
+  workspace cloner and the `python -m maggy.orchestrator` CLI are gone. Nothing kept imported
+  them (worktree/merge/merge_rollback, isolation, models and the executor family do not; no
+  route, hook, skill, install.sh or pyproject entry referenced them). Removed test:
+  `test_polyphony_store_sets_busy_timeout` (and its `_busy_timeout` helper) from
+  `tests/test_t4_concurrency_precedence.py`; the rest of that file stays. The guard
+  `tests/test_orchestrator_dead_modules_removed.py` now also asserts these five modules stay
+  gone and that `models` and `isolation` still import. `orchestrator/config.py` is still
+  kept (guarded) although its only importer was `__main__.py`.
 
 ### Maggy: Personal Harness (Phase 5)
 

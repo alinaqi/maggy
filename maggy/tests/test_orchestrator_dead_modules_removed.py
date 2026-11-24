@@ -10,8 +10,13 @@ import pytest
 DEAD = (
     "adapters", "sources", "router",
     "scoring", "identity", "events",
+    "store", "state_machine", "orchestrator",
+    "workspace", "__main__",
 )
-KEPT = ("worktree", "merge", "merge_rollback", "config")
+KEPT = (
+    "worktree", "merge", "merge_rollback", "config",
+    "models", "isolation",
+)
 
 
 @pytest.mark.parametrize("name", DEAD)
