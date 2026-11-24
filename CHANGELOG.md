@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **Duplicate `_PI_MODELS`** in `maggy/maggy/pipeline/backend_claude.py`: it now imports the
+  single set from `pipeline/backend_pi.py` (also used by `api/routes_chat.py`), so the Claude and Pi
+  backends can no longer drift apart. Guarded by `maggy/tests/test_pi_models_source.py`.
 - **Deploy and planning stubs** `maggy/maggy/deploy.py`, `maggy/maggy/planning.py`,
   `maggy/maggy/models/plan.py` and their routers `api/routes_deploy.py` (`/api/deploy/*`) and
   `api/routes_planning.py` (`/api/planning/generate`): in-memory stubs (no real container
