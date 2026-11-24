@@ -129,8 +129,6 @@ claude        # now routed through srooter
 
 **[Telos](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md)** -- Intent-grounded testing. Three planes: Conformance (do tests pass), Validation (is there intent drift), Integrity (orphan code, stale intents, scope sprawl). IFS = F1 x F2 x F3. A zero in any plane collapses the score.
 
-**[Cortex MCP](cortex-mcp/)** -- Unified code intelligence. Structure (AST), Intent (iCPG), Memory (Mnemos). 15 tools, single SQLite DB.
-
 **Plugins** -- Drop a folder with `plugin.yaml` + `plugin.py` into `plugins/`. Auto-discovered on startup.
 
 | Plugin | What it does |
@@ -155,10 +153,6 @@ maggy/
   plugins/            # Installable plugins (telos, build-in-public, etc.)
   tests/              # 900+ tests
   docs/               # Architecture, RFC, specs
-
-cortex-mcp/           # Code intelligence MCP server
-  src/cortex/         # Structure + Intent + Memory layers
-  tests/              # 207 tests
 ```
 
 ### Tests
@@ -176,7 +170,6 @@ python3 -m pytest tests/ -x -q
 - [Maggy reference](maggy/docs/maggy-reference.md) -- CLI, REPL, routing, dashboard
 - [Architecture v5](maggy/docs/architecture-v5.md) -- System architecture
 - [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) -- Intent-grounded testing spec
-- [Cortex docs](cortex-mcp/docs/) -- Code intelligence server
 - [Changelog](CHANGELOG.md) -- Version history
 
 **Need help scaling AI in your org?** [Claude Code & MCP experts](https://leanai.ventures/aiops/claude)
