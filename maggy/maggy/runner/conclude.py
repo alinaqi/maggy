@@ -11,6 +11,7 @@ from __future__ import annotations
 from maggy.runner.evidence import attach_evidence
 from maggy.runner.regression.gate import prove_regressions
 from maggy.runner.session import RunReport, Session
+from maggy.runner.stages.advance import advance_parent
 from maggy.worker.models import WorkerResult
 
 
@@ -59,6 +60,7 @@ def _publish(session: Session, result: WorkerResult) -> RunReport:
         session.verify()
         session.config.pr_step(session.claim, result)
         session.log("pr_step", {"sha": sha})
+    advance_parent(session)
     session.verify()
     session.awg.submit(session.claim, f"maggy: candidate {sha[:12]} passed required checks", sha)
     session.log("submitted", {"sha": sha})

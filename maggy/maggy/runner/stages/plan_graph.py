@@ -40,8 +40,8 @@ def task_plan(task: PlanTask, entries: list[TestPlanEntry]) -> dict:
 
 def _children(session: Session, blueprint: Blueprint, made: dict[str, str]) -> None:
     for task in blueprint.plan.tasks:
-        child = ChildSpec(title=task.title, capabilities=blueprint.capabilities,
-                          plan=task_plan(task, blueprint.plan.test_plan))
+        plan = {**task_plan(task, blueprint.plan.test_plan), "parent": session.claim.ref}
+        child = ChildSpec(title=task.title, capabilities=blueprint.capabilities, plan=plan)
         session.verify()
         made[task.key] = str(session.awg.create_child(session.claim, child)["display_id"])
 

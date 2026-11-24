@@ -12,6 +12,7 @@
 | AC3 | blocked | visual mobile | visual | chromium is not available | - |
 | AC4 | pending | vision desktop | visual | no vision backend available | - |
 | AC5 | not applicable | - | manual | recorded as not applicable by a human | - |
+| Release impact | - | - | - | UI-only fix; pricing rules and API contract preserved. | - |
 
 ### Review council
 
@@ -22,7 +23,3 @@
 - [AC2] functional log withheld from the PR: secret scan (github token)
 - [AC3] blocked: chromium is not available
 - [AC4] pending: no vision backend available
-
-### Release impact
-
-UI-only fix; pricing rules and API contract preserved.

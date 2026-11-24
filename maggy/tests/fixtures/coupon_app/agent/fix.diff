@@ -1,0 +1,23 @@
+diff --git a/app.js b/app.js
+index 3a82f70..a302479 100644
+--- a/app.js
++++ b/app.js
+@@ -2,13 +2,15 @@
+ (function () {
+   var form = document.getElementById('coupon-form');
+   var field = document.getElementById('coupon');
++  var error = document.getElementById('coupon-error');
+   var total = document.getElementById('order-total');
+ 
++  // A rejected code keeps what the shopper typed and shows the API's message under the
++  // field; an accepted code clears that error. Pricing stays the API's.
+   function render(response) {
+     total.textContent = 'Total: $' + response.total;
+-    if (!response.ok) {
+-      field.value = '';
+-    }
++    error.textContent = response.ok ? '' : response.message;
++    error.hidden = response.ok;
+   }
+ 
+   form.addEventListener('submit', function (event) {
