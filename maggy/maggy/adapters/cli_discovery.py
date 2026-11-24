@@ -27,7 +27,6 @@ class CliProfile:
     installed: bool = False
     prompt_flag: str = ""
     work_dir_flag: str = ""
-    auto_approve_flag: str = ""
     output_format_flag: str = ""
     max_turns_flag: str = ""
     afk_flag: str = ""
@@ -45,18 +44,9 @@ class CliProfile:
             cmd.append("exec")
         elif self.uses_run_subcommand:
             cmd += ["run", self.run_model]
-        if self.prompt_is_positional:
-            if self.prompt_flag:
-                cmd.append(self.prompt_flag)
-            cmd.append(prompt)
-        elif self.prompt_flag:
-            cmd += [self.prompt_flag, prompt]
-        else:
-            cmd.append(prompt)
+        cmd += [self.prompt_flag, prompt] if self.prompt_flag else [prompt]
         if self.work_dir_flag:
             cmd += [self.work_dir_flag, wd]
-        if self.auto_approve_flag:
-            cmd.append(self.auto_approve_flag)
         if self.afk_flag:
             cmd.append(self.afk_flag)
         if self.output_format_flag:
@@ -107,56 +97,38 @@ def discover_cli(name: str) -> CliProfile:
     return profile
 
 
+# (profile attribute, [(help-text pattern, value), ...]); first match wins.
+# Skip-permission flags are deliberately never detected: permission
+# profiles come from maggy.worker.bypass, not --help parsing.
+_FLAG_RULES: list[tuple[str, list[tuple[str, object]]]] = [
+    ("prompt_flag", [(r"-p,\s*--print\b", "--print"), (r"(-p|--prompt)\b", "-p")]),
+    ("work_dir_flag", [
+        (r"--work-dir\b", "-w"), (r"-C,\s*--cd\b", "-C"), (r"--cwd\b", "--cwd"),
+    ]),
+    ("output_format_flag", [(r"--output-format\b", "--output-format")]),
+    ("max_turns_flag", [
+        (r"--max-turns\b", "--max-turns"),
+        (r"--max-steps-per", "--max-steps-per-turn"),
+        (r"--max-steps\b", "--max-steps"),
+    ]),
+    ("afk_flag", [(r"--afk\b", "--afk")]),
+    ("uses_exec_subcommand", [(r"\bexec\b.*non-interactive", True)]),
+    ("uses_run_subcommand", [(r"\brun\s+Run a model\b", True)]),
+]
+
+
 def _extract_flags(profile: CliProfile, text: str) -> None:
     """Extract flags by matching known flag names in help."""
-    # Print/prompt mode
-    if _has(text, r"-p,\s*--print\b"):
-        profile.prompt_flag = "--print"
-    elif _has(text, r"(-p|--prompt)\b"):
-        profile.prompt_flag = "-p"
-    # Working directory
-    if _has(text, r"--work-dir\b"):
-        profile.work_dir_flag = "-w"
-    elif _has(text, r"-C,\s*--cd\b"):
-        profile.work_dir_flag = "-C"
-    elif _has(text, r"--cwd\b"):
-        profile.work_dir_flag = "--cwd"
-    # Auto-approve / skip permissions
-    if _has(text, r"--dangerously-skip-permissions\b"):
-        profile.auto_approve_flag = "--dangerously-skip-permissions"
-    elif _has(text, r"--dangerously-bypass-approvals"):
-        profile.auto_approve_flag = "--dangerously-bypass-approvals-and-sandbox"
-    elif _has(text, r"--yolo\b"):
-        profile.auto_approve_flag = "--yolo"
-    elif _has(text, r"--auto-approve\b"):
-        profile.auto_approve_flag = "--auto-approve"
-    # Output format
-    if _has(text, r"--output-format\b"):
-        profile.output_format_flag = "--output-format"
-    # Max turns / steps
-    if _has(text, r"--max-turns\b"):
-        profile.max_turns_flag = "--max-turns"
-    elif _has(text, r"--max-steps-per"):
-        profile.max_turns_flag = "--max-steps-per-turn"
-    elif _has(text, r"--max-steps\b"):
-        profile.max_turns_flag = "--max-steps"
-    # AFK mode
-    if _has(text, r"--afk\b"):
-        profile.afk_flag = "--afk"
-    # Exec subcommand for non-interactive use
-    if _has(text, r"\bexec\b.*non-interactive"):
-        profile.uses_exec_subcommand = True
-    # Run subcommand (ollama-style: "run  Run a model")
-    if _has(text, r"\brun\s+Run a model\b"):
-        profile.uses_run_subcommand = True
+    for attr, rules in _FLAG_RULES:
+        value = next((v for pat, v in rules if _has(text, pat)), None)
+        if value is not None:
+            setattr(profile, attr, value)
 
 
 def _refine_from_exec(profile: CliProfile, text: str) -> None:
     """Override flags with more specific exec subcommand flags."""
     if _has(text, r"-C,\s*--cd\b"):
         profile.work_dir_flag = "-C"
-    if _has(text, r"--dangerously-bypass-approvals"):
-        profile.auto_approve_flag = "--dangerously-bypass-approvals-and-sandbox"
 
 
 def _refine_from_run(profile: CliProfile, text: str) -> None:
