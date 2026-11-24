@@ -285,7 +285,7 @@ items carry `[human]`, so the runner never claims them.
 
 | Stage | Implementation (reuse) | Gate |
 |---|---|---|
-| Spec | planner prompt with read-only permission + criteria template; reviewer in a fresh session (`council/deliberation` logic) | verdict `ready` / `needs_clarification` / `blocked` |
+| Spec | planner prompt with read-only permission + criteria template; reviewer in a fresh session (deliberation logic; the old `council/` package was deleted in Phase 6) | verdict `ready` / `needs_clarification` / `blocked` |
 | Plan + test plan | `DualPlanner`, rewritten to structured output: tasks, deps, per-criterion fixture/action/expected/evidence | every criterion has a VALIDATION; DAG valid; high-risk paths → `WAITING_HUMAN` for plan approval |
 | Build | any adapter; AC-aware TDD | named regression test fails on `base_commit` for the expected reason and passes on the candidate |
 | Verify | clean worktree; repo `commands`; Playwright visual with a separate baseline-approval step; `services/vision` per criterion for UI | required validations PASS on the candidate commit |
