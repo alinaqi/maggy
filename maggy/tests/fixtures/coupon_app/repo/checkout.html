@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="checkout">
+    <h1>Your cart</h1>
+    <p class="line">Seeded cart: 1 item, subtotal $100</p>
+    <form id="coupon-form" class="coupon" novalidate>
+      <label for="coupon">Coupon code</label>
+      <input id="coupon" name="coupon" autocomplete="off" aria-describedby="coupon-error">
+      <p id="coupon-error" data-testid="coupon-error" class="field-error" role="alert" hidden></p>
+      <button id="apply" type="submit">Apply</button>
+    </form>
+    <p id="order-total" data-testid="order-total" class="total">Total: $100</p>
+  </main>
+  <script src="api.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+"""Seeded checkout session: the page of THIS checkout in a fresh Chromium context with a
+fixed locale, time zone and scale (the cart is seeded at $100 by api.js)."""
+
+from pathlib import Path
+
+import pytest
+from playwright.sync_api import sync_playwright
+
+PAGE = Path(__file__).resolve().parents[1] / "checkout.html"
+ERROR, TOTAL = "[data-testid=coupon-error]", "[data-testid=order-total]"
+
+
+@pytest.fixture
+def checkout():
+    """open(width, height) -> a page on the seeded checkout."""
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+
+        def open_page(width=1280, height=800):
+            context = browser.new_context(viewport={"width": width, "height": height},
+                                          device_scale_factor=1, locale="en-US",
+                                          timezone_id="UTC")
+            page = context.new_page()
+            page.goto(PAGE.as_uri())
+            return page
+
+        yield open_page
+        browser.close()
+
+
+def apply_code(page, code):
+    page.fill("#coupon", code)
+    page.click("#apply")

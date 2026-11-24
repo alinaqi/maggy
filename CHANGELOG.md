@@ -11,6 +11,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 5)
 
 #### Added
+- **Phase 5 exit: the coupon scenario end to end** (factory doc §1, §2, §5; RFC §2.5).
+  `tests/test_coupon_scenario_exit.py` runs the doc's ticket "Fix what happens when a coupon
+  expires" against the REAL awg CLI (temp HOME/AWG_HOME, minted agent + ci tokens), a local
+  bare origin, a fake gh and real Chromium: intake -> spec asks ONE question (keep the code
+  visible? UTC vs local) -> human answer -> AC1-AC3 approved -> T1-T3 plan with VALIDATIONs
+  -> each build child's browser regression test proven RED on base and GREEN on its candidate
+  -> verify (AC1/AC2 browser checks, AC3 visual at 390x844 and 1440x900: baseline PENDING,
+  human `baseline-approved` DECISION, rerun passes, fake vision backend) -> draft PR with
+  the per-criterion evidence table -> `awg proof` DONE with CI-trust evidence at the final
+  SHA. It skips with the reason when awg or a browser is missing. The fixture app
+  (`tests/fixtures/coupon_app`: static checkout, a tiny JS coupon API with a seeded $100
+  cart and codes EXPIRED/SAVE10, the doc's bug, the real fix diff) has its own RED/GREEN
+  test. The recorded PR body and proof are in `docs/coupon-scenario.md`.
+- **Build -> verify hand-off**: the plan stage records the parent ref in each child's
+  `task-plan`; just before the last unfinished build child is submitted (fenced by its live
+  lease) the runner re-tags the `stage:planned` parent `stage:verify`, so verify starts
+  without a human re-tagging it.
+
 - **PR evidence table + review council fed the spec** (RFC §2.5 PR row, §2.6.9; factory
   doc §5). The verify stage now builds a per-criterion evidence record (`runner.pr_evidence`):
   AWG ref, spec version, tested commit, gate, and per criterion a verdict kept distinct as
@@ -68,6 +86,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   tests use the cached chromium and skip with a reason where it cannot launch.
 
 #### Changed
+- The PR evidence table ends with a **Release impact** row (as in the factory doc's table)
+  instead of a separate section.
 - `worker.stages` and the runner's held capabilities now include `verify` by default; new
   profile section `evidence` (`external_review: false | [providers]`, personal profile
   only); test-plan entries accept an optional `visual` spec.

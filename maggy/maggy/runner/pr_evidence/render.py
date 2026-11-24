@@ -1,6 +1,6 @@
 """Render the evidence record as the PR body's evidence section (factory doc §5): ticket,
-spec version, tested commit, gate, per-criterion table, review findings, gaps, release impact
-and (only when opted in and scanned) uploaded screenshots."""
+spec version, tested commit, gate, per-criterion table ending in a release impact row,
+review findings, gaps and (only when opted in and scanned) uploaded screenshots."""
 
 from __future__ import annotations
 
@@ -19,11 +19,12 @@ HEAD = ["| Criterion | Verdict | Check(s) | Evidence | Detail | Artifacts |",
 def render_record(record: EvidenceRecord) -> str:
     lines = ["## Evidence", "", f"- Ticket: `{record.ref}`",
              f"- Spec version: `{record.spec_version}`", f"- Tested commit: `{record.sha}`",
-             f"- Gate: {GATE_TEXT[gate(record)]}", "", *HEAD, *map(_row, record.rows), "",
+             f"- Gate: {GATE_TEXT[gate(record)]}", "", *HEAD, *map(_row, record.rows),
+             _impact(record), "",
              "### Review council", "",
              *([_finding(f) for f in record.findings] or ["No blocking findings."]), "",
              "### Verification gaps", "", *(f"- {_text(g)}" for g in record.gaps or ["none"]),
-             "", "### Release impact", "", _text(record.release_impact or "not recorded"), ""]
+             ""]
     return "\n".join(lines + _screenshots(record))
 
 
@@ -32,6 +33,11 @@ def _row(row: CriterionRow) -> str:
              ", ".join(row.evidence) or "-", _text(row.detail)[:300] or "-",
              "<br>".join(map(_artifact, row.artifacts)) or "-"]
     return "| " + " | ".join(_cell(c) if i < 5 else c for i, c in enumerate(cells)) + " |"
+
+
+def _impact(record: EvidenceRecord) -> str:
+    """The release impact as the table's last row (factory doc §5 PR evidence table)."""
+    return f"| Release impact | - | - | - | {_cell(record.release_impact or 'not recorded')} | - |"
 
 
 def _artifact(ref: ArtifactRef) -> str:

@@ -1,0 +1,15 @@
+"""AC2: a valid 10% code makes the $100 cart $90, and clears an expired code's error."""
+
+from conftest import ERROR, TOTAL, apply_code
+
+
+def test_ac2_valid_code_after_expired(checkout):
+    fresh = checkout()
+    apply_code(fresh, "SAVE10")
+    assert fresh.inner_text(TOTAL) == "Total: $90"
+    page = checkout()
+    apply_code(page, "EXPIRED")
+    assert page.locator(ERROR).is_visible(), "the expired code showed no error to clear"
+    apply_code(page, "SAVE10")
+    assert not page.locator(ERROR).is_visible(), "the error stayed after a valid code"
+    assert page.inner_text(TOTAL) == "Total: $90"

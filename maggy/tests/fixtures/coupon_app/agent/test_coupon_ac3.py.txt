@@ -1,0 +1,26 @@
+"""AC3: at 390 px and 1440 px the expired-coupon message sits under the field, and the
+Apply button and the total stay fully in view and usable (no horizontal scroll)."""
+
+import pytest
+from conftest import ERROR, TOTAL, apply_code
+
+VIEWPORTS = [(390, 844), (1440, 900)]
+
+
+def in_view(box, width, height):
+    return (box is not None and box["x"] >= 0 and box["y"] >= 0
+            and box["x"] + box["width"] <= width and box["y"] + box["height"] <= height)
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_ac3_expired_layout(checkout, width, height):
+    page = checkout(width, height)
+    apply_code(page, "EXPIRED")
+    assert page.locator(ERROR).is_visible(), "no field error to place"
+    field, error = page.locator("#coupon").bounding_box(), page.locator(ERROR).bounding_box()
+    assert error["y"] >= field["y"] + field["height"], "the message is not under the field"
+    assert error["x"] < field["x"] + field["width"] and error["x"] + error["width"] > field["x"]
+    for selector in (ERROR, "#apply", TOTAL):
+        assert in_view(page.locator(selector).bounding_box(), width, height), selector
+    assert page.evaluate("document.documentElement.scrollWidth") <= width
+    page.click("#apply", trial=True)

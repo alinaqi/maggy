@@ -1,0 +1,8 @@
+body { margin: 0; background: #ffffff; color: #111111; font: 16px/1.4 sans-serif; }
+.checkout { box-sizing: border-box; max-width: 560px; padding: 16px; }
+h1 { margin: 0 0 8px; font-size: 24px; }
+.coupon { display: flex; flex-direction: column; gap: 6px; }
+#coupon { box-sizing: border-box; width: 100%; height: 36px; font-size: 16px; }
+.field-error { margin: 0; color: #b00020; overflow-wrap: anywhere; }
+#apply { align-self: flex-start; height: 36px; padding: 0 16px; font-size: 16px; }
+.total { margin-top: 16px; font-weight: bold; }

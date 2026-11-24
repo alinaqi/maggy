@@ -1,0 +1,13 @@
+"""AC1: an expired coupon shows the field error, keeps the code and the $100 total."""
+
+from conftest import ERROR, TOTAL, apply_code
+
+
+def test_ac1_expired_coupon_keeps_code(checkout):
+    page = checkout()
+    apply_code(page, "EXPIRED")
+    error = page.locator(ERROR)
+    assert error.is_visible(), "no field error after an expired coupon"
+    assert error.inner_text() == "This coupon has expired"
+    assert page.input_value("#coupon") == "EXPIRED", "the entered code was cleared"
+    assert page.inner_text(TOTAL) == "Total: $100"
