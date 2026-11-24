@@ -26,7 +26,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `validation.regression` (`runner: pytest | node-test | playwright | command`, `command`,
   `junit`) declares how one named test runs (argv only, check env, check timeout).
 
+- **Verify stage with functional, visual and vision checks** (RFC §2.5 Verify, §2.6.2,
+  §2.6.9; factory doc §5). `stage:verify` is the PARENT item's step (not an extra child):
+  once every build child in its `plan-<sha>` record is DONE/VERIFYING, the runner builds
+  the integrated candidate (maggy/<ref> with each maggy/<child> merged, plus intact
+  human-approved baselines, committed as Maggy in a fresh worktree and moved by
+  compare-and-swap `update-ref`), then in fresh worktrees at that SHA with the check env
+  runs the repo commands, each criterion's functional test, and each `evidence: visual`
+  criterion: a Maggy Python-Playwright check from the test plan's new `visual` spec
+  (route in the checkout, viewports, actions, layout assertions; file:// inside the
+  checkout only, no network) compared against `.maggy/baselines/<AC>-<viewport>.png`, or
+  the repo's own Playwright test with `--update-snapshots=none`. Layout failure or pixel
+  diff -> FAIL with expected/actual/diff artifacts; missing baseline -> PENDING with a
+  proposed image in the attempt dir and WAITING_HUMAN naming the
+  `baseline-approved:<AC>:<viewport>` DECISION (sha256-bound). Matching captures go to a
+  vision reviewer (backend interface; local Ollama Qwen-VL by default, external providers
+  only when the personal-only `evidence.external_review` lists them); uncertain, refused
+  or no backend is PENDING (a human may record `vision-reviewed:<AC>:<viewport>` at the
+  SHA), never PASS. PASS/FAIL results are attached as ci evidence (commit_sha, meta
+  spec_version, criterion_id, check, viewport); a `verify-<sha>:<attempt>` annotation
+  records per-criterion verdicts and only the artifacts that pass a secret scan (token
+  formats, entropy, known secret env values) for the PR. Installed the existing
+  `maggy[visual]` extra (playwright 1.65.2, pillow, numpy) into the dev venv; browser
+  tests use the cached chromium and skip with a reason where it cannot launch.
+
 #### Changed
+- `worker.stages` and the runner's held capabilities now include `verify` by default; new
+  profile section `evidence` (`external_review: false | [providers]`, personal profile
+  only); test-plan entries accept an optional `visual` spec.
 - `runner.evidence` exposes `attach_once` (idempotent intent/result-annotated evidence) and
   `worker.checks._exec` is now the public `run_logged`, both reused by the regression proof.
   The Phase 3/4 exit rigs' fake build agent now writes the planned regression tests.

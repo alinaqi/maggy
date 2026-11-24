@@ -52,7 +52,7 @@ def test_spec_version_change_returns_item_for_spec_review(tmp_path: Path) -> Non
 
 def test_unknown_stage_item_is_released_as_not_supported(tmp_path: Path) -> None:
     rig = make_rig(tmp_path, EDIT_AGENT, capabilities=["maggy-runner", "project:demo"],
-                   attributes={"stage": "verify"}, pr_step=_no_pr)
+                   attributes={"stage": "deploy"}, pr_step=_no_pr)
     report = rig.runner.run_once()
     item = rig.awg.items[rig.ref]
     assert report.outcome == "unsupported" and item.state == "READY"

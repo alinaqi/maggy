@@ -14,7 +14,8 @@ from runner_loop_helpers import CAPS, EDIT_AGENT, make_rig
 def test_project_capability_names_the_project() -> None:
     assert project_capability("shop") == "project:shop"
     caps, required = claim_capabilities("shop")
-    assert caps == ["maggy-runner", "stage:spec", "stage:plan", "stage:build", "project:shop"] and required == ["maggy-runner", "project:shop"]
+    assert caps == ["maggy-runner", "stage:spec", "stage:plan", "stage:build", "stage:verify",
+                    "project:shop"] and required == ["maggy-runner", "project:shop"]
 
 
 def test_runner_for_a_never_claims_project_b_items(tmp_path: Path) -> None:

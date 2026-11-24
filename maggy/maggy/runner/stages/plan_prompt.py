@@ -11,7 +11,11 @@ PLANNER = (READ_ONLY + "Plan the implementation of the work item described in th
            "changes, and depends_on naming other task keys (no cycles). Then a test plan with at "
            "least one entry per acceptance criterion id ([AC1] ...): the task that makes it pass, "
            "the fixture, the action, the expected result, the evidence (unit, integration, e2e, "
-           "visual or manual) and the name of the regression test that proves it. " + REPLY +
+           "visual or manual) and the name of the regression test that proves it. A visual "
+           "entry may add \"visual\": {\"route\": \"<file in the repo>\", \"viewports\": "
+           "[{\"name\", \"width\", \"height\"}], \"actions\": [{\"do\", \"selector\", "
+           "\"value\"}], \"assertions\": [{\"check\", \"selector\", \"other\", "
+           "\"value\"}]} for a Maggy-run browser check. " + REPLY +
            '{"tasks": [{"key": "T1", "title": "...", "description": "...", "files": ["src/x.py"], '
            '"depends_on": []}], "test_plan": [{"criterion_id": "AC1", "task": "T1", '
            '"fixture": "...", "action": "...", "expected": "...", "evidence": "unit", '

@@ -49,8 +49,8 @@ def read_layer(path: Path, personal: bool = False) -> dict:
                 for key in find_secret_keys(raw)]
     if personal and "locked" in raw:
         problems.append("locked: only allowed in the repo profile")
-    if not personal and _sets_host_execution(raw):
-        problems.append("worker.allow_host_execution: only allowed in the personal profile")
+    problems += [] if personal else [f"{key}: only allowed in the personal profile"
+                                     for key in _personal_only(raw)]
     if problems:
         raise HarnessConfigError(path, problems)
     try:
@@ -60,10 +60,14 @@ def read_layer(path: Path, personal: bool = False) -> dict:
     return raw
 
 
-def _sets_host_execution(raw: dict) -> bool:
-    """A repo must not grant itself host execution (RFC §2.6.7)."""
-    worker = raw.get("worker")
-    return isinstance(worker, dict) and "allow_host_execution" in worker
+PERSONAL_ONLY = (("worker", "allow_host_execution"), ("evidence", "external_review"))
+
+
+def _personal_only(raw: dict) -> list[str]:
+    """A repo must not grant itself host execution (RFC §2.6.7) or send evidence to an
+    external reviewer (§2.6.9)."""
+    return [f"{section}.{key}" for section, key in PERSONAL_ONLY
+            if isinstance(raw.get(section), dict) and key in raw[section]]
 
 
 def _load_yaml(path: Path) -> dict:

@@ -18,6 +18,7 @@ from maggy.runner.retry import block_after_failures, trailing_failures
 from maggy.runner.session import RunReport, Session, Stopped
 from maggy.runner.stages.plan import run_plan
 from maggy.runner.stages.spec import run_spec
+from maggy.runner.stages.verify import run_verify
 from maggy.runner.stages.worker import heartbeat_interval
 from maggy.runner.state import latest_handoff, state_for
 from maggy.runner.workspace import prepare_workspace
@@ -25,7 +26,7 @@ from maggy.worker.models import WorkerResult
 from maggy.worker.pipeline import run_attempt
 
 
-STAGE_RUNNERS = {"spec": run_spec, "plan": run_plan}
+STAGE_RUNNERS = {"spec": run_spec, "plan": run_plan, "verify": run_verify}
 
 
 class Interrupted(LeaseLost):
