@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **Skip-permission flag detection in `maggy/maggy/adapters/cli_discovery.py`**: `--help` parsing no
+  longer detects or injects `--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`,
+  `--yolo` or `--auto-approve`; the `CliProfile.auto_approve_flag` field and the `auto_approve` key of
+  `GET /api/setup/cli-models` are gone. Permission profiles come from `maggy/worker/bypass.py`. Discovered
+  (non-pinned) PiAdapter commands, e.g. the `claude` model, no longer skip permissions. No test files removed;
+  `test_cli_discovery.py` and `test_pi_adapter.py` now assert the flags are absent.
 - **Duplicate `_PI_MODELS`** in `maggy/maggy/pipeline/backend_claude.py`: it now imports the
   single set from `pipeline/backend_pi.py` (also used by `api/routes_chat.py`), so the Claude and Pi
   backends can no longer drift apart. Guarded by `maggy/tests/test_pi_models_source.py`.

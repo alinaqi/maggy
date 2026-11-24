@@ -76,7 +76,8 @@ class TestBuildCommand:
         cmd = adapter._build_command(model, "hello", 5, "/tmp")
         assert "claude" in cmd[0]
         assert "-p" in cmd
-        assert "--dangerously-skip-permissions" in cmd
+        # Discovery no longer injects skip-permission flags (worker.bypass owns that).
+        assert "--dangerously-skip-permissions" not in cmd
 
     def test_non_claude_command(self):
         entry = ModelEntry(

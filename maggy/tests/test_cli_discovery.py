@@ -88,7 +88,6 @@ def test_claude_discovered():
     assert p.installed is True
     assert p.prompt_is_positional is True
     assert p.prompt_flag == "-p"
-    assert "skip-permissions" in p.auto_approve_flag
     assert p.output_format_flag == "--output-format"
     assert p.work_dir_flag == ""
 
@@ -98,7 +97,6 @@ def test_codex_discovered():
     assert p.installed is True
     assert p.uses_exec_subcommand is True
     assert p.prompt_is_positional is True
-    assert "bypass" in p.auto_approve_flag
     assert p.work_dir_flag == "-C"
 
 
@@ -106,7 +104,6 @@ def test_kimi_discovered():
     p = discover_cli("kimi")
     assert p.installed is True
     assert p.prompt_flag == "-p"
-    assert p.auto_approve_flag == "--yolo"
     assert p.afk_flag == "--afk"
     assert p.work_dir_flag == "-w"
 
@@ -120,12 +117,10 @@ def test_claude_build_command():
     p = CliProfile(
         name="claude", binary="claude", installed=True,
         prompt_flag="-p", prompt_is_positional=True,
-        auto_approve_flag="--dangerously-skip-permissions",
         output_format_flag="--output-format",
     )
     cmd = p.build_command("do stuff", "/tmp/repo", 20)
     assert cmd[:3] == ["claude", "-p", "do stuff"]
-    assert "--dangerously-skip-permissions" in cmd
     assert "--output-format" in cmd
     assert "json" in cmd
 
@@ -135,7 +130,6 @@ def test_codex_build_command():
         name="codex", binary="codex", installed=True,
         uses_exec_subcommand=True, prompt_is_positional=True,
         work_dir_flag="-C",
-        auto_approve_flag="--dangerously-bypass-approvals-and-sandbox",
     )
     cmd = p.build_command("do stuff", "/tmp/repo", 10)
     assert cmd[:3] == ["codex", "exec", "do stuff"]
@@ -147,12 +141,11 @@ def test_kimi_build_command():
     p = CliProfile(
         name="kimi", binary="kimi", installed=True,
         prompt_flag="-p", work_dir_flag="-w",
-        auto_approve_flag="--yolo", afk_flag="--afk",
+        afk_flag="--afk",
     )
     cmd = p.build_command("do stuff", "/tmp/repo", 10)
     assert cmd[:3] == ["kimi", "-p", "do stuff"]
     assert "-w" in cmd
-    assert "--yolo" in cmd
     assert "--afk" in cmd
 
 
@@ -183,3 +176,30 @@ def test_pi_adapter_uses_discovery():
     assert profiles["claude"].installed is True
     assert "ollama" in profiles
     assert profiles["ollama"].installed is True
+
+
+_SKIP_PERMISSION_FLAGS = (
+    "--dangerously-skip-permissions",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--yolo",
+    "--auto-approve",
+)
+
+
+def test_profile_has_no_auto_approve_field():
+    """Permission profiles come from maggy.worker.bypass, not --help parsing."""
+    assert "auto_approve_flag" not in CliProfile.__dataclass_fields__
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "kimi", "ollama"])
+def test_discovered_command_never_skips_permissions(name):
+    cmd = discover_cli(name).build_command("do stuff", "/tmp/repo", 5)
+    assert not set(cmd) & set(_SKIP_PERMISSION_FLAGS)
+
+
+def test_cli_models_route_does_not_offer_auto_approve():
+    import asyncio
+
+    from maggy.api.routes_setup import cli_models
+    body = asyncio.run(cli_models())
+    assert all("auto_approve" not in p for p in body["profiles"])
