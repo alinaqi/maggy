@@ -120,3 +120,14 @@ class ValidationSpec(BaseModel):
     title: str = Field(min_length=1)
     min_trust: int = Field(ge=0, le=4)
     requirement: str | None = None
+
+
+def annotation_key(annotation: dict) -> str:
+    """An annotation row's key: `awg annotations --json` names it `idempotency_key`."""
+    return str(annotation.get("key") or annotation.get("idempotency_key") or "")
+
+
+def annotation_data(annotations: list[dict], key: str) -> dict | None:
+    """The data of the first annotation keyed `key`, or None when there is none."""
+    found = [dict(a.get("data") or {}) for a in annotations if annotation_key(a) == key]
+    return found[0] if found else None

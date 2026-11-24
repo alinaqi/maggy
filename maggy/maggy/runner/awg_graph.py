@@ -37,3 +37,6 @@ class AwgGraph(Protocol):
 
     def set_state(self, ref: str, state: str) -> dict:
         """Move an (unclaimed) item: BACKLOG, READY or CANCELLED."""
+
+    def set_capabilities(self, ref: str, capabilities: list[str]) -> dict:
+        """Replace an (unclaimed) item's claimer capabilities, e.g. its stage tag."""

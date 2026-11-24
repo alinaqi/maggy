@@ -118,6 +118,6 @@ def assert_converged(crig: CrashRig, exact_evidence: bool = True) -> str:
     [pr] = crig.gh.prs()
     assert crig.gh.creates() == 1 and pr["isDraft"] and pr["head"] == f"maggy/{ref}"
     assert remote_head(crig.remote, ref) == final == git(crig.rig.repo, "rev-parse", f"maggy/{ref}")
-    keys = {a["key"] for a in crig.awg.annotations(ref)}
+    keys = {a["idempotency_key"] for a in crig.awg.annotations(ref)}
     assert all(f"{key}:result" in keys for key in keys if not key.endswith(":result"))
     return final

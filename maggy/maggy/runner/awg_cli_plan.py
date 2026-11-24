@@ -58,6 +58,10 @@ class PlanCli(GraphCli):
     def set_state(self, ref: str, state: str) -> dict:
         return cast(dict, self._agent([*command("state", [REASON], ref), state]))
 
+    def set_capabilities(self, ref: str, capabilities: list[str]) -> dict:
+        options = [f"--capability={cap}" for cap in capabilities]
+        return cast(dict, self._agent(command("update", options, ref)))
+
     def decisions(self, ref: str) -> list[dict]:
         listed = cast(list, self._agent(command("decisions", [], ref)))
         return [{"id": d.get("id"), "key": (d.get("properties") or {}).get("key"),

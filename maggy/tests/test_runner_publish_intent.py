@@ -45,7 +45,7 @@ def test_intent_is_recorded_before_each_action(tmp_path: Path, monkeypatch) -> N
     key = f"{rig.claim.ref}:{rig.claim.attempt_id}"
     assert awg.seen == [(f"{key}:push:{sha}", "", 0), (f"{key}:push:{sha}:result", sha, 0),
                         (f"{key}:pr:{sha}", sha, 0), (f"{key}:pr:{sha}:result", sha, 1)]
-    data = {a["key"]: a["data"] for a in rig.awg.annotations(rig.claim.ref)}
+    data = {a["idempotency_key"]: a["data"] for a in rig.awg.annotations(rig.claim.ref)}
     assert data[f"{key}:push:{sha}"]["phase"] == "intent"
     assert data[f"{key}:pr:{sha}:result"]["number"] == 1
 
@@ -60,7 +60,7 @@ def test_crash_between_intent_and_result_reconciles(tmp_path: Path, monkeypatch)
     assert rig.gh.creates() == 1 and len(rig.gh.prs()) == 1
     assert outcome == {"push": {"pushed": False, "sha": sha},
                        "pr": {"action": "edited", "number": 1, "url": rig.gh.prs()[0]["url"]}}
-    keys = [a["key"] for a in rig.awg.annotations(rig.claim.ref)]
+    keys = [a["idempotency_key"] for a in rig.awg.annotations(rig.claim.ref)]
     assert f"{rig.claim.ref}:{rig.claim.attempt_id}:pr:{sha}:result" in keys
 
 
@@ -69,5 +69,5 @@ def test_repeated_intent_key_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     sha = candidate(rig.repo, rig.claim.ref, "one")
     rig.publisher(rig.claim, result_for(sha))
     rig.publisher(rig.claim, result_for(sha))
-    keys = [a["key"] for a in rig.awg.annotations(rig.claim.ref)]
+    keys = [a["idempotency_key"] for a in rig.awg.annotations(rig.claim.ref)]
     assert len(keys) == len(set(keys)) == 4

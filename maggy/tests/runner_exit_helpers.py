@@ -26,7 +26,9 @@ NEEDED = {("next",): ["--capabilities", "--require-capabilities"], ("submit",): 
           ("annotate",): ["--key"], ("annotations",): ["--json"], ("proof",): ["--json"],
           ("sync", "github"): ["--label", "--capability", "--json"]}
 SIBLING = Path(__file__).resolve().parents[3].parent / "AWG" / ".venv" / "bin" / "awg"
-AGENT = 'from pathlib import Path\nPath("feature.txt").write_text("done\\n")\n'
+AGENT = ('import json, sys\nfrom pathlib import Path\nPath("feature.txt").write_text("done\\n")\n'
+         'with (Path(__file__).parent / "build-prompts.jsonl").open("a") as log:\n'
+         '    log.write(json.dumps(sys.argv[-1]) + "\\n")\n')
 CHECK = "import pathlib, sys; sys.exit(0 if pathlib.Path('feature.txt').exists() else 1)"
 
 def _missing(binary: Path) -> list[str]:

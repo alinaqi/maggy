@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 from runner_exit_helpers import ExitRig, find_awg, make_exit_rig
 from runner_phase4_helpers import (
-    CRITERIA, QUESTION, ambiguous_issue, answer_as_human, children_by_title, comment_bodies,
-    install_agents, shown, two_task_plan,
+    CRITERIA, QUESTION, ambiguous_issue, answer_as_human, build_prompts, children_by_title,
+    comment_bodies, install_agents, shown, two_task_plan,
 )
 from runner_publish_helpers import remote_head
 from runner_spec_helpers import draft, fenced, review
@@ -99,6 +99,8 @@ def _plan(rig: ExitRig, ref: str, author) -> dict[str, dict]:
 def _build_first(rig: ExitRig, child: str) -> None:
     out = _run_once(rig)
     assert out[:2] == ["submitted", child], out
+    prompt = build_prompts(rig)[-1]  # the task-plan annotation, read from real awg rows
+    assert "Test plan for this task" in prompt and "test_discount_over_100" in prompt
     sha = out[2]
     proof = rig.awg("proof", child, "--json", token="runner-agent")
     ci = [e for v in proof["validations"] for e in v["evidence"]
