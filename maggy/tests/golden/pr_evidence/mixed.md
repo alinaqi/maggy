@@ -3,7 +3,7 @@
 - Ticket: `AWG-42`
 - Spec version: `7`
 - Tested commit: `0123456789abcdef0123456789abcdef01234567`
-- Gate: closed (a required criterion failed or the review has blocking findings)
+- Gate: closed (a required criterion or repo command failed, or the review has blocking findings)
 
 | Criterion | Verdict | Check(s) | Evidence | Detail | Artifacts |
 |---|---|---|---|---|---|

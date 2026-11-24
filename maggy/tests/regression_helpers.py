@@ -13,6 +13,8 @@ CALC_BUGGY = "def add(a, b):\n    return a - b\n"
 CALC_FIXED = "def add(a, b):\n    return a + b\n"
 TEST_ADD = "from calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
 TEST_ZERO = "from calc import add\n\n\ndef test_add():\n    assert add(0, 0) == 0\n"
+TEST_RAISES = ("import pytest\nfrom calc import add\n\n\ndef test_add():\n"
+               "    with pytest.raises(ValueError):\n        add(-1, 3)\n")
 TEST_IMPORT = "from calc import mul\n\n\ndef test_add():\n    assert mul(2, 3) == 6\n"
 TEST_FIXTURE = ("from calc import add\n\n\ndef test_add(coupon_db):\n"
                 "    assert add(2, 3) == 5\n")

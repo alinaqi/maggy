@@ -14,6 +14,7 @@ from pathlib import Path
 
 from maggy.runner.awg_types import EvidenceSpec
 from maggy.runner.evidence import attach_once, ci_validation, recorded_keys
+from maggy.runner.pr_evidence.council import COUNCIL_GAPS, PR_REVIEWED
 from maggy.runner.pr_evidence.models import EvidenceRecord, gate
 from maggy.runner.session import RunReport, Session
 from maggy.runner.stages.verify_evidence import evidence_record, publish_record
@@ -32,10 +33,10 @@ def conclude_verify(session: Session, outcome: VerifyOutcome) -> RunReport:
     verdicts, scanned = _record(session, outcome)
     record = evidence_record(session, outcome, scanned)
     publish_record(session, record, outcome)
-    failed_commands = [c.name for c in outcome.commands if not c.passed]
-    if gate(record) == "failed" or failed_commands:
+    if gate(record) == "failed":
         lines = [*map(_line, (r for r in outcome.results if r.verdict == "FAIL")),
-                 *(f"repo command {n}: FAIL" for n in failed_commands), *_findings(record)]
+                 *(f"repo command {n}: FAIL" for n in record.failed_commands),
+                 *_findings(record)]
         return session.give_back("failed", "verify failed:\n" + "\n".join(lines))
     if gate(record) == "waiting":
         pending = [r for r in outcome.results if r.verdict == "PENDING"]
@@ -53,11 +54,15 @@ def _findings(record: EvidenceRecord) -> list[str]:
 
 def _notes(record: EvidenceRecord, pending: list[ViewResult]) -> list[str]:
     """Waiting reasons not already named by a pending check: unchecked or manual criteria
-    and a review council that could not run."""
+    and a review that could not run (with the DECISION a human records after reviewing)."""
     named = {r.criterion_id for r in pending}
     rows = [f"- [{row.criterion_id}] {row.verdict}: {row.detail}" for row in record.rows
             if row.verdict in ("pending", "blocked") and row.criterion_id not in named]
-    return rows + [f"- {gap}" for gap in record.gaps if gap.startswith("review council failed")]
+    if not record.council_failed:
+        return rows
+    gaps = [f"- {gap}" for gap in record.gaps if gap.startswith(COUNCIL_GAPS)]
+    return [*rows, *gaps, f"  after reviewing the PR yourself: awg decision {record.ref} "
+                          f"--key {PR_REVIEWED} --data '{{\"sha\": \"{record.sha}\"}}'"]
 
 
 def _line(result: ViewResult) -> str:

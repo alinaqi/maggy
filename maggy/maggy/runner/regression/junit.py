@@ -1,7 +1,9 @@
 """Classify one named test's run from its junit report and exit code.
 
 Kinds: `passed` (exit 0, at least one test ran, none failed), `assertion` (every failure is
-an assertion: AssertionError, node's ERR_ASSERTION, a Playwright `expect(`), `error` (a
+an assertion: AssertionError, node's ERR_ASSERTION, a Playwright `expect(`, or pytest's
+`Failed` outcome from `pytest.raises` (DID NOT RAISE) or `pytest.fail()` in the test body),
+`error` (a
 collection/import/fixture/setup <error>, any other exception, a crash, a timeout or no
 report) and `missing` (no test ran: unknown name or only skips). The report is written by
 candidate code, so it is size-capped and parsed by expat (entity-expansion protected).
@@ -64,7 +66,13 @@ def _is_assertion(node: ET.Element) -> bool:
         return False
     text = (node.text or "").strip().splitlines()
     seen = " ".join([node.get("type", ""), node.get("message", ""), *text[-1:], *text[:1]])
-    return any(marker in seen for marker in ASSERTION_MARKERS)
+    return any(marker in seen for marker in ASSERTION_MARKERS) or _pytest_failed(node, text)
+
+
+def _pytest_failed(node: ET.Element, text: list[str]) -> bool:
+    """pytest's `Failed` outcome in the test call (a setup one is an <error>, never here)."""
+    message = node.get("message", "")
+    return bool(text) and message.startswith("Failed: ") and text[-1].endswith(": Failed")
 
 
 def _trace(nodes: list[ET.Element]) -> str:

@@ -13,7 +13,8 @@ from pathlib import Path
 
 from maggy.runner.awg_types import annotation_data
 from maggy.runner.pr_evidence.build import RecordInputs, build_record
-from maggy.runner.pr_evidence.council import ReviewRequest, candidate_diff, run_council
+from maggy.runner.pr_evidence.council import (PR_REVIEWED, CouncilOutcome, ReviewRequest,
+                                              candidate_diff, run_council)
 from maggy.runner.pr_evidence.models import EvidenceRecord
 from maggy.runner.pr_evidence.render import render_record
 from maggy.runner.pr_evidence.screens import ScreenPolicy, with_screenshots
@@ -32,7 +33,7 @@ def evidence_record(session: Session, outcome: VerifyOutcome, scanned: Scanned) 
     request = ReviewRequest(claim.ref, str(claim.version), outcome.sha,
                             tuple(claim.acceptance_criteria), tuple(outcome.entries),
                             candidate_diff(config.repo, default_base(config.repo), outcome.sha))
-    council = run_council(config.council, request)
+    council = _review(session, request)
     session.log("review_council", {"blocking": len(council.blocking), "gap": council.gap})
     inputs = RecordInputs(claim.ref, str(claim.version), outcome, list(claim.acceptance_criteria),
                           scanned, config.state_dir, _not_applicable(session))
@@ -42,6 +43,21 @@ def evidence_record(session: Session, outcome: VerifyOutcome, scanned: Scanned) 
                      release_impact=release_impact(session))
     return with_screenshots(record, ScreenPolicy(config.profile, config.uploader,
                                                  config.state_dir))
+
+
+def _review(session: Session, request: ReviewRequest) -> CouncilOutcome:
+    """The council's review; when it could not run, a human's `pr-reviewed` DECISION at
+    this sha stands in for it (recorded as a gap, so the PR says who reviewed)."""
+    council = run_council(session.config.council, request)
+    if not council.failed or not _human_reviewed(session, request.sha):
+        return council
+    return CouncilOutcome(gap=f"{council.gap}; a human recorded the review "
+                              f"({PR_REVIEWED} at {request.sha[:12]})")
+
+
+def _human_reviewed(session: Session, sha: str) -> bool:
+    found = [d for d in session.awg.decisions(session.claim.ref) if d.get("key") == PR_REVIEWED]
+    return bool(found) and (found[-1].get("data") or {}).get("sha") == sha
 
 
 def publish_record(session: Session, record: EvidenceRecord, outcome: VerifyOutcome) -> None:

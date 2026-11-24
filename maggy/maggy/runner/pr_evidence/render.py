@@ -14,7 +14,8 @@ from maggy.runner.pr_evidence.scrub import scrub
 
 GATE_TEXT = {
     "open": "open (every required criterion passed; no blocking review findings)",
-    "failed": "closed (a required criterion failed or the review has blocking findings)",
+    "failed": ("closed (a required criterion or repo command failed, or the review has "
+               "blocking findings)"),
     "waiting": "closed (verification is pending or blocked; waiting for a human)",
 }
 HEAD = ["| Criterion | Verdict | Check(s) | Evidence | Detail | Artifacts |",
@@ -25,7 +26,7 @@ def render_record(record: EvidenceRecord, env: Mapping[str, str] | None = None) 
     record = scrub(record, os.environ if env is None else env)
     lines = ["## Evidence", "", f"- Ticket: `{record.ref}`",
              f"- Spec version: `{record.spec_version}`", f"- Tested commit: `{record.sha}`",
-             f"- Gate: {GATE_TEXT[gate(record)]}", "", *HEAD, *map(_row, record.rows),
+             f"- Gate: {GATE_TEXT[gate(record)]}", *_commands(record), "", *HEAD, *map(_row, record.rows),
              _impact(record), "",
              "### Review council", "",
              *([_finding(f) for f in record.findings] or ["No blocking findings."]), "",
@@ -39,6 +40,11 @@ def _row(row: CriterionRow) -> str:
              ", ".join(row.evidence) or "-", _text(row.detail)[:300] or "-",
              "<br>".join(map(_artifact, row.artifacts)) or "-"]
     return "| " + " | ".join(_cell(c) if i < 5 else c for i, c in enumerate(cells)) + " |"
+
+
+def _commands(record: EvidenceRecord) -> list[str]:
+    names = ", ".join(f"`{_cell(name)}`" for name in record.failed_commands)
+    return [f"- Repo commands failed: {names}"] if names else []
 
 
 def _impact(record: EvidenceRecord) -> str:

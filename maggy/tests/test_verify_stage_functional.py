@@ -58,6 +58,16 @@ def test_failing_functional_check_fails_the_verify_step(tmp_path: Path) -> None:
     assert _evidence(rig, "functional")[0]["verdict"] == "FAIL"
 
 
+def test_failing_repo_command_closes_the_gate_in_the_pr_body(tmp_path: Path) -> None:
+    files = {"calc.py": CALC_FIXED, "tests/test_calc.py": TEST_ADD}
+    rig = make_verify_rig(tmp_path, ([functional_entry()], files), check_exit=1)
+    report = rig.runner.run_once()
+    body = next(rig.state.rglob("pr-evidence.md")).read_text()
+    assert report.outcome == "failed" and "repo command test: FAIL" in report.detail
+    assert "Gate: open" not in body and "Gate: closed (a required criterion or repo" in body
+    assert "- Repo commands failed: `test`" in body
+
+
 def test_unfinished_build_child_is_not_verified(tmp_path: Path) -> None:
     rig = make_verify_rig(tmp_path, ([functional_entry()], FIX))
     rig.awg.items[rig.child].state = "ACTIVE"

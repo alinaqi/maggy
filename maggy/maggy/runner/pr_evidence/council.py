@@ -4,8 +4,9 @@
 files from the GitHub API with a GITHUB_TOKEN, takes no spec or criteria, and posts its own
 review. So the runner talks to a `ReviewCouncil` (request in, `review.models.Verdict` out);
 adapting the legacy pipeline to it (local diff, spec-aware prompts, no posting) is Phase 6.
-No council configured is a recorded verification gap; a council that fails keeps the gate
-closed (a human decides); its blocking findings send the candidate back to build.
+A review that could not run (no council configured, or the council failed) is verification
+PENDING, never a pass: the gate waits for a human, who may record a `pr-reviewed` DECISION
+at the tested sha after reviewing the PR. Blocking findings send the candidate back to build.
 """
 
 from __future__ import annotations
@@ -18,8 +19,10 @@ from maggy.review.models import Finding, Severity, Verdict
 from maggy.worker.git_ops import GitError, run_git
 
 MAX_DIFF = 400_000
-NOT_CONFIGURED = ("no review council configured: the review/ pipeline is GitHub-bound "
-                  "(legacy; spec-aware adapter is Phase 6)")
+NOT_CONFIGURED = ("no review council configured: the review waits for a human (the review/ "
+                  "pipeline is GitHub-bound; a spec-aware adapter is Phase 6)")
+COUNCIL_GAPS = ("review council failed", "no review council configured")
+PR_REVIEWED = "pr-reviewed"  # a human's review of the PR: DECISION data {"sha": <tested sha>}
 
 
 @dataclass(frozen=True)
@@ -40,12 +43,12 @@ class ReviewCouncil(Protocol):
 class CouncilOutcome:
     blocking: tuple[Finding, ...] = ()
     gap: str = ""
-    failed: bool = False
+    failed: bool = False  # the review could not run: the gate waits for a human
 
 
 def run_council(council: ReviewCouncil | None, request: ReviewRequest) -> CouncilOutcome:
     if council is None:
-        return CouncilOutcome(gap=NOT_CONFIGURED)
+        return CouncilOutcome(gap=NOT_CONFIGURED, failed=True)
     try:
         verdict = council.review(request)
     except Exception as exc:  # noqa: BLE001 - any council failure keeps the gate closed

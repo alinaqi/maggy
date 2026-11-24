@@ -96,6 +96,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   The Phase 3/4 exit rigs' fake build agent now writes the planned regression tests.
 
 #### Fixed
+- **Phase 5 review fixes: RED classification, gate text, council fail-closed.**
+  `pytest.raises` (DID NOT RAISE) and `pytest.fail()` failures in the test body are now an
+  `assertion` RED, not a setup error, so "the bad input must now raise" regression tests can
+  be proven. A failing required repo command is recorded on the evidence record and closes
+  the gate there too, so the PR body no longer says "Gate: open" on a candidate the runner
+  rejected (it names the failed commands). No review council configured (the `maggy run`
+  default) is now verification PENDING like a failed council: the item waits for a human,
+  who records a `pr-reviewed` DECISION at the tested sha, instead of the gate opening
+  without any review (RFC §2.5 PR row).
 - **PR body secret scan (RFC §2.6.9, AC 5.2)**: every free-text field of the PR evidence
   record (check reasons and raw test traces in the Detail column and the verification gaps,
   review findings, council errors, release impact) is now secret-scanned before rendering
