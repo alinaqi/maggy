@@ -24,7 +24,6 @@ from maggy.api.routes_budget import router as budget_router
 from maggy.api.routes_plugins import router as plugins_router
 from maggy.api.routes_testing import router as testing_router
 from maggy.api.routes_cikg import router as cikg_router
-from maggy.api.routes_deploy import router as deploy_router
 from maggy.api.routes_editor import router as editor_router
 from maggy.api.routes_engram import router as engram_router
 from maggy.api.routes_events import router as events_router
@@ -36,7 +35,6 @@ from maggy.api.routes_improve import router as improve_router
 from maggy.api.routes_lexon import router as lexon_router
 from maggy.api.routes_mesh import router as mesh_router
 from maggy.api.routes_mesh_admin import router as mesh_admin_router
-from maggy.api.routes_planning import router as planning_router
 from maggy.api.routes_process import router as process_router
 from maggy.api.routes_routing import router as routing_router
 from maggy.api.routes_provider_config import router as provider_config_router
@@ -73,7 +71,7 @@ from maggy.services.inbox import InboxService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("maggy")
 
-_TIER1_ATTRS = ("budget", "routing", "events", "cikg", "planning", "deploy", "forge", "engram", "lexon", "mesh", "activity", "registry", "escalator", "observability", "skills")
+_TIER1_ATTRS = ("budget", "routing", "events", "cikg", "forge", "engram", "lexon", "mesh", "activity", "registry", "escalator", "observability", "skills")
 _TIER2_ATTRS = ("provider", "inbox", "competitors", "executor", "process")
 
 
@@ -87,10 +85,6 @@ def _init_tier1(app: FastAPI, cfg) -> None:
     app.state.events = EventEmitter(EventStore(db_dir / "events.db"))
     from maggy.cikg.graph import KnowledgeGraphService
     app.state.cikg = KnowledgeGraphService(db_dir / "cikg.db")
-    from maggy.planning import PlanningService
-    app.state.planning = PlanningService(cfg)
-    from maggy.deploy import DeployService
-    app.state.deploy = DeployService()
     from maggy.forge.connector import ForgeConnector
     app.state.forge = ForgeConnector()
     from maggy.engram.store import EngramStore
@@ -345,11 +339,11 @@ class _NoCacheStatic(BaseHTTPMiddleware):
 _ROUTERS = (
     aggregator_router, api_router, approval_router, blueprints_router, budget_router,
     chat_router, chat_sessions_router,
-    cikg_router, deploy_router, editor_router, engram_router, escalation_router, icpg_router,
+    cikg_router, editor_router, engram_router, escalation_router, icpg_router,
     events_router, forge_router, heartbeat_router,
     history_router, improve_router, lexon_router,
     mesh_router, mesh_admin_router, models_router, observability_router,
-    orchestrator_router, pipeline_router, planning_router, plugins_router,
+    orchestrator_router, pipeline_router, plugins_router,
     process_router, projects_router, provider_config_router, keys_router, refresh_router, routing_router,
     setup_router, shell_router, skills_router, srooter_router, pr_review_router, system_router, testing_router, users_router,
     ws_mesh_router,

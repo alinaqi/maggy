@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **Deploy and planning stubs** `maggy/maggy/deploy.py`, `maggy/maggy/planning.py`,
+  `maggy/maggy/models/plan.py` and their routers `api/routes_deploy.py` (`/api/deploy/*`) and
+  `api/routes_planning.py` (`/api/planning/generate`): in-memory stubs (no real container
+  orchestration or LLM calls) that no dashboard JS/template, CLI, hook, skill or script called.
+  Router registration and the `app.state.deploy` / `app.state.planning` wiring are removed from
+  the app factory. Removed tests: `maggy/tests/test_deploy.py`, `maggy/tests/test_planning.py`,
+  and the `TestPlanningAPI`, `TestDeployAPI`, `test_deploy_unconfigured` and
+  `test_planning_unconfigured` cases in `maggy/tests/test_api_endpoints.py`. New guard
+  `tests/test_deploy_planning_removed.py`.
 - **`cortex-mcp/`** (standalone code-intelligence MCP server, including its duplicate Mnemos
   memory layer): it was never registered in any MCP config, `install.sh` or the harness emitter,
   and no kept code imports it; `scripts/mnemos` remains the Mnemos implementation. Telos still
