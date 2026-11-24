@@ -26,7 +26,12 @@ NEEDED = {("next",): ["--capabilities", "--require-capabilities"], ("submit",): 
           ("annotate",): ["--key"], ("annotations",): ["--json"], ("proof",): ["--json"],
           ("sync", "github"): ["--label", "--capability", "--json"]}
 SIBLING = Path(__file__).resolve().parents[3].parent / "AWG" / ".venv" / "bin" / "awg"
+# Writes feature.txt plus the Phase 4 plan's regression tests (RED on base: no feature.txt).
+FEATURE_TESTS = ("from pathlib import Path\n\n\ndef test_discount_over_100():\n"
+                 "    assert Path('feature.txt').exists()\n\n\ndef test_rule_recorded():\n"
+                 "    assert Path('feature.txt').exists()\n")
 AGENT = ('import json, sys\nfrom pathlib import Path\nPath("feature.txt").write_text("done\\n")\n'
+         f'Path("tests").mkdir(exist_ok=True)\nPath("tests/test_feature.py").write_text({FEATURE_TESTS!r})\n'
          'with (Path(__file__).parent / "build-prompts.jsonl").open("a") as log:\n'
          '    log.write(json.dumps(sys.argv[-1]) + "\\n")\n')
 CHECK = "import pathlib, sys; sys.exit(0 if pathlib.Path('feature.txt').exists() else 1)"
@@ -91,6 +96,7 @@ def environ(root: Path, bin_dir: Path, gh: Path) -> dict[str, str]:
 def _profile(home: Path, root: Path) -> None:
     data = profile_data({"test": shlex.join([sys.executable, "-c", CHECK])}, ["test"])
     data["worker"] = {"adapter": "fakeedit", "allow_host_execution": True}
+    data["validation"]["regression"] = {"command": shlex.join([sys.executable, "-m", "pytest"])}
     (home / ".maggy").mkdir(parents=True, exist_ok=True)
     (home / ".maggy" / "harness.yaml").write_text(json.dumps(data))
     write_adapter(home / ".maggy" / "adapters", fake_adapter_data(write_script(root, "agent", AGENT)))

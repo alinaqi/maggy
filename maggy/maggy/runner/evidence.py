@@ -14,13 +14,11 @@ from maggy.worker.models import CheckResult, WorkerResult
 
 
 def attach_evidence(session: Session, result: WorkerResult) -> None:
-    shown = session.awg.show(session.claim.ref)
-    validation = ci_validation(shown)
-    recorded = {annotation_key(note) for note in session.awg.annotations(session.claim.ref)}
+    validation = ci_validation(session.awg.show(session.claim.ref))
+    recorded = recorded_keys(session)
     for check in result.checks:
         key = f"{session.claim.ref}:{session.claim.attempt_id}:evidence:{check.name}:{check.sha}"
-        if f"{key}:result" not in recorded:
-            _attach(session, check, (key, validation))
+        attach_once(session, (key, recorded), _spec(session, check, validation))
 
 
 def ci_validation(shown: dict) -> str | None:
@@ -30,17 +28,28 @@ def ci_validation(shown: dict) -> str | None:
     return str(found[0]["id"]) if found else None
 
 
-def _attach(session: Session, check: CheckResult, target: tuple[str, str | None]) -> None:
-    key, validation = target
+def recorded_keys(session: Session) -> set[str]:
+    return {annotation_key(note) for note in session.awg.annotations(session.claim.ref)}
+
+
+def attach_once(session: Session, where: tuple[str, set[str]], spec: EvidenceSpec) -> None:
+    """Attach `spec` under idempotency `key` unless its result annotation is already there."""
+    key, recorded = where
+    if f"{key}:result" in recorded:
+        return
     claim = session.claim
     session.verify()
-    marker = {"action": "evidence", "check": check.name, "sha": check.sha}
+    marker = {"action": "evidence", "check": spec.meta.get("check", spec.kind),
+              "sha": spec.commit_sha}
     session.awg.annotate(claim, key, {"phase": "intent", **marker})
-    meta = {"spec_version": str(claim.version), "check": check.name}
-    spec = EvidenceSpec(kind=check.name, verdict="PASS" if check.passed else "FAIL",
-                        commit_sha=check.sha, validation=validation, meta=meta)
     record = session.awg.evidence(claim, spec)
     session.awg.annotate(claim, f"{key}:result", {"phase": "result", **marker,
                                                   "id": record.get("id")})
-    session.log("evidence", {"check": check.name, "passed": check.passed, "sha": check.sha,
-                             "validation": validation})
+    session.log("evidence", {**marker, "verdict": spec.verdict,
+                             "validation": spec.validation})
+
+
+def _spec(session: Session, check: CheckResult, validation: str | None) -> EvidenceSpec:
+    meta = {"spec_version": str(session.claim.version), "check": check.name}
+    return EvidenceSpec(kind=check.name, verdict="PASS" if check.passed else "FAIL",
+                        commit_sha=check.sha, validation=validation, meta=meta)

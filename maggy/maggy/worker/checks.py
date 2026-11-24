@@ -59,13 +59,13 @@ def _run_one(plan: CheckPlan, where: tuple[Path, dict[str, str]], command: Comma
     name, line = command
     log = plan.work_dir / f"{name}.log"
     started = time.monotonic()
-    code = _exec(shlex.split(line), where, (log, plan.timeout_s)) if line else None
+    code = run_logged(shlex.split(line), where, (log, plan.timeout_s)) if line else None
     return CheckResult(name=name, command=line or "", exit_code=code, passed=code == 0,
                        sha=plan.sha, duration_s=time.monotonic() - started,
                        log_path=log if line else None)
 
 
-def _exec(argv: list[str], where: tuple[Path, dict[str, str]],
+def run_logged(argv: list[str], where: tuple[Path, dict[str, str]],
           sink: tuple[Path, float]) -> int | None:
     """Exit code, or None when the command is missing or timed out."""
     log, timeout_s = sink
