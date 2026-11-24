@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Maggy: Personal Harness (Phase 6)
 
+#### Changed
+- Split `tests/test_cli_discovery.py` (217 lines, 16 functions) into it, `test_cli_discovery_auto_approve.py` and the shared fake-CLI fixture `cli_discovery_helpers.py`, so each test file meets the quality gates (<=200 lines, <=10 functions). No test was removed.
+
 #### Removed
 - **Duplicate Mnemos memory graph in `maggy/maggy/mnemos/`** (Mnemos consolidation; `scripts/mnemos`,
   run as `python3 -m mnemos` by the hooks, commands and skills, is the kept implementation):
