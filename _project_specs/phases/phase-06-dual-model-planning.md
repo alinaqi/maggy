@@ -1,6 +1,6 @@
 # Phase 6: Dual-Model Planning (Claude + Codex)
 
-**Status:** pending
+**Status:** superseded. The in-memory stubs `planning.py`, `models/plan.py` and `api/routes_planning.py` were deleted in the personal-harness Phase 6 cleanup (see `docs/rfc-personal-harness.md`); the deliverables below are historical.
 **Priority:** P2 — quality improvement, not blocking
 **Effort:** Medium
 **Dependencies:** Phase 1 (PiAdapter for multi-model access)

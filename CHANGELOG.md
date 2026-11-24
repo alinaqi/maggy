@@ -119,6 +119,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   loader discovers no `provider-*` plugin.
 
 #### Changed
+- **Historical phase specs marked superseded**: `_project_specs/phases/phase-06-dual-model-planning.md`
+  and `phase-07-vercel-containers.md` now say that the `planning.py`/`routes_planning.py` and
+  `deploy.py`/`routes_deploy.py` stubs they list were deleted in the Phase 6 cleanup.
 - **`maggy/maggy/adapters/cli_discovery.py` meets the quality gates** (250 to 168 lines, 12 to 9
   functions; `build_command` and `_post_process` under 20 lines): the `--help`/`--version`/
   `ollama list` subprocess probes move to the new `adapters/cli_probe.py`, and ollama model
