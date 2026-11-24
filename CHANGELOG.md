@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Personal Harness (Phase 6)
+
+#### Removed
+- **Dead orchestrator submodules** `maggy/orchestrator/{adapters/,sources/,router.py,scoring.py,
+  identity.py,events.py}`: superseded by the runner/worker (Phases 2-3) and imported by no
+  kept code (no route, CLI, hook, skill or script reference). They had no tests under
+  `maggy/tests` (the root `tests/test_polyphony_*` cover `scripts/polyphony`, which stays).
+  `orchestrator/config.py` is KEPT: `orchestrator/__main__.py` still imports it. New guard
+  `tests/test_orchestrator_dead_modules_removed.py` asserts the dead modules stay gone and
+  that `worktree`, `merge`, `merge_rollback` and `config` still import.
+
 ### Maggy: Personal Harness (Phase 5)
 
 #### Added
