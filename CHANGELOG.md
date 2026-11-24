@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Maggy: Personal Harness (Phase 5)
+
+#### Added
+- **AC-aware RED/GREEN regression proof** (RFC §2.5 Verify, §2.6.2). For a build child
+  whose `task-plan` names regression tests, conclude now proves each one itself before
+  publishing: in a fresh worktree at the base commit with ONLY the candidate's added/changed
+  test files overlaid (from candidate blobs; source stays at base) the named test must FAIL
+  by an assertion, then in a fresh worktree at the candidate it must PASS. Runs are
+  classified from junit reports + exit codes into `passed` / `assertion` / `error`
+  (collection, import, fixture/setup error or crash) / `missing`, giving outcomes `proven`,
+  `not_red`, `setup_error` (distinct failure kind) and `not_green`. Each criterion gets
+  ci evidence (kind `test`, PASS/FAIL, `commit_sha` = candidate, meta spec_version,
+  criterion_id, check=regression, base_commit, regression_test, result_kind) bound to the
+  plan's `[AC] test:` validation; any unproven test fails the attempt back to build with
+  the trace in the handoff (bounded by the existing retry cap). New repo profile key
+  `validation.regression` (`runner: pytest | node-test | playwright | command`, `command`,
+  `junit`) declares how one named test runs (argv only, check env, check timeout).
+
+#### Changed
+- `runner.evidence` exposes `attach_once` (idempotent intent/result-annotated evidence) and
+  `worker.checks._exec` is now the public `run_logged`, both reused by the regression proof.
+  The Phase 3/4 exit rigs' fake build agent now writes the planned regression tests.
+
 ### Maggy: Personal Harness (Phase 4)
 
 #### Added

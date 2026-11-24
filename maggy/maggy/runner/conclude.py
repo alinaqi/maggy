@@ -2,12 +2,14 @@
 
 Every side effect is preceded by `session.verify()` (STOP + live fence). Evidence goes
 through the ci credential, bound to the candidate SHA, with spec_version and check name
-(`runner.evidence`).
+(`runner.evidence`). A planned build child must also prove each regression test RED on
+base and GREEN on the candidate (`runner.regression`) before it is published.
 """
 
 from __future__ import annotations
 
 from maggy.runner.evidence import attach_evidence
+from maggy.runner.regression.gate import prove_regressions
 from maggy.runner.session import RunReport, Session
 from maggy.worker.models import WorkerResult
 
@@ -20,7 +22,7 @@ def conclude(session: Session, result: WorkerResult) -> RunReport:
     attach_evidence(session, result)
     if result.blocker is not None:
         return _block(session, result.blocker.question)
-    problem = _not_ready(result)
+    problem = _not_ready(result) or prove_regressions(session, result)
     if problem:
         return session.give_back("failed", problem)
     return _publish(session, result)

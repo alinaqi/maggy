@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Strict(BaseModel):
@@ -112,7 +112,27 @@ class Risk(Strict):
     low: RiskRule | None = None
 
 
+class Regression(Strict):
+    """How the runner runs ONE named regression test with a junit report (RED/GREEN proof).
+
+    `command` overrides the runner's base argv (pytest: `python -m pytest`); for
+    `runner: command` it is required and may use `{test}` / `{junit}` placeholders, and
+    `junit` names the report path relative to the checkout when the tool picks its own.
+    """
+
+    runner: Literal["pytest", "node-test", "playwright", "command"] = "pytest"
+    command: str | None = None
+    junit: str | None = None
+
+    @model_validator(mode="after")
+    def _command_runner_needs_command(self) -> Regression:
+        if self.runner == "command" and not self.command:
+            raise ValueError("regression.runner 'command' requires regression.command")
+        return self
+
+
 class Validation(Strict):
     required: list[str] = []
     visual_for: list[str] = []
     check_timeout_s: int = Field(600, gt=0)  # per required check run by the runner
+    regression: Regression = Regression()
