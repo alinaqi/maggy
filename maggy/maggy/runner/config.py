@@ -7,11 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from maggy.harness.schema import HarnessProfile
-from maggy.runner.awg_types import Claim
+from maggy.runner.pr_evidence.council import ReviewCouncil
 from maggy.worker.adapter_spec import AdapterSpec
-from maggy.worker.models import WorkerResult
 
-PrStep = Callable[[Claim, WorkerResult], object]
+PrStep = Callable[..., object]  # (claim, result[, evidence markdown])
 RUNNER = "maggy-runner"
 STAGES = ("spec", "plan", "build", "verify")  # every stage the runner can drive, in flow order
 CAPABILITIES = [RUNNER, "stage:spec"]  # what intake tags new items with: they start at spec
@@ -45,3 +44,5 @@ class RunnerConfig:
     max_failures: int = 3  # consecutive failed attempts before the item waits for a human
     adapters: dict[str, AdapterSpec] = field(default_factory=dict)  # by name, for stage roles
     vision: list | None = None  # verify-stage vision backends; None: local Ollama Qwen-VL
+    council: ReviewCouncil | None = None  # verify-stage PR review; None: a recorded gap
+    uploader: Callable[[Path], str] | None = None  # screenshot uploads (publish_screenshots)

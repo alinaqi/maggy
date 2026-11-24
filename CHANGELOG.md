@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 5)
 
 #### Added
+- **PR evidence table + review council fed the spec** (RFC §2.5 PR row, §2.6.9; factory
+  doc §5). The verify stage now builds a per-criterion evidence record (`runner.pr_evidence`):
+  AWG ref, spec version, tested commit, gate, and per criterion a verdict kept distinct as
+  `passed` / `failed` / `blocked` (a check could not run, or none ran) / `pending` (baseline,
+  vision or manual acceptance awaits a human) / `not applicable` (a human `criterion-na:<id>`
+  DECISION), its check(s), evidence kind, detail and secret-scanned local artifact refs
+  (state-dir-relative path + sha256; withheld artifacts become verification gaps), plus
+  the review council's blocking findings, gaps and the plan's release impact. It is written
+  to `pr-evidence.md` and, with a PR step, into the draft PR body for maggy/<ref>. The gate
+  stays closed unless every required criterion passed and the review has no blocking
+  findings: failed or blocking findings go back to build, pending/blocked or a failing
+  council go to WAITING_HUMAN. The council runs in the trusted runner behind a
+  `ReviewCouncil` interface (`RunnerConfig.council`) and receives the approved criteria,
+  test plan and `base...candidate` diff; the legacy `review/` pipeline is GitHub-bound, so
+  without a configured council a gap is recorded (adapter is Phase 6). Screenshots are never
+  uploaded unless the personal-only `evidence.publish_screenshots` is on and an uploader is
+  configured; each is re-scanned before upload and a leaky one is excluded with a gap.
 - **AC-aware RED/GREEN regression proof** (RFC §2.5 Verify, §2.6.2). For a build child
   whose `task-plan` names regression tests, conclude now proves each one itself before
   publishing: in a fresh worktree at the base commit with ONLY the candidate's added/changed

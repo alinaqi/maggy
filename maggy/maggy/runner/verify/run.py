@@ -22,12 +22,13 @@ class VerifyOutcome:
     sha: str
     commands: list[CheckResult] = field(default_factory=list)
     results: list[ViewResult] = field(default_factory=list)
+    entries: list[dict] = field(default_factory=list)  # the test plan the checks ran from
 
 
 def run_all(session: Session, sha: str, entries: list[dict]) -> VerifyOutcome:
     job = VisualJob(session.config.repo, sha, session.attempt_dir / "verify",
                     session.config.profile)
-    outcome = VerifyOutcome(sha, run_repo_commands(job))
+    outcome = VerifyOutcome(sha, run_repo_commands(job), entries=list(entries))
     for entry in entries:
         session.verify()  # keeps the lease alive between (possibly slow) checks
         outcome.results += _check(job, entry)

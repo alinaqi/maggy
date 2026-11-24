@@ -11,14 +11,16 @@ from maggy.runner.verify.models import ViewResult
 from maggy.runner.verify.run import VISION_REVIEWED
 
 
-def wait_for_human(session: Session, sha: str, pending: list[ViewResult]) -> RunReport:
-    ref = session.claim.ref
-    lines = [_line(session, result, sha) for result in pending]
+def wait_for_human(session: Session, sha: str,
+                   hold: tuple[list[ViewResult], list[str]]) -> RunReport:
+    """`hold`: (the pending checks, further waiting reasons already written as lines)."""
+    (pending, notes), ref = hold, session.claim.ref
+    lines = [*(_line(session, result, sha) for result in pending), *notes]
     question = (f"Verification of {sha[:12]} is pending:\n" + "\n".join(lines)
                 + f"\nThen move {ref} to READY to re-run verify.")
     session.verify()
     session.awg.block(session.claim, question, human=True)
-    session.log("verify_waiting_human", {"sha": sha, "pending": len(pending)})
+    session.log("verify_waiting_human", {"sha": sha, "pending": len(lines)})
     return session.report("waiting_human", question)
 
 

@@ -27,3 +27,4 @@ class ViewResult:
     reason: str = ""
     artifacts: dict[str, Path] = field(default_factory=dict)
     check: str = "visual"  # functional, visual or vision
+    blocked: bool = False  # the check could not run at all (no browser, nothing to run)

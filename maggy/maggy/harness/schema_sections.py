@@ -144,3 +144,4 @@ class Evidence(Strict):
     profile lists the external review providers it opts into (loader enforces)."""
 
     external_review: list[str] | Literal[False] = False
+    publish_screenshots: bool = False  # upload secret-scanned screenshots to the PR

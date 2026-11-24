@@ -39,10 +39,11 @@ def make_verify_rig(tmp_path: Path, child: tuple[list[dict], dict[str, str]],
     init_repo(repo)
     write_files(repo, {"calc.py": CALC_BUGGY, **options.get("base_files", {})})
     commit_all(repo, "base")
-    ref = awg.add_item("Fix expired coupons", CAPS, CRITERIA)
+    criteria = covered(entries)
+    ref = awg.add_item("Fix expired coupons", CAPS, criteria)
     task = awg.add_item("T1", ["maggy-runner", "stage:build", "project:demo"])
     _branch(repo, f"maggy/{task}", child_files)
-    _plan(awg, (ref, task), entries)
+    _plan(awg, (ref, task), (criteria, entries))
     config = _config(tmp_path, options)
     return VerifyRig(Runner(awg, config), awg, ref, task, repo, tmp_path / "state",
                      tmp_path / "check.json")
@@ -55,11 +56,18 @@ def _branch(repo: Path, branch: str, files: dict[str, str]) -> None:
     git(repo, "checkout", "-q", "main")
 
 
-def _plan(awg: FakeAwg, refs: tuple[str, str], entries: list[dict]) -> None:
-    ref, child = refs
-    sha = criteria_sha(CRITERIA)
+def covered(entries: list[dict]) -> list[str]:
+    """The criteria the test plan covers (a plan that passed the plan check covers all)."""
+    ids = {str(e["criterion_id"]) for e in entries}
+    return [c for c in CRITERIA if c[1:4] in ids] or CRITERIA
+
+
+def _plan(awg: FakeAwg, refs: tuple[str, str], plan: tuple[list[str], list[dict]]) -> None:
+    (ref, child), (criteria, entries) = refs, plan
+    sha = criteria_sha(criteria)
+    ids = [c[1:4] for c in criteria]
     awg.nodes.append({"id": "N-1", "type": "DECISION", "key": "spec-approved", "parent": ref,
-                      "data": {"criteria_sha": sha, "criteria": ["AC1", "AC3"]}})
+                      "data": {"criteria_sha": sha, "criteria": ids}})
     awg.items[ref].annotations.append({"key": f"plan-{sha[:12]}", "data": {
         "children": [child], "risky": [], "tasks": ["T1"]}})
     item = awg.items[child]

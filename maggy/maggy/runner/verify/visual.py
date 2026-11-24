@@ -49,7 +49,8 @@ def check_visual(job: VisualJob, entry: dict) -> list[ViewResult]:
         captures = render(spec, checkout, out)
         return [_judge(capture, (criterion, checkout, out), spec) for capture in captures]
     except BrowserUnavailable as exc:
-        return [ViewResult(criterion, vp.name, "PENDING", str(exc)) for vp in spec.viewports]
+        return [ViewResult(criterion, vp.name, "PENDING", str(exc), blocked=True)
+                for vp in spec.viewports]
     finally:
         remove_worktree(job.repo, checkout)
 

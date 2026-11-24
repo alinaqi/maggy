@@ -11,7 +11,8 @@ def pr_title(claim: Claim) -> str:
     return f"maggy: {claim.ref} {title}".strip()[:200]
 
 
-def render_body(claim: Claim, result: WorkerResult) -> str:
+def render_body(claim: Claim, result: WorkerResult, evidence: str = "") -> str:
+    """`evidence`: the verify stage's per-criterion evidence record (markdown), if any."""
     sha = result.candidate_commit or ""
     rows = [f"| {_cell(c.name)} | {'PASS' if c.passed else 'FAIL'} | `{c.sha}` |"
             for c in result.checks]
@@ -20,6 +21,7 @@ def render_body(claim: Claim, result: WorkerResult) -> str:
         f"- AWG ref: `{claim.ref}`", f"- Candidate SHA: `{sha}`",
         f"- Attempt: `{claim.attempt_id}`", "",
         "## Checks", "", "| Check | Result | SHA |", "|---|---|---|", *rows, "",
+        *([evidence.rstrip("\n"), ""] if evidence else []),
         "Draft opened by the Maggy runner; it never merges or marks a PR ready.", ""])
 
 
