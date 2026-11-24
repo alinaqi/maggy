@@ -446,7 +446,7 @@ Also:
 - The `agy` and `gemini-cli` manifests are dead.
 - Docker runtime: `docker create` gets no command, there is no agent CLI in the image, no timeout, and logs are discarded.
 - `orchestrator/identity.py` (credential scoping) is never called.
-- `scripts/polyphony` is an older fork; `orchestrator/__main__.py:37,56` call `load_config()` without its required argument.
+- `scripts/polyphony` is an older fork; `orchestrator/__main__.py:37,56` called `load_config()` without its required argument (`__main__.py` was removed in Phase 6).
 
 ### A.2 State and intake
 
