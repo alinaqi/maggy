@@ -50,6 +50,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   (`ExecutionContract`) is unrelated and stays. Removed test: `tests/test_contracts.py`. New
   guard `tests/test_contracts_package_removed.py` asserts `maggy.contracts` stays gone,
   `maggy.pipeline.contracts` still imports, and no kept module references `maggy.contracts`.
+- **Duplicate tracker plugins** `maggy/plugins/provider-{github,asana,monday}/`: the
+  `PluginManager` discovered them, but they only registered `/api/provider/{github,asana,
+  monday}/{tasks,status}` routes that no dashboard JS, template, CLI, hook or skill calls,
+  plus heartbeat polls that discarded their results; the `on_task_fetch` hook was never
+  emitted. Task providers live in `maggy/maggy/providers/` (kept) and cover all three
+  trackers. No tests covered these plugins. Stale mentions removed from
+  `GETTING_STARTED.md`, `comparision.md` and `commands/set-tracker.md`. New guard
+  `tests/test_provider_plugins_removed.py` asserts the directories stay gone and the plugin
+  loader discovers no `provider-*` plugin.
 
 ### Maggy: Personal Harness (Phase 5)
 
