@@ -41,6 +41,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   rest of that file stays). New guard `tests/test_council_package_removed.py` asserts
   `maggy.council` stays gone, the review council still imports, and `maggy/review` never
   references `maggy.council`.
+- **Dead `maggy/contracts/` package** (`__init__.py`, `generator.py`): the `ContractGenerator`
+  stub that turned a postcondition string into a test skeleton, superseded by
+  `WorkerSpec`/`WorkerResult` and per-criterion evidence. Nothing kept imported it (no route,
+  CLI, hook, skill, script or install.sh reference). The `/sync-contracts` command, the
+  `workspace` skill and the `hooks/workspace/*contract*.sh` hooks are about cross-repo API
+  contracts and never used this Python package, so they stay; `maggy/pipeline/contracts.py`
+  (`ExecutionContract`) is unrelated and stays. Removed test: `tests/test_contracts.py`. New
+  guard `tests/test_contracts_package_removed.py` asserts `maggy.contracts` stays gone,
+  `maggy.pipeline.contracts` still imports, and no kept module references `maggy.contracts`.
 
 ### Maggy: Personal Harness (Phase 5)
 
