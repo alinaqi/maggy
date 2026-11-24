@@ -25,7 +25,6 @@ from maggy.config import (
     RoutingConfig,
     StorageConfig,
 )
-from maggy.deploy import DeployService
 from maggy.engram.record import EngramRecord
 from maggy.engram.store import EngramStore
 from maggy.event_spine.emitter import EventEmitter
@@ -35,7 +34,6 @@ from maggy.forge.connector import ForgeConnector
 from maggy.lexon.router import LexonRouter
 from maggy.mesh.manager import MeshManager
 from maggy.mesh.store import MeshStore
-from maggy.planning import PlanningService
 from maggy.history.service import HistoryService
 from maggy.improve.service import Introspector
 from maggy.routing import RoutingService
@@ -66,8 +64,6 @@ def app_with_services(tmp_path: Path) -> FastAPI:
     app.state.cikg = KnowledgeGraphService(
         tmp_path / "cikg.db",
     )
-    app.state.planning = PlanningService(cfg)
-    app.state.deploy = DeployService()
     app.state.forge = ForgeConnector(
         forge_path=tmp_path / "fake-forge",
     )
@@ -100,7 +96,6 @@ def app_with_services(tmp_path: Path) -> FastAPI:
     from maggy.api.routes import router as r_api
     from maggy.api.routes_budget import router as r_budget
     from maggy.api.routes_cikg import router as r_cikg
-    from maggy.api.routes_deploy import router as r_deploy
     from maggy.api.routes_engram import router as r_engram
     from maggy.api.routes_events import router as r_events
     from maggy.api.routes_forge import router as r_forge
@@ -109,15 +104,14 @@ def app_with_services(tmp_path: Path) -> FastAPI:
     from maggy.api.routes_improve import router as r_improve
     from maggy.api.routes_lexon import router as r_lexon
     from maggy.api.routes_mesh import router as r_mesh
-    from maggy.api.routes_planning import router as r_plan
     from maggy.api.routes_routing import router as r_routing
     from maggy.api.routes_setup import router as r_setup
     from maggy.api.routes_users import router as r_users
 
     for r in (
-        r_api, r_budget, r_cikg, r_deploy, r_engram,
+        r_api, r_budget, r_cikg, r_engram,
         r_events, r_forge, r_heartbeat, r_history,
-        r_improve, r_lexon, r_mesh, r_plan, r_routing,
+        r_improve, r_lexon, r_mesh, r_routing,
         r_setup, r_users,
     ):
         app.include_router(r)
@@ -294,58 +288,6 @@ class TestCIKGAPI:
         resp = c.get("/api/cikg/gaps/SSO")
         data = resp.json()
         assert data["feature"] == "SSO"
-
-
-# ── Phase 6: Planning ───────────────────────────────────
-
-
-class TestPlanningAPI:
-    def test_single_plan(self, client: TestClient):
-        resp = client.post(
-            "/api/planning/generate",
-            json={"task": "Add auth", "blast_score": 2},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["mode"] == "single"
-        assert len(data["plan"]["steps"]) == 3
-
-    def test_dual_plan(self, client: TestClient):
-        resp = client.post(
-            "/api/planning/generate",
-            json={"task": "Refactor core", "blast_score": 7},
-        )
-        data = resp.json()
-        assert data["mode"] == "dual"
-        assert "diff" in data
-
-
-# ── Phase 7: Deploy ─────────────────────────────────────
-
-
-class TestDeployAPI:
-    def test_sessions_empty(self, client: TestClient):
-        resp = client.get("/api/deploy/sessions")
-        assert resp.status_code == 200
-        assert resp.json()["sessions"] == []
-
-    def test_create_and_get(self, client: TestClient):
-        resp = client.post(
-            "/api/deploy/sessions",
-            json={"project": "web", "branch": "feat-x"},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        sid = data["session_id"]
-        assert data["status"] == "building"
-
-        resp = client.get(f"/api/deploy/sessions/{sid}")
-        assert resp.json()["project"] == "web"
-
-    def test_missing_session(self, client: TestClient):
-        resp = client.get("/api/deploy/sessions/nope")
-        data = resp.json()
-        assert data.get("error") == "session not found"
 
 
 # ── Phase 9: Forge ──────────────────────────────────────
@@ -532,8 +474,6 @@ class TestUnconfiguredState:
         app.state.routing = None
         app.state.events = None
         app.state.cikg = None
-        app.state.planning = None
-        app.state.deploy = None
         app.state.forge = None
         app.state.engram = None
         app.state.lexon = None
@@ -541,16 +481,14 @@ class TestUnconfiguredState:
 
         from maggy.api.routes_budget import router as r1
         from maggy.api.routes_cikg import router as r2
-        from maggy.api.routes_deploy import router as r3
         from maggy.api.routes_engram import router as r4
         from maggy.api.routes_events import router as r5
         from maggy.api.routes_forge import router as r6
         from maggy.api.routes_lexon import router as r7
         from maggy.api.routes_mesh import router as r8
-        from maggy.api.routes_planning import router as r9
         from maggy.api.routes_routing import router as r0
 
-        for r in (r1, r2, r3, r4, r5, r6, r7, r8, r9, r0):
+        for r in (r1, r2, r4, r5, r6, r7, r8, r0):
             app.include_router(r)
         return TestClient(app)
 
@@ -593,25 +531,10 @@ class TestUnconfiguredState:
         resp = unconfigured_client.get("/api/lexon/parse?q=hi")
         assert "error" in resp.json()
 
-    def test_deploy_unconfigured(
-        self, unconfigured_client: TestClient,
-    ):
-        resp = unconfigured_client.get("/api/deploy/sessions")
-        assert "error" in resp.json()
-
     def test_forge_unconfigured(
         self, unconfigured_client: TestClient,
     ):
         resp = unconfigured_client.get("/api/forge/status")
-        assert "error" in resp.json()
-
-    def test_planning_unconfigured(
-        self, unconfigured_client: TestClient,
-    ):
-        resp = unconfigured_client.post(
-            "/api/planning/generate",
-            json={"task": "test"},
-        )
         assert "error" in resp.json()
 
     def test_cikg_unconfigured(
