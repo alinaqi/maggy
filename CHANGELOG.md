@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **`cortex-mcp/`** (standalone code-intelligence MCP server, including its duplicate Mnemos
+  memory layer): it was never registered in any MCP config, `install.sh` or the harness emitter,
+  and no kept code imports it; `scripts/mnemos` remains the Mnemos implementation. Telos still
+  reads an existing `.cortex/cortex.db` read-only and degrades gracefully without one. Removed
+  tests: the whole `cortex-mcp/tests/` tree (`conftest.py`, `test_benchmark/`, `test_intent/`,
+  `test_memory/`, `test_storage/`, `test_structure/`, `test_tools/`). README and
+  GETTING_STARTED mentions removed. New guard `tests/test_cortex_mcp_removed.py`.
 - **`project_routing.decide_model`** and the types and helpers only it used (`TaskContext`,
   `RouteChoice`, `_security_target`, `_SECURITY_TYPES`): model selection now comes from the
   harness profile tiers, and nothing in kept code, routes, CLI, hooks, skills or scripts called

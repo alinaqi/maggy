@@ -28,7 +28,7 @@ Claude Bootstrap is an installable config pack (skills, hooks, rules, templates)
 | **What it is** | Skills, hooks, rules installed into `~/.claude/` | Local FastAPI server + web dashboard |
 | **Install time** | ~30 seconds | ~5 minutes (Python 3.11+, API keys) |
 | **Requires** | Claude Code (also works with Codex, Kimi, Gemini CLI) | Everything in Bootstrap + Python + optional Docker |
-| **You get** | TDD enforcement, 73 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, Cortex MCP, plugins, dashboard |
+| **You get** | TDD enforcement, 73 skills, quality gates, ADR reviews, iCPG, Mnemos memory | All of Bootstrap + 13-tier routing, skill protocols, Telos testing, plugins, dashboard |
 
 ### Bootstrap — 30-second install
 
@@ -125,7 +125,6 @@ You're using Claude Code. It's impressive — but:
 | **13-Tier Routing** | Semantic blast score (1–10) routes to cheapest capable model. Local Qwen3 classifier → DeepSeek (~80% of tasks) → Kimi → Gemini → Grok → Codex → Claude. Budget-capped with auto-demotion. [Routing details](#model-routing) |
 | **Skill Protocols** | YAML-defined workflows in `maggy/skills/protocols/`. "Push to git" → lint → test → stage → commit → push. Drop a `.yaml` to add your own |
 | **Telos** | Testing beyond TDD. Three planes: Conformance × Validation × Integrity. A zero in any plane collapses the total score. [Details](#telos-testing-beyond-tdd) |
-| **Cortex MCP** | Code intelligence: 10 edge types, cyclomatic complexity, FTS5 search, bidirectional traversal. 15 tools, single SQLite DB. [Benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) |
 | **Polyphony** | Docker-isolated parallel agent execution. Second session auto-provisions a workspace. [Spec](maggy/docs/polyphony-spec.md) |
 | **Engram** | Cross-session memory. 7 amnesia types. Persists architectural knowledge across weeks |
 | **Council PR Review** | Multi-model council reviews a GitHub PR from the dashboard — deterministic mega-PR chunking, a static gate (tsc/ruff) as ground truth, and an adversarial refute pass that kills false positives. Extensible per-language skills (Python/TS/Go/Rust/Java/C#/Ruby/PHP + drop-in more). `pip install maggy-harness[review]` |
@@ -244,11 +243,6 @@ maggy/
     static/     # Web dashboard (vanilla JS, no build step)
     services/   # Routing, memory, execution, Mnemos
 
-cortex-mcp/     # Code intelligence MCP server
-  src/cortex/
-    structure/  # AST extraction, edge types, complexity
-    storage/    # SQLite graph store, FTS5 index
-
 plugins/        # Drop-in plugins (build-in-public, telos, providers)
 ```
 
@@ -258,7 +252,6 @@ plugins/        # Drop-in plugins (build-in-public, telos, providers)
 
 ```bash
 cd maggy && python3 -m pytest tests/ -x -q        # 900+ tests
-cd cortex-mcp && python3 -m pytest tests/ -q       # 207 tests
 ```
 
 ---
@@ -294,8 +287,6 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 | [Architecture v5](maggy/docs/architecture-v5.md) | System design, routing, dashboard |
 | [CLI Reference](maggy/docs/maggy-reference.md) | REPL commands, slash commands, routing |
 | [Telos RFC](https://github.com/alinaqi/alinaqi/blob/main/docs/Telos_RFC_v1.1.md) | Intent-grounded testing spec |
-| [Cortex docs](cortex-mcp/docs/) | Code intelligence, edge types, MCP tools |
-| [Cortex benchmarks](cortex-mcp/docs/cortex-vs-codebase-memory.md) | Performance vs codebase-memory-mcp |
 | [Changelog](CHANGELOG.md) | Version history (current: v6.66.0) |
 
 ---
