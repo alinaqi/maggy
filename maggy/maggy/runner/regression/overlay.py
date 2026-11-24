@@ -32,6 +32,12 @@ def changed_test_files(repo: Path, commits: tuple[str, str]) -> list[str]:
     return sorted(name for name in listed.split("\0") if name and is_test_file(name))
 
 
+def tracked_test_files(checkout: Path) -> list[str]:
+    """Test files committed in `checkout` (a worktree), sorted."""
+    listed = run_git(checkout, ["ls-files", "-z"])
+    return sorted(name for name in listed.split("\0") if name and is_test_file(name))
+
+
 def overlay_tests(repo: Path, commits: tuple[str, str], dest: Path) -> list[str]:
     """Write the candidate's changed test files into `dest` (a checkout of base)."""
     copied = changed_test_files(repo, commits)

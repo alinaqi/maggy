@@ -1,11 +1,16 @@
 """Render the evidence record as the PR body's evidence section (factory doc §5): ticket,
 spec version, tested commit, gate, per-criterion table ending in a release impact row,
-review findings, gaps and (only when opted in and scanned) uploaded screenshots."""
+review findings, gaps and (only when opted in and scanned) uploaded screenshots. Every
+free-text field is secret-scanned first (`scrub`) against the runner's environment."""
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+
 from maggy.review.models import Finding
 from maggy.runner.pr_evidence.models import ArtifactRef, CriterionRow, EvidenceRecord, gate
+from maggy.runner.pr_evidence.scrub import scrub
 
 GATE_TEXT = {
     "open": "open (every required criterion passed; no blocking review findings)",
@@ -16,7 +21,8 @@ HEAD = ["| Criterion | Verdict | Check(s) | Evidence | Detail | Artifacts |",
         "|---|---|---|---|---|---|"]
 
 
-def render_record(record: EvidenceRecord) -> str:
+def render_record(record: EvidenceRecord, env: Mapping[str, str] | None = None) -> str:
+    record = scrub(record, os.environ if env is None else env)
     lines = ["## Evidence", "", f"- Ticket: `{record.ref}`",
              f"- Spec version: `{record.spec_version}`", f"- Tested commit: `{record.sha}`",
              f"- Gate: {GATE_TEXT[gate(record)]}", "", *HEAD, *map(_row, record.rows),

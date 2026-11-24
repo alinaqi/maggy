@@ -98,10 +98,11 @@ No blocking findings.
 Draft opened by the Maggy runner; it never merges or marks a PR ready.
 ```
 
-The two gaps are real: the pytest logs of the AC1/AC2 functional runs print the checkout's
-absolute temp path (attempt UUID plus random directory names), which the secret scan's
-high-entropy rule flags (checked on the recorded `run.log`), so those logs stay local and are
-not referenced from the PR. A false positive that fails safe; the verdicts are unaffected.
+The two gaps in this recorded run were a false positive, since fixed: the pytest logs of
+the AC1/AC2 functional runs print the checkout's absolute temp path, and the secret scan's
+high-entropy rule then treated the whole path as one token. The scan no longer joins path
+segments (`/` is not part of a token), so a re-run references those logs from the AC1/AC2
+rows instead (`test_the_same_log_without_a_token_is_referable`). The verdicts are unaffected.
 
 ## `awg proof AWG-1 --json` (runner-agent credential)
 

@@ -1,7 +1,8 @@
 """Run one named test in a FRESH detached worktree and classify it (RFC §2.6.2).
 
 RED: a checkout of base with only the candidate's test files overlaid. GREEN: a checkout of
-the candidate. The command is argv-only with the check env (no credentials, throwaway HOME)
+the candidate. A bare pytest name runs as its exact node ids in the checkout's test files
+(`locate`). The command is argv-only with the check env (no credentials, throwaway HOME)
 and the per-check timeout; the worktree is removed afterwards, the log and report are kept.
 """
 
@@ -13,9 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from maggy.harness.schema import HarnessProfile
-from maggy.runner.regression.invocation import invocation
+from maggy.runner.regression.invocation import Target, invocation
 from maggy.runner.regression.junit import TestRun, classify
-from maggy.runner.regression.overlay import overlay_tests
+from maggy.runner.regression.locate import target_for
+from maggy.runner.regression.overlay import overlay_tests, tracked_test_files
 from maggy.worker.checks import run_logged
 from maggy.worker.env import build_check_env
 from maggy.worker.worktree import add_detached, remove_worktree
@@ -36,14 +38,15 @@ def run_named(plan: ProofPlan, test: str, red: bool) -> TestRun:
     sha = plan.commits[0] if red else plan.commits[1]
     checkout = add_detached(plan.repo, sha, run_dir / "checkout")
     try:
-        if red:
-            overlay_tests(plan.repo, plan.commits, checkout)
-        return _execute(plan, test, (checkout, run_dir))
+        files = overlay_tests(plan.repo, plan.commits, checkout) if red else []
+        files = list(dict.fromkeys([*files, *tracked_test_files(checkout)]))
+        target = target_for(plan.profile.validation.regression, (checkout, files), test)
+        return _execute(plan, target, (checkout, run_dir))
     finally:
         remove_worktree(plan.repo, checkout)
 
 
-def _execute(plan: ProofPlan, test: str, dirs: tuple[Path, Path]) -> TestRun:
+def _execute(plan: ProofPlan, test: Target, dirs: tuple[Path, Path]) -> TestRun:
     checkout, run_dir = dirs
     config = plan.profile.validation.regression
     junit = checkout / config.junit if config.junit else run_dir / "junit.xml"

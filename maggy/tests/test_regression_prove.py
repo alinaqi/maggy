@@ -77,3 +77,12 @@ def test_command_runner_reads_its_junit_from_the_checkout(tmp_path: Path) -> Non
     plan = ProofPlan(repo=repo, commits=(base, sha), work_dir=tmp_path / "p",
                      profile=regression_profile(regression))
     assert prove(plan, plan_entry()).outcome == "proven"
+
+
+def test_a_broken_unrelated_test_file_does_not_mask_a_real_red(tmp_path: Path) -> None:
+    """AC2's file cannot import on base; AC1's assertion-RED is still proven (bare name)."""
+    other = "from calc import mul\n\n\ndef test_add_mul():\n    assert mul(2, 3) == 6\n"
+    fixed = CALC_FIXED + "\n\ndef mul(a, b):\n    return a * b\n"
+    proof, _ = _prove(tmp_path, {"calc.py": fixed, "tests/test_calc.py": TEST_ADD,
+                                 "tests/test_other.py": other})
+    assert (proof.outcome, proof.red, proof.green) == ("proven", "assertion", "passed")

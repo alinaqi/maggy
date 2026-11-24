@@ -48,3 +48,10 @@ def test_command_fills_placeholders_per_token() -> None:
 def test_command_runner_needs_a_command() -> None:
     with pytest.raises(ValidationError):
         Regression(runner="command")
+
+
+def test_pytest_runs_resolved_node_ids_not_a_tree_wide_k() -> None:
+    ids = ("tests/test_a.py::test_ac1", "tests/test_c.py::TestX::test_ac1")
+    argv, _ = invocation(Regression(runner="pytest", command="py -m pytest"), ids, JUNIT)
+    assert argv == ["py", "-m", "pytest", *ids, "-p", "no:cacheprovider",
+                    f"--junitxml={JUNIT}"]

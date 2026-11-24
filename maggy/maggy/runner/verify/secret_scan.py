@@ -25,7 +25,7 @@ PATTERNS = {
     "private key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     "jwt": re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
 }
-CANDIDATE = re.compile(r"[A-Za-z0-9_+/=-]{24,}")
+CANDIDATE = re.compile(r"[A-Za-z0-9_+=-]{24,}")  # no "/": a path is not one token
 MIN_ENTROPY = 4.0
 MIN_SECRET_LEN = 8
 MAX_BYTES = 20_000_000

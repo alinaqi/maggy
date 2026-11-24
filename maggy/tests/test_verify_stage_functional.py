@@ -66,15 +66,26 @@ def test_unfinished_build_child_is_not_verified(tmp_path: Path) -> None:
     assert not rig.check_out.exists()
 
 
-def test_secret_scan_keeps_a_leaky_artifact_out_of_the_pr_record(
-        tmp_path: Path) -> None:
+def _printing(tmp_path: Path, text: str) -> dict:
     printer = {"tests/test_calc.py": TEST_ADD.replace(
-        "assert add", f"print('token {LEAK}')\n    assert add"), "calc.py": CALC_FIXED}
+        "assert add", f"print('{text}')\n    assert add"), "calc.py": CALC_FIXED}
     rig = make_verify_rig(tmp_path, ([functional_entry()], printer))
     rig.runner.config.profile.validation.regression.command += " -s"
     assert rig.runner.run_once().outcome == "submitted"
-    candidate = git(rig.repo, "rev-parse", f"maggy/{rig.ref}")
-    record = verify_record(rig, candidate)
+    record = verify_record(rig, git(rig.repo, "rev-parse", f"maggy/{rig.ref}"))
+    assert record is not None
+    return record
+
+
+def test_the_same_log_without_a_token_is_referable(tmp_path: Path) -> None:
+    record = _printing(tmp_path, "token none")
+    assert record["withheld"] == []
+    assert any("/functional/AC1/" in path for path in record["artifacts"])
+
+
+def test_secret_scan_keeps_a_leaky_artifact_out_of_the_pr_record(
+        tmp_path: Path) -> None:
+    record = _printing(tmp_path, f"token {LEAK}")
     assert record is not None and record["withheld"]
     assert all("functional" in path for path in record["withheld"])
     referenced = " ".join(record["artifacts"])

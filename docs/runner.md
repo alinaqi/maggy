@@ -1,7 +1,7 @@
 # Maggy runner (`maggy run`)
 
 The runner claims AWG work items that need the `maggy-runner` capability and one of
-`stage:spec`, `stage:plan` or `stage:build` (see Stages).
+`stage:spec`, `stage:plan`, `stage:build` or `stage:verify` (see Stages).
 Claiming is opt-in: it passes `--require-capabilities=maggy-runner`, so an item that declares
 no capabilities (a hand-made task, an unlabelled import) is never claimed.
 It runs a worker in the item's own worktree, runs the required checks itself, and attaches
@@ -107,14 +107,21 @@ Two rules apply throughout:
 ## Stages
 
 `maggy run` claims with `--capabilities=maggy-runner,stage:spec,stage:plan,stage:build,
-project:KEY`. `worker.stages` in the profile (default `[spec, plan, build]`) restricts which
-stages a runner holds, so one machine can, for example, only build. Each claimed item is
+stage:verify,project:KEY`. `worker.stages` in the profile (default
+`[spec, plan, build, verify]`) restricts which stages a runner holds, so one machine can,
+for example, only build. Each claimed item is
 driven by its `stage:<name>` capability:
 
 ```
 intake -> stage:spec --(question)--> WAITING_HUMAN --(human answers, READY)--> stage:spec
        -> spec approved -> stage:plan --(high-risk paths)--> WAITING_HUMAN (plan-approved)
-       -> children READY with stage:build, parent parked as stage:planned -> build -> draft PR
+       -> children READY with stage:build, parent parked as stage:planned
+       -> build (per child: RED/GREEN proof, evidence, draft PR, submit)
+       -> last child finished: parent re-tagged stage:verify
+       -> verify (integrated candidate, checks, evidence table in the parent's draft PR)
+            --(FAIL or blocking review finding)--> given back
+            --(PENDING / blocked / manual)--> WAITING_HUMAN (baseline-approved, ...)
+            --(every required criterion passed)--> submit
 ```
 
 - **Spec** (`stage:spec`). A read-only author (`agents.default`) returns one fenced json
@@ -134,6 +141,93 @@ intake -> stage:spec --(question)--> WAITING_HUMAN --(human answers, READY)--> s
   entry (linked to the criterion's REQUIREMENT node) before any of them is READY. Plans that
   touch `risk.high` or the spec's risk paths wait for a human `plan-approved` DECISION.
 - **Build** (`stage:build`): the steps under Running, per child, in dependency order.
+  A child whose `task-plan` names regression tests must also prove each one (see
+  Regression proof) before it is pushed. Just before the last unfinished child is
+  submitted, the runner re-tags the parent from `stage:planned` to `stage:verify`.
+- **Verify** (`stage:verify`): see Verify and PR evidence.
+
+### Regression proof (AC-aware RED/GREEN)
+
+For each test-plan entry with a `regression_test_name`, in fresh detached worktrees with
+the check env (no credentials, throwaway HOME) and `validation.check_timeout_s`:
+
+- **RED:** the base commit plus only the candidate's added or changed test files. The test
+  must fail with an assertion. Passing there is `not_red` (it does not prove the change);
+  a collection, import or fixture error, a crash or a test that did not run is
+  `setup_error`, a distinct failure.
+- **GREEN:** the candidate. The test must pass, else `not_green`.
+
+Any outcome other than `proven` fails the attempt back to build with the trace. Each proof
+is attached as ci evidence with `check: regression`, the base commit and the test name.
+
+How one test is run is `validation.regression`:
+
+```yaml
+validation:
+  regression:
+    runner: pytest          # pytest | node-test | playwright | command
+    command: python -m pytest  # optional base argv; required for `command`, which may
+    junit: null             # use {test} and {junit}; junit: report path when the tool
+                            # picks its own (relative to the checkout)
+```
+
+A bare pytest name (`test_...`) is resolved to its exact node ids (`file::name`,
+`file::Class::name`) in the checkout's test files, so an unrelated broken test file or a
+name prefix (`test_ac1` vs `test_ac10`) cannot change the verdict. A node id or file path
+runs as given; a name found in no test file falls back to `-k`.
+
+## Verify and PR evidence
+
+The verify stage is the parent item's step. Once every build child is DONE or VERIFYING it
+integrates `maggy/<parent>` with each child's `maggy/<child>` branch (plus any approved
+baselines, committed by the runner) and runs, in fresh worktrees at that SHA:
+
+- the repo commands (`validation.required`);
+- per criterion: a **functional** check (evidence `unit`, `integration` or `e2e`: the
+  named test GREEN at the candidate) or a **visual** check (evidence `visual`: Playwright
+  render per viewport, layout assertions, pixel diff against
+  `.maggy/baselines/<criterion>-<viewport>.png`); `manual` criteria are left to the PR
+  reviewer;
+- the **vision reviewer** on each visual capture that matched its baseline.
+
+Every PASS/FAIL is attached as ci evidence bound to the SHA, with meta `spec_version`,
+`criterion_id`, `check` (and `viewport`). Then: any FAIL or blocking review finding gives
+the parent back; anything pending or blocked moves it to WAITING_HUMAN with a question that
+names what to record; otherwise it is submitted.
+
+Human decisions (`awg decision REF --key ... --data ...`):
+
+| Key | Data | Effect |
+|---|---|---|
+| `baseline-approved:<criterion>:<viewport>` | `{"sha256": "<proposed image sha256>"}` | commits that proposed image as the baseline (only while it still hashes to that value) |
+| `vision-reviewed:<criterion>:<viewport>` | `{"sha": "<candidate sha>"}` | a human's visual review stands in for the vision reviewer at that SHA |
+| `criterion-na:<criterion>` | - | the criterion is not applicable (the only verdict that is not required) |
+
+A missing baseline is PENDING with a proposed image in the attempt dir (and a
+`baseline-proposed:*` annotation); the waiting question prints the exact approval command.
+
+**Vision reviewer.** Local Ollama Qwen-VL by default. An external backend runs only when
+the personal profile opts into its provider with `evidence.external_review: [provider]`
+(default `false`). An unavailable backend, no backend, or an `uncertain` answer is PENDING
+for that criterion, never a pass.
+
+**PR evidence table.** The parent's draft PR body gets an Evidence section: ticket, spec
+version, tested commit, the gate, one row per criterion (`passed`, `failed`, `blocked`,
+`pending` or `not applicable`, its checks, evidence kind, detail and artifacts), a release
+impact row, the review council's blocking findings and the verification gaps. The same body
+is kept as `pr-evidence.md` in the attempt dir.
+
+**Evidence privacy (RFC §2.6.9).** Artifacts (logs, screenshots, diffs) stay local and are
+referenced by path (relative to the state dir) and sha256, and only when they pass the
+secret scan; a withheld artifact becomes a verification gap. Every free-text field of the
+body (check reasons and traces, gaps, review findings, release impact) is scanned too and
+replaced by the detector names when it looks secret. Screenshots are uploaded only with
+`evidence.publish_screenshots: true` (personal profile) and an uploader, after a second
+scan. The visual check serves only files whose resolved path is inside the checkout, so a
+committed symlink cannot render a host file into a screenshot.
+
+The Phase 5 exit test (`tests/test_coupon_scenario_exit.py`) runs the coupon scenario end
+to end (`docs/coupon-scenario.md`).
 
 The Phase 4 exit test (`tests/test_runner_phase4_exit.py`) runs this whole flow against the
 real awg CLI with recorded agent replies: an ambiguous ticket gets one question, the test
