@@ -29,6 +29,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `tests/test_orchestrator_dead_modules_removed.py` now also asserts these five modules stay
   gone and that `models` and `isolation` still import. `orchestrator/config.py` is still
   kept (guarded) although its only importer was `__main__.py`.
+- **Dead `maggy/council/` package** (`models.py`, `deliberation.py`, `blast_analyzer.py`,
+  `executor_gate.py`, `audit_log.py`): the old 3-round deliberation engine, blast scoring,
+  executor gate and SQLite audit log, superseded by the `maggy/review` council that Phase 5
+  verify uses. Nothing kept imported it (`maggy/review`, `runner/pr_evidence/council.py`,
+  routes, CLI, hooks, skills, install.sh and pyproject have no reference; the
+  `council-review` skill and `services/council_config.py` are unrelated and stay). Removed
+  tests: `tests/test_council_models.py`, `tests/test_deliberation.py`,
+  `tests/test_blast_analyzer.py`, `tests/test_executor_gate.py`, `tests/test_audit_log.py`,
+  and the `TestDeliberationWithPersonas` class from `tests/test_registry_wiring.py` (the
+  rest of that file stays). New guard `tests/test_council_package_removed.py` asserts
+  `maggy.council` stays gone, the review council still imports, and `maggy/review` never
+  references `maggy.council`.
 
 ### Maggy: Personal Harness (Phase 5)
 
