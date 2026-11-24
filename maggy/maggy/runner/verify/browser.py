@@ -1,7 +1,8 @@
 """Render a Maggy visual check with Python Playwright (factory doc §5 "Render the actual
 candidate"): a fresh context per viewport with fixed locale, time zone, scale and reduced
-motion; only file:// requests inside the checkout are served (checks get no network and
-no other local file, RFC §2.6.1); the
+motion; only file:// requests whose RESOLVED path is inside the checkout are served (checks
+get no network and no other local file, RFC §2.6.1: a symlink the agent committed cannot
+make the trusted runner render a host file into the screenshot); the
 screenshot is taken after the layout assertions with animations off and the caret hidden.
 """
 
@@ -9,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from maggy.runner.stages.visual_models import Action, Viewport, VisualSpec
 from maggy.runner.verify.layout import problems
@@ -49,9 +52,9 @@ def _capture(browser: object, spec: VisualSpec, where: tuple[Path, Path, Viewpor
     context = browser.new_context(
         viewport={"width": viewport.width, "height": viewport.height}, device_scale_factor=1,
         locale="en-US", timezone_id="UTC", reduced_motion="reduce", color_scheme="light")
-    root = checkout.resolve().as_uri() + "/"
-    context.route("**/*", lambda route: route.continue_() if route.request.url.startswith(root)
-                  else route.abort())
+    root = checkout.resolve()
+    context.route("**/*", lambda route: route.continue_() if inside_checkout(
+        route.request.url, root) else route.abort())
     page = context.new_page()
     page.set_default_timeout(TIMEOUT_MS)
     try:
@@ -76,6 +79,14 @@ def _drive(page: object, spec: VisualSpec, where: tuple[Path, Path, Viewport]) -
     image = out_dir / f"{viewport.name}-actual.png"
     page.screenshot(path=str(image), animations="disabled", caret="hide")
     return Capture(viewport.name, image, found)
+
+
+def inside_checkout(url: str, root: Path) -> bool:
+    """A file:// URL whose path, with every symlink resolved, is inside `root` (resolved)."""
+    parsed = urlparse(url)
+    if parsed.scheme != "file" or parsed.netloc not in ("", "localhost"):
+        return False
+    return Path(url2pathname(parsed.path)).resolve().is_relative_to(root)
 
 
 ACTIONS = {"fill": lambda locator, value: locator.fill(value),

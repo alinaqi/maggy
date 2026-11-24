@@ -42,3 +42,9 @@ def test_referable_withholds_flagged_artifacts(tmp_path: Path) -> None:
     allowed, withheld = referable([clean, leaky], {})
     assert allowed == [clean] and list(withheld) == [leaky]
     assert GITHUB_TOKEN not in " ".join(withheld[leaky])
+
+
+def test_absolute_paths_are_not_high_entropy_tokens(tmp_path: Path) -> None:
+    line = ("rootdir: /private/var/folders/x7/k2n9m3q8Zr1tYvW0bXc4/T/pytest-of-u/pytest-12/"
+            "test_ac0/checkout\n")
+    assert scan_file(_write(tmp_path, "run.log", line), {}) == []

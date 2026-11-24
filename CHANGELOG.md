@@ -95,6 +95,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `worker.checks._exec` is now the public `run_logged`, both reused by the regression proof.
   The Phase 3/4 exit rigs' fake build agent now writes the planned regression tests.
 
+#### Fixed
+- **PR body secret scan (RFC §2.6.9, AC 5.2)**: every free-text field of the PR evidence
+  record (check reasons and raw test traces in the Detail column and the verification gaps,
+  review findings, council errors, release impact) is now secret-scanned before rendering
+  (`pr_evidence.scrub`) and replaced by the detector names when it looks secret; before,
+  only artifact files were scanned, so a token in a failure trace reached the PR.
+- **RED/GREEN proof runs the exact test**: a bare pytest `regression_test_name` resolves to
+  its node ids (`file::name`, `file::Class::name`) in the checkout's test files instead of
+  `pytest -k` over the whole tree, so another criterion's test file that cannot import on
+  base no longer turns a real assertion-RED into `setup_error`, and `test_ac1` no longer
+  also selects `test_ac10`.
+- **Visual check sandbox**: the browser serves only file:// URLs whose resolved path is
+  inside the checkout; a committed symlink can no longer make the trusted runner render a
+  host file into a screenshot (and so into a proposed baseline or a vision request).
+- **Secret scan false positive**: `/` is no longer part of a high-entropy token, so a log
+  that prints an absolute temp path is not withheld; functional run logs now reach the PR.
+- `docs/runner.md` documents the verify stage, the parent's `stage:verify` hand-off, the
+  RED/GREEN proof and `validation.regression`, the `baseline-approved` / `vision-reviewed`
+  / `criterion-na` decisions, `evidence.external_review`, `evidence.publish_screenshots`
+  and the PR evidence table.
+
 ### Maggy: Personal Harness (Phase 4)
 
 #### Added
