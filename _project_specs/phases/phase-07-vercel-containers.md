@@ -1,6 +1,6 @@
 # Phase 7: Isolated Vercel Deploy Containers
 
-**Status:** pending
+**Status:** superseded. The in-memory stubs `deploy.py` and `api/routes_deploy.py` were deleted in the personal-harness Phase 6 cleanup (see `docs/rfc-personal-harness.md`); the deliverables below are historical.
 **Priority:** P2 — enables parallel deploys without auth conflicts
 **Effort:** Medium
 **Dependencies:** Docker (for container isolation)
