@@ -118,6 +118,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `tests/test_provider_plugins_removed.py` asserts the directories stay gone and the plugin
   loader discovers no `provider-*` plugin.
 
+#### Changed
+- **`maggy/maggy/adapters/cli_discovery.py` meets the quality gates** (250 to 168 lines, 12 to 9
+  functions; `build_command` and `_post_process` under 20 lines): the `--help`/`--version`/
+  `ollama list` subprocess probes move to the new `adapters/cli_probe.py`, and ollama model
+  detection runs in `_refine_from_run`. Behaviour is unchanged, including the kept
+  skip-permission detection. New tests `maggy/tests/test_cli_probe.py`.
+
 #### Fixed
 - **Restored skip-permission flag detection in `maggy/maggy/adapters/cli_discovery.py`**
   (reverts the Phase 6 removal): `PiAdapter._build_command` builds the commands for the unpinned
