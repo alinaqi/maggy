@@ -138,9 +138,6 @@ claude        # now routed through srooter
 | **build-in-public** | Auto-generates and schedules posts from your work (LinkedIn + X via Buffer) |
 | **telos** | Intent-grounded testing with IFS scoring |
 | **forge** | Project scaffolding |
-| **provider-github** | GitHub issue sync |
-| **provider-asana** | Asana task sync |
-| **provider-monday** | Monday.com task sync |
 
 **Memory (Mnemos)** -- Typed graph where goals and constraints are never evicted. 4-dimension fatigue model triggers consolidation early, before context window death spirals.
 

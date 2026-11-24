@@ -117,7 +117,7 @@ heartbeat:
 
 Good for: integrating new data sources (Linear, Jira, Notion), new output channels (Slack, Discord), or custom automation triggers.
 
-Existing plugin examples to copy: `provider-github`, `provider-asana`, `provider-monday`.
+Existing plugin examples to copy: `build-in-public`, `e2e-testkit`. Issue trackers (GitHub Issues, Asana, Monday.com) are task providers in `maggy/maggy/providers/`, not plugins.
 
 ### 3. Add a Model Tier / Swap DeepSeek
 Edit `maggy/maggy/process/model_router.py` and add/replace a tier. Also add a corresponding delegation script in `bin/`. The contract is simple: script accepts a prompt, writes response to stdout.
