@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **`project_routing.decide_model`** and the types and helpers only it used (`TaskContext`,
+  `RouteChoice`, `_security_target`, `_SECURITY_TYPES`): model selection now comes from the
+  harness profile tiers, and nothing in kept code, routes, CLI, hooks, skills or scripts called
+  it. The rest of `project_routing` (profile load/save used by `route_eval`) stays. Removed
+  tests: the `TestDecideModel` class in `maggy/tests/test_project_routing.py`. The stale
+  "How it routes" section in `commands/route-eval.md` is updated. New guard
+  `tests/test_project_routing_decide_model_removed.py`.
 - **Stub/duplicate scripts** `scripts/convert-hooks-to-toml.sh` and
   `templates/mnemos-compact-recovery.sh`: the jq-based JSON-to-TOML hook converter duplicated
   the harness compiler's emitters, and the compact-recovery script was never wired into

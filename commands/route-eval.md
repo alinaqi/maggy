@@ -64,14 +64,9 @@ cat "$HOME/.claude/projects/$(pwd | tr '/' '-')/routing.yaml" 2>/dev/null \
 
 ## How it routes (once a profile exists)
 
-`decide_model(profile, task)` applies the profile at task time:
-
-1. **Security first** — if the task is flagged security-sensitive, is an
-   auth/billing/security task type, or touches a file matching an `escalate_paths`
-   glob → route to the escalation model (Claude), regardless of profile.
-2. **`simple`** → everything else goes to `default_model` (e.g. `glm-5.2`).
-3. **`balanced` / `critical`** → fall through to the normal complexity ladder in
-   `model_router` (with `critical` biased toward premium tiers).
+The profile records the project's intent: `profile` (`simple` / `balanced` /
+`critical`), the `default` model and the `escalate` rules (security, complexity,
+`paths` globs). Model selection at task time comes from the harness profile tiers.
 
 ## Adjusting
 
