@@ -5,17 +5,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, AsyncGenerator
 
+from maggy.pipeline.backend_pi import _PI_MODELS
+
 if TYPE_CHECKING:
     from maggy.services.chat import ChatManager
     from maggy.services.chat_models import ChatSession
 
 logger = logging.getLogger(__name__)
-
-_PI_MODELS = frozenset({
-    "deepseek", "kimi", "local", "qwen", "gemini", "codex", "grok",
-    "deepseek-flash", "deepseek-pro", "gemini-flash", "gemini-flash-lite",
-    "gemini-pro-search", "gpt",
-})
 
 
 class ClaudeBackend:
