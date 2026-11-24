@@ -6,15 +6,11 @@ command templates that PiAdapter uses to spawn prompts.
 
 from __future__ import annotations
 
-import logging
 import re
 import shutil
-import subprocess
 from dataclasses import dataclass, field
 
-logger = logging.getLogger(__name__)
-
-_HELP_TIMEOUT = 10
+from maggy.adapters.cli_probe import detect_ollama_model, get_help, get_version
 
 
 @dataclass
@@ -40,23 +36,24 @@ class CliProfile:
         self, prompt: str, wd: str, max_turns: int,
     ) -> list[str]:
         """Build full CLI command from discovered flags."""
-        cmd = [self.binary]
-        if self.uses_exec_subcommand:
-            cmd.append("exec")
-        elif self.uses_run_subcommand:
-            cmd += ["run", self.run_model]
+        cmd = [self.binary, *self._subcommand()]
         cmd += [self.prompt_flag, prompt] if self.prompt_flag else [prompt]
         if self.work_dir_flag:
             cmd += [self.work_dir_flag, wd]
-        if self.auto_approve_flag:
-            cmd.append(self.auto_approve_flag)
-        if self.afk_flag:
-            cmd.append(self.afk_flag)
+        cmd += [f for f in (self.auto_approve_flag, self.afk_flag) if f]
         if self.output_format_flag:
             cmd += [self.output_format_flag, "json"]
         if self.max_turns_flag and max_turns > 0:
             cmd += [self.max_turns_flag, str(max_turns)]
         return cmd
+
+    def _subcommand(self) -> list[str]:
+        """Leading subcommand: `exec` (codex) or `run <model>` (ollama)."""
+        if self.uses_exec_subcommand:
+            return ["exec"]
+        if self.uses_run_subcommand:
+            return ["run", self.run_model]
+        return []
 
 
 @dataclass
@@ -87,15 +84,12 @@ def discover_cli(name: str) -> CliProfile:
     if not binary:
         return CliProfile(name=name, binary=name)
     profile = CliProfile(name=name, binary=binary, installed=True)
-    profile.version = _get_version(binary)
-    help_text = _get_help(binary, "")
-    _extract_flags(profile, help_text)
+    profile.version = get_version(binary)
+    _extract_flags(profile, get_help(binary, ""))
     if profile.uses_exec_subcommand:
-        exec_help = _get_help(binary, "exec")
-        _refine_from_exec(profile, exec_help)
+        _refine_from_exec(profile, get_help(binary, "exec"))
     if profile.uses_run_subcommand:
-        run_help = _get_help(binary, "run")
-        _refine_from_run(profile, run_help)
+        _refine_from_run(profile)
     _post_process(profile)
     return profile
 
@@ -142,10 +136,12 @@ def _refine_from_exec(profile: CliProfile, text: str) -> None:
         profile.auto_approve_flag = "--dangerously-bypass-approvals-and-sandbox"
 
 
-def _refine_from_run(profile: CliProfile, text: str) -> None:
-    """Extract flags from run subcommand help (ollama-style)."""
+def _refine_from_run(profile: CliProfile) -> None:
+    """Run subcommand (ollama-style): prompt is positional, model needed."""
     profile.prompt_is_positional = True
     profile.prompt_flag = ""
+    if not profile.run_model:
+        profile.run_model = detect_ollama_model(profile.binary)
 
 
 def _post_process(profile: CliProfile) -> None:
@@ -158,12 +154,6 @@ def _post_process(profile: CliProfile) -> None:
     if profile.uses_exec_subcommand:
         profile.prompt_is_positional = True
         profile.prompt_flag = ""
-    # run subcommand (ollama): prompt is positional, need model
-    if profile.uses_run_subcommand:
-        profile.prompt_is_positional = True
-        profile.prompt_flag = ""
-        if not profile.run_model:
-            profile.run_model = _detect_ollama_model(profile)
     # Claude uses subprocess cwd, not a --cd flag
     if "claude" in profile.name.lower():
         profile.work_dir_flag = ""
@@ -173,78 +163,6 @@ def _post_process(profile: CliProfile) -> None:
         profile.output_format_flag = ""
 
 
-def _detect_ollama_model(profile: CliProfile) -> str:
-    """Find best coding model available in ollama."""
-    try:
-        out = subprocess.run(
-            [profile.binary, "list"],
-            capture_output=True, text=True,
-            timeout=_HELP_TIMEOUT,
-        )
-        text = out.stdout.lower()
-    except (subprocess.TimeoutExpired, OSError):
-        return "qwen3-coder:30b-a3b-q8_0"
-    # Prefer Qwen3-Coder (MoE, 3.3B active), then older models
-    prefs = [
-        "qwen3-coder:30b-a3b-q8_0",
-        "qwen3-coder:30b",
-        "qwen2.5-coder:32b", "qwen2.5-coder:14b",
-        "qwen2.5-coder:7b", "deepseek-coder-v2",
-        "codellama:34b", "codellama:13b",
-        "qwen3:32b", "llama3.1:70b", "llama3.1:8b",
-    ]
-    for model in prefs:
-        if model.split(":")[0] in text:
-            return model
-    # Fallback: first listed model
-    lines = out.stdout.strip().splitlines()
-    if len(lines) > 1:
-        return lines[1].split()[0]
-    return "qwen3-coder:30b-a3b-q8_0"
-
-
 def _has(text: str, pattern: str) -> bool:
     """Check if pattern exists in text (case-insensitive)."""
     return bool(re.search(pattern, text, re.IGNORECASE))
-
-
-def _get_version(binary: str) -> str:
-    """Get CLI version string."""
-    for flag in ("--version", "-V", "-v"):
-        try:
-            out = subprocess.run(
-                [binary, flag],
-                capture_output=True, text=True,
-                timeout=_HELP_TIMEOUT, env=_clean_env(),
-            )
-            text = (out.stdout + out.stderr).strip()
-            if text and len(text) < 200:
-                return text.split("\n")[0]
-        except (subprocess.TimeoutExpired, OSError):
-            continue
-    return ""
-
-
-def _get_help(binary: str, subcommand: str) -> str:
-    """Run --help and return output."""
-    cmd = [binary]
-    if subcommand:
-        cmd.append(subcommand)
-    cmd.append("--help")
-    try:
-        out = subprocess.run(
-            cmd, capture_output=True, text=True,
-            timeout=_HELP_TIMEOUT, env=_clean_env(),
-        )
-        return (out.stdout + out.stderr).strip()
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        logger.debug("Help failed for %s: %s", binary, exc)
-        return ""
-
-
-def _clean_env() -> dict[str, str]:
-    """Return env without CLAUDECODE to avoid nesting block."""
-    import os
-    env = os.environ.copy()
-    env.pop("CLAUDECODE", None)
-    return env
