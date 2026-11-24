@@ -37,9 +37,10 @@ whichever agent wrote the code.
 Full findings with file:line references are in Appendix A. Headlines:
 
 - **Execution is fragmented and unsafe by default.** Six separate code paths launch agent CLIs, each with its own argv
-  and output parsing. There is no common input/output contract. `cli_discovery.py` added
-  `--dangerously-skip-permissions` / `--dangerously-bypass-approvals-and-sandbox` / `--yolo` to host runs (removed in
-  Phase 6; permission profiles now come from `maggy/worker/bypass.py`). "Container"
+  and output parsing. There is no common input/output contract. `cli_discovery.py` adds
+  `--dangerously-skip-permissions` / `--dangerously-bypass-approvals-and-sandbox` / `--yolo` to host runs (kept in
+  Phase 6: PiAdapter and the executor still rely on it; moving them to `maggy/worker/bypass.py` needs a user
+  decision). "Container"
   isolation is a worktree. Budgets are recorded, never enforced.
 - **No durable state.** Runs live in dicts. About 15 SQLite files share no run key. There are four orchestrators,
   three intake paths, three Mnemos copies and two intent stores. **AWG replaces this whole layer (D1).**

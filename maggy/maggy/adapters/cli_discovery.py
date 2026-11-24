@@ -27,6 +27,7 @@ class CliProfile:
     installed: bool = False
     prompt_flag: str = ""
     work_dir_flag: str = ""
+    auto_approve_flag: str = ""
     output_format_flag: str = ""
     max_turns_flag: str = ""
     afk_flag: str = ""
@@ -47,6 +48,8 @@ class CliProfile:
         cmd += [self.prompt_flag, prompt] if self.prompt_flag else [prompt]
         if self.work_dir_flag:
             cmd += [self.work_dir_flag, wd]
+        if self.auto_approve_flag:
+            cmd.append(self.auto_approve_flag)
         if self.afk_flag:
             cmd.append(self.afk_flag)
         if self.output_format_flag:
@@ -98,12 +101,18 @@ def discover_cli(name: str) -> CliProfile:
 
 
 # (profile attribute, [(help-text pattern, value), ...]); first match wins.
-# Skip-permission flags are deliberately never detected: permission
-# profiles come from maggy.worker.bypass, not --help parsing.
+# auto_approve_flag stays: PiAdapter (and the executor through it) builds
+# unpinned claude/codex commands from these profiles and relies on it.
 _FLAG_RULES: list[tuple[str, list[tuple[str, object]]]] = [
     ("prompt_flag", [(r"-p,\s*--print\b", "--print"), (r"(-p|--prompt)\b", "-p")]),
     ("work_dir_flag", [
         (r"--work-dir\b", "-w"), (r"-C,\s*--cd\b", "-C"), (r"--cwd\b", "--cwd"),
+    ]),
+    ("auto_approve_flag", [
+        (r"--dangerously-skip-permissions\b", "--dangerously-skip-permissions"),
+        (r"--dangerously-bypass-approvals", "--dangerously-bypass-approvals-and-sandbox"),
+        (r"--yolo\b", "--yolo"),
+        (r"--auto-approve\b", "--auto-approve"),
     ]),
     ("output_format_flag", [(r"--output-format\b", "--output-format")]),
     ("max_turns_flag", [
@@ -129,6 +138,8 @@ def _refine_from_exec(profile: CliProfile, text: str) -> None:
     """Override flags with more specific exec subcommand flags."""
     if _has(text, r"-C,\s*--cd\b"):
         profile.work_dir_flag = "-C"
+    if _has(text, r"--dangerously-bypass-approvals"):
+        profile.auto_approve_flag = "--dangerously-bypass-approvals-and-sandbox"
 
 
 def _refine_from_run(profile: CliProfile, text: str) -> None:
