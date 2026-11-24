@@ -1,10 +1,5 @@
 #!/bin/bash
-# Mnemos Post-Compaction Injection — FALLBACK Layer 2 of task restoration.
-#
-# NOTE: The PRIMARY re-injection point is now mnemos-compact-recovery.sh,
-# which fires via SessionStart "compact" matcher BEFORE the agent acts.
-# This script remains as a FALLBACK for edge cases where SessionStart
-# doesn't fire (e.g., older Claude Code versions, interrupted compaction).
+# Mnemos Post-Compaction Injection — post-compaction task restoration.
 #
 # This is a PreToolUse hook with NO matcher (fires on ALL tool calls).
 # It detects when compaction just occurred and re-injects the full checkpoint.
@@ -14,9 +9,8 @@
 #
 # How it works:
 #   1. PreCompact hook writes ".mnemos/just-compacted" marker
-#   2. SessionStart "compact" consumes marker and injects checkpoint (primary)
-#   3. If marker still exists (fallback), this hook injects on first tool call
-#   4. Marker deletion is atomic (rename) to prevent parallel injection
+#   2. This hook sees the marker and injects the checkpoint on the first tool call
+#   3. Marker deletion is atomic (rename) to prevent parallel injection
 #
 # Install: add to .claude/settings.json under hooks.PreToolUse (no matcher)
 

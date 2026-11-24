@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **Stub/duplicate scripts** `scripts/convert-hooks-to-toml.sh` and
+  `templates/mnemos-compact-recovery.sh`: the jq-based JSON-to-TOML hook converter duplicated
+  the harness compiler's emitters, and the compact-recovery script was never wired into
+  `templates/settings.json` or `templates/config.toml` (SessionStart restore is
+  `mnemos-session-start.sh`; the PreToolUse `mnemos-post-compact-inject.sh` is the live
+  post-compaction path). No install.sh, hook, skill, harness emitter or Python reference
+  existed beyond the blanket `chmod +x templates/*.sh`. The stale comment in
+  `mnemos-post-compact-inject.sh` that called it the primary re-injection point is fixed. No
+  tests removed; new guard `tests/test_stub_scripts_removed.py`.
 - **Dead orchestrator submodules** `maggy/orchestrator/{adapters/,sources/,router.py,scoring.py,
   identity.py,events.py}`: superseded by the runner/worker (Phases 2-3) and imported by no
   kept code (no route, CLI, hook, skill or script reference). They had no tests under
