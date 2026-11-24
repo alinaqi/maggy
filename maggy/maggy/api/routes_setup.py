@@ -154,6 +154,7 @@ async def cli_models() -> dict:
             "version": p.version,
             "prompt_flag": p.prompt_flag,
             "work_dir_flag": p.work_dir_flag,
+            "auto_approve": p.auto_approve_flag,
             "afk": p.afk_flag,
         })
     installed = [p["name"] for p in profiles if p["installed"]]
