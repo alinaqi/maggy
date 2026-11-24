@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from maggy.harness.schema import HarnessProfile
+from maggy.review.models import Verdict
 from maggy.runner.awg_fake import FakeAwg
 from maggy.runner.loop import Runner, RunnerConfig
 from maggy.runner.stages.spec_version import criteria_sha
@@ -16,6 +17,13 @@ from worker_git_helpers import (DUMP_CHECK, dump_command, fake_adapter, git, ini
 
 CRITERIA = ["[AC1] add returns the sum", "[AC3] message sits under the coupon field"]
 CAPS = ["maggy-runner", "stage:verify", "project:demo"]
+
+
+class ApprovingCouncil:
+    """A review council with no findings (the rig's default: a council must be wired in)."""
+
+    def review(self, request: object) -> Verdict:
+        return Verdict(decision="approve", summary="ok")
 
 
 @dataclass
@@ -32,7 +40,7 @@ class VerifyRig:
 def make_verify_rig(tmp_path: Path, child: tuple[list[dict], dict[str, str]],
                     **options) -> VerifyRig:
     """`child`: the build child's (test plan entries, files on its branch); `options`:
-    vision (backends), base_files, check_exit."""
+    vision (backends), council (default: approves), base_files, check_exit."""
     entries, child_files = child
     repo, awg = tmp_path / "repo", FakeAwg(lease_seconds=900)
     repo.mkdir()
@@ -84,7 +92,8 @@ def _config(tmp_path: Path, options: dict) -> RunnerConfig:
     return RunnerConfig(repo=tmp_path / "repo", state_dir=tmp_path / "state",
                         adapter=fake_adapter(write_script(tmp_path, "agent", "pass")),
                         profile=HarnessProfile.model_validate(data), project="demo",
-                        heartbeat_s=30.0, vision=options.get("vision", []))
+                        heartbeat_s=30.0, vision=options.get("vision", []),
+                        council=options.get("council", ApprovingCouncil()))
 
 
 def approve_baselines(rig: VerifyRig) -> list[str]:

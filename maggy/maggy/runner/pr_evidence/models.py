@@ -38,15 +38,18 @@ class EvidenceRecord:
     release_impact: str = ""
     findings: tuple[Finding, ...] = ()  # the review council's blocking findings
     uploads: tuple[tuple[str, str], ...] = ()  # (artifact path, uploaded url)
-    council_failed: bool = False
+    council_failed: bool = False  # the review could not run (failed or none configured)
+    failed_commands: tuple[str, ...] = ()  # required repo commands (validation) that failed
 
 
 def gate(record: EvidenceRecord) -> Gate:
-    """failed: a required criterion failed or the review blocks (back to build); waiting: a
+    """failed: a required criterion or repo command failed, or the review blocks (back to
+    build); waiting: a
     required criterion is pending or blocked, or the review could not run (a human); else
     open. `not applicable` (recorded by a human) is the only verdict that is not required."""
     verdicts = {row.verdict for row in record.rows}
-    if "failed" in verdicts or any(f.severity == Severity.blocking for f in record.findings):
+    blocking = any(f.severity == Severity.blocking for f in record.findings)
+    if "failed" in verdicts or blocking or record.failed_commands:
         return "failed"
     if not record.rows or verdicts - {"passed", "not applicable"} or record.council_failed:
         return "waiting"

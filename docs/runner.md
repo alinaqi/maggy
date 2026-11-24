@@ -201,6 +201,7 @@ Human decisions (`awg decision REF --key ... --data ...`):
 |---|---|---|
 | `baseline-approved:<criterion>:<viewport>` | `{"sha256": "<proposed image sha256>"}` | commits that proposed image as the baseline (only while it still hashes to that value) |
 | `vision-reviewed:<criterion>:<viewport>` | `{"sha": "<candidate sha>"}` | a human's visual review stands in for the vision reviewer at that SHA |
+| `pr-reviewed` | `{"sha": "<candidate sha>"}` | a human's PR review stands in for a review council that could not run (none configured, or it failed) at that SHA |
 | `criterion-na:<criterion>` | - | the criterion is not applicable (the only verdict that is not required) |
 
 A missing baseline is PENDING with a proposed image in the attempt dir (and a
@@ -214,8 +215,11 @@ for that criterion, never a pass.
 **PR evidence table.** The parent's draft PR body gets an Evidence section: ticket, spec
 version, tested commit, the gate, one row per criterion (`passed`, `failed`, `blocked`,
 `pending` or `not applicable`, its checks, evidence kind, detail and artifacts), a release
-impact row, the review council's blocking findings and the verification gaps. The same body
-is kept as `pr-evidence.md` in the attempt dir.
+impact row, the review council's blocking findings and the verification gaps. The gate
+closes when a required criterion or a required repo command fails (both named in the
+body). No review council configured (the default in `maggy run` until the spec-aware
+adapter lands) or a council that fails is PENDING, never a pass: the item waits for a
+human's `pr-reviewed` DECISION. The same body is kept as `pr-evidence.md` in the attempt dir.
 
 **Evidence privacy (RFC §2.6.9).** Artifacts (logs, screenshots, diffs) stay local and are
 referenced by path (relative to the state dir) and sha256, and only when they pass the

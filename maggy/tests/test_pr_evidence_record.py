@@ -63,6 +63,7 @@ def test_gate_opens_only_when_every_required_criterion_passed(tmp_path: Path) ->
     assert gate(replace(record, findings=(nit,))) == "open"
     assert gate(replace(record, findings=(BLOCKING,))) == "failed"
     assert gate(replace(record, council_failed=True)) == "waiting"
+    assert gate(replace(record, failed_commands=("test",))) == "failed"
 
 
 def test_pending_or_unchecked_criteria_keep_the_gate_closed(tmp_path: Path) -> None:

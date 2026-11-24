@@ -36,8 +36,9 @@ def build_record(inputs: RecordInputs) -> EvidenceRecord:
     rows = tuple(_row(inputs, cid) for cid in criterion_ids(inputs.criteria))
     waiting = tuple(f"[{row.criterion_id}] {row.verdict}: {row.detail}" for row in rows
                     if row.verdict in ("blocked", "pending"))
+    failed = tuple(c.name for c in inputs.outcome.commands if not c.passed)
     return EvidenceRecord(inputs.ref, inputs.spec_version, inputs.outcome.sha, rows,
-                          (*_withheld(inputs), *waiting))
+                          (*_withheld(inputs), *waiting), failed_commands=failed)
 
 
 def _row(inputs: RecordInputs, cid: str) -> CriterionRow:
