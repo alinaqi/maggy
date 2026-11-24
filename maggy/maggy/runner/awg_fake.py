@@ -50,7 +50,9 @@ class FakeAwg(FakePlanGraph):
         return dict(found)
 
     def annotations(self, ref: str) -> list[dict]:
-        return [dict(a) for a in self._item(ref).annotations]
+        """Rows shaped like `awg annotations --json`: the key is `idempotency_key`."""
+        return [{"idempotency_key": a["key"], "data": dict(a["data"]),
+                 "attempt_id": a.get("attempt_id")} for a in self._item(ref).annotations]
 
     def evidence(self, claim: Claim, spec: EvidenceSpec) -> dict:
         record = {**spec.model_dump(), "trust_class": TRUST[self.evidence_credential],

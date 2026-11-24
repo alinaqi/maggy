@@ -16,6 +16,7 @@ from maggy.worker.protected import protected_paths
 
 PLAN_APPROVED = "plan-approved"
 PLANNED, SPEC = "stage:planned", "stage:spec"
+PENDING, BUILD = "stage:pending", "stage:build"  # children: held, then released to build
 
 
 def risky_files(plan: Plan, profile: HarnessProfile, risk_paths: list[str]) -> list[str]:
@@ -48,8 +49,11 @@ def wait_for_approval(session: Session, key: str, record: dict) -> RunReport:
 
 
 def finish(session: Session, shown: dict, children: list[str]) -> RunReport:
+    """Each child gets `stage:build` (it was held under `stage:pending`), then READY."""
+    build = with_stage(shown, BUILD)
     for ref in children:
         session.verify()
+        session.awg.set_capabilities(ref, build)
         session.awg.set_state(ref, "READY")
     return _hand_to(session, (shown, PLANNED, f"planned: {', '.join(children)} READY"),
                     "planned")

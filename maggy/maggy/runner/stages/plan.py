@@ -3,16 +3,18 @@
 The spec must still be the approved one (else back to `stage:spec`). A read-only planner
 returns a structured Plan, checked as a DAG covering every criterion (one retry, then the
 stage fails before any graph mutation). Its children, links and validations are built in
-BACKLOG and recorded in a `plan-<criteria sha>` annotation, so a re-claim never re-plans;
+BACKLOG under `stage:pending` (a stage no runner holds, so `awg create`'s READY default
+can never be claimed) and recorded in a `plan-<criteria sha>` annotation, so a re-claim never re-plans;
 high-risk plans wait for a human `plan-approved` DECISION before any child is READY.
 """
 
 from __future__ import annotations
 
 from maggy.runner.attempt import workspace_for
+from maggy.runner.awg_types import annotation_data
 from maggy.runner.session import RunReport, Session
 from maggy.runner.stages.plan_gate import (
-    back_to_spec, finish, plan_approved, risky_files, wait_for_approval,
+    PENDING, back_to_spec, finish, plan_approved, risky_files, wait_for_approval,
 )
 from maggy.runner.stages.plan_graph import Blueprint, build_graph
 from maggy.runner.stages.plan_models import Plan, checked_plan
@@ -35,7 +37,7 @@ def run_plan(session: Session, shown: dict) -> RunReport:
     if not spec_is_current(approval, claim.acceptance_criteria):
         return back_to_spec(session, shown)
     key = f"plan-{criteria_sha(claim.acceptance_criteria)[:12]}"
-    record = _recorded(awg.annotations(claim.ref), key)
+    record = annotation_data(awg.annotations(claim.ref), key)
     if record is None:
         risk_paths = list(((approval or {}).get("data") or {}).get("risk_paths") or [])
         record = _make_plan(session, shown, (key, risk_paths))
@@ -44,15 +46,10 @@ def run_plan(session: Session, shown: dict) -> RunReport:
     return finish(session, shown, record["children"])
 
 
-def _recorded(annotations: list[dict], key: str) -> dict | None:
-    found = [a.get("data") or {} for a in annotations if a.get("key") == key]
-    return found[0] if found else None
-
-
 def _make_plan(session: Session, shown: dict, job: tuple[str, list[str]]) -> dict:
     key, risk_paths = job
     plan = _ask_planner(session, shown, risk_paths)
-    blueprint = Blueprint(plan, _requirements(session), with_stage(shown, "stage:build"))
+    blueprint = Blueprint(plan, _requirements(session), with_stage(shown, PENDING))
     children = build_graph(session, blueprint)
     record = {"children": children, "risky": risky_files(plan, session.config.profile, risk_paths),
               "tasks": [t.key for t in plan.tasks]}

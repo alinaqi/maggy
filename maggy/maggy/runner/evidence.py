@@ -8,8 +8,7 @@ roll-forward after a crash skips what was already attached (RFC §2.4, §2.6.1).
 
 from __future__ import annotations
 
-from maggy.runner.awg_types import EvidenceSpec
-from maggy.runner.publish_settle import annotation_key
+from maggy.runner.awg_types import EvidenceSpec, annotation_key
 from maggy.runner.session import Session
 from maggy.worker.models import CheckResult, WorkerResult
 

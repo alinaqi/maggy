@@ -67,7 +67,7 @@ def test_lease_expired_after_crash_settles_dangling_intent(tmp_path: Path, monke
     assert outcomes.count("submitted") == 1 and outcomes[-1] == "idle", outcomes
     assert_converged(crig, exact_evidence=False)
     settled = [a["data"] for a in awg.annotations(crig.rig.ref)
-               if a["key"].endswith(":result") and a["data"].get("reconciled")]
+               if a["idempotency_key"].endswith(":result") and a["data"].get("reconciled")]
     assert [(d["action"], d["number"]) for d in settled] == [("pr", 1)]
 
 

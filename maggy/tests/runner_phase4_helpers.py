@@ -72,3 +72,9 @@ def answer_as_human(rig: ExitRig, ref: str) -> None:
 def children_by_title(rig: ExitRig) -> dict[str, dict]:
     titles = {task["title"] for task in two_task_plan()["tasks"]}
     return {i["title"]: i for i in rig.awg("list", "--json")["items"] if i["title"] in titles}
+
+
+def build_prompts(rig: ExitRig) -> list[str]:
+    """Prompts the build agent (the `fakeedit` adapter) was given, oldest first."""
+    log = rig.root / "build-prompts.jsonl"
+    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []

@@ -9,15 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from maggy.runner.awg_types import Claim
+from maggy.runner.awg_types import Claim, annotation_key
 from maggy.runner.publish_git import branch_for, remote_sha
 
 if TYPE_CHECKING:
     from maggy.runner.publish import Publisher
-
-
-def annotation_key(annotation: dict) -> str:
-    return str(annotation.get("key") or annotation.get("idempotency_key") or "")
 
 
 def settle_intents(publisher: Publisher, claim: Claim) -> list[str]:

@@ -13,10 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from maggy.runner.awg_client import AwgClient
-from maggy.runner.awg_types import Claim
+from maggy.runner.awg_types import Claim, annotation_key
 from maggy.runner.publish_body import pr_title, render_body
 from maggy.runner.publish_gh import GhCli, PrRequest
-from maggy.runner.publish_settle import annotation_key, settle_intents
+from maggy.runner.publish_settle import settle_intents
 from maggy.runner.publish_git import (PublishError, branch_for, default_base, push_branch,
                                       remote_sha)
 from maggy.runner.session import verify_live

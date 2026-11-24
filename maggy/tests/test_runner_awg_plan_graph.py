@@ -36,7 +36,7 @@ def test_fake_children_start_backlog_with_their_task_plan() -> None:
     ref = _child(fake, claim, "step 1")
     item = fake.items[ref]
     assert item.state == "BACKLOG" and item.parent == claim.ref
-    assert fake.annotations(ref)[0]["key"] == "task-plan"
+    assert fake.annotations(ref)[0]["idempotency_key"] == "task-plan"
     assert fake.annotations(ref)[0]["data"] == {"files": ["a.py"]}
     fake.set_state(ref, "READY")
     assert item.state == "READY"
@@ -110,3 +110,11 @@ def test_cli_decisions_and_requirements_are_normalised(tmp_path: Path) -> None:
     fake.reply("show", {"work": {}, "context": {"requirements": [{"id": "R-1", "title": "r"}]}})
     assert client.decisions("AWG-7") == [{"id": "D-1", "key": "k", "data": {"a": 1}}]
     assert client.requirements("AWG-7") == [{"id": "R-1", "title": "r", "criterion": None}]
+
+
+def test_cli_set_capabilities_is_an_unfenced_update(tmp_path: Path) -> None:
+    client, fake = _cli(tmp_path)
+    fake.reply("update", {"display_id": "AWG-9", "version": 3})
+    client.set_capabilities("AWG-9", ["maggy-runner", "stage:build"])
+    assert fake.calls()[0]["argv"][2:] == ["update", "--capability=maggy-runner",
+                                           "--capability=stage:build", "--json", "--", "AWG-9"]

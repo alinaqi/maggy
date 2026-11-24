@@ -61,6 +61,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `awg node create`, `awg decision`). Legacy spec/planner code is untouched (Phase 6 deletion).
 
 #### Fixed
+- **Plan records and task plans are now found in real `awg annotations` rows.** Those rows
+  carry `idempotency_key`, not `key`, so the plan stage never found its `plan-<sha>` record and
+  re-planned on every re-claim (a second set of children, and a `plan-approved` DECISION taken
+  as covering a plan the human never saw), and build prompts lost the task's test plan.
+  `annotation_key`/`annotation_data` now live in `awg_types` and read both; FakeAwg returns
+  the real row shape, and the Phase 4 exit test checks the build prompt against the real awg.
+- **Plan children are held under `stage:pending` until the plan gate releases them.** `awg
+  create` makes items READY, so a child created with `stage:build` could be claimed by a
+  build-only runner before its links, validations or plan approval existed, or stay claimable
+  if the runner died. Children are now created with `stage:pending` (no runner holds it) and
+  `finish` retags each to `stage:build` (new unfenced `set_capabilities` → `awg update
+  --capability`) before moving it READY.
 - **A plan child left READY by a partial `create_child` failure is now cancelled.** `awg
   create` makes the child READY; if the BACKLOG move or the `task-plan` annotation then failed,
   `CliAwgClient.create_child` raised before `build_graph` learned the child's ref, so the

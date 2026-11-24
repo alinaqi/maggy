@@ -17,7 +17,7 @@ from maggy.runner.stages.plan_models import Plan, PlanTask, TestPlanEntry
 class Blueprint:
     plan: Plan
     requirements: dict[str, str]  # criterion id -> REQUIREMENT node id
-    capabilities: list[str]  # the children's: maggy-runner, stage:build, the project tag
+    capabilities: list[str]  # the children's: maggy-runner, stage:pending, project
 
 
 def build_graph(session: Session, blueprint: Blueprint) -> list[str]:

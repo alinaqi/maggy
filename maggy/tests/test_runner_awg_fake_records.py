@@ -25,7 +25,7 @@ def test_annotate_is_idempotent_by_key(awg: FakeAwg) -> None:
     again = awg.annotate(claim, "pr-intent", {"branch": "other"})
     awg.annotate(claim, "pr-result", {"pr": 12})
     assert again == first
-    keys = [a["key"] for a in awg.annotations(claim.ref)]
+    keys = [a["idempotency_key"] for a in awg.annotations(claim.ref)]
     assert keys == ["pr-intent", "pr-result"]
     assert awg.annotations(claim.ref)[0]["data"] == {"branch": "maggy/AWG-1"}
 

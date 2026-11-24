@@ -36,6 +36,11 @@ class FakePlanGraph(FakeGraph):
         item.state, item.version = state, item.version + 1
         return {"display_id": ref, "state": state}
 
+    def set_capabilities(self, ref: str, capabilities: list[str]) -> dict:
+        item = self._item(ref)
+        item.capabilities, item.version = frozenset(capabilities), item.version + 1
+        return {"display_id": ref, "version": item.version}
+
     def _reaches(self, start: str, goal: str) -> bool:
         """`start` already depends (transitively) on `goal`."""
         seen, todo = set(), [start]

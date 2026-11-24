@@ -36,6 +36,6 @@ def test_evidence_is_attached_once_and_recorded_as_intent_and_result(tmp_path: P
     attach_evidence(session, result)
     attach_evidence(session, result)  # a roll-forward re-runs conclude
     assert len(rig.awg.items[rig.ref].evidence) == 1
-    keys = [a["key"] for a in rig.awg.annotations(rig.ref)]
+    keys = [a["idempotency_key"] for a in rig.awg.annotations(rig.ref)]
     prefix = f"{rig.ref}:{session.claim.attempt_id}:evidence:test:{'a' * 40}"
     assert [k for k in keys if ":evidence:" in k] == [prefix, f"{prefix}:result"]

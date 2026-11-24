@@ -5,7 +5,7 @@ its entries and regression test names go into the prompt (RFC §2.5 build stage)
 
 from __future__ import annotations
 
-from maggy.runner.awg_types import Claim
+from maggy.runner.awg_types import Claim, annotation_data
 from maggy.worker.blocker import BLOCKER_INSTRUCTIONS
 from maggy.worker.prompt import assemble_prompt
 
@@ -31,8 +31,7 @@ def build_prompt(claim: Claim, handoff: str = "", plan: dict | None = None) -> s
 
 def task_plan_of(annotations: list[dict]) -> dict:
     """The item's `task-plan` annotation data, or {} for items the plan stage did not make."""
-    found = [a.get("data") or {} for a in annotations if a.get("key") == "task-plan"]
-    return dict(found[0]) if found else {}
+    return annotation_data(annotations, "task-plan") or {}
 
 
 def plan_section(plan: dict) -> str:
