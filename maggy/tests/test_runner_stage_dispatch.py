@@ -14,7 +14,8 @@ from maggy.runner.config import claim_capabilities
 from runner_loop_helpers import EDIT_AGENT, make_rig
 from worker_git_helpers import profile_data
 
-ALL = ["maggy-runner", "stage:spec", "stage:plan", "stage:build", "project:shop"]
+ALL = ["maggy-runner", "stage:spec", "stage:plan", "stage:build", "stage:verify",
+       "project:shop"]
 
 
 def test_runner_holds_every_stage_by_default() -> None:
@@ -28,7 +29,8 @@ def test_profile_stages_restrict_the_held_capabilities() -> None:
 
 
 def test_profile_worker_stages_default_and_validation() -> None:
-    assert HarnessProfile.model_validate(profile_data()).worker.stages == ["spec", "plan", "build"]
+    assert HarnessProfile.model_validate(profile_data()).worker.stages == ["spec", "plan", "build",
+                                                                         "verify"]
     data = profile_data()
     data["worker"]["stages"] = ["deploy"]
     with pytest.raises(ValidationError):

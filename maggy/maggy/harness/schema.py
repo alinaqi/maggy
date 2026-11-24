@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import field_validator
 
 from maggy.harness.schema_sections import (
-    Agents, Budget, Commands, Gates, Hooks, Instructions, Intake, Models,
+    Agents, Budget, Commands, Evidence, Gates, Hooks, Instructions, Intake, Models,
     Permissions, Risk, Strict, Validation, Work, Worker,
 )
 
@@ -31,6 +31,7 @@ class HarnessProfile(Strict):
     worker: Worker = Worker()
     risk: Risk = Risk()
     validation: Validation = Validation()
+    evidence: Evidence = Evidence()
     locked: list[str] = []
 
     @field_validator("locked")

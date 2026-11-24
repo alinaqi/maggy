@@ -13,7 +13,7 @@ from maggy.worker.models import WorkerResult
 
 PrStep = Callable[[Claim, WorkerResult], object]
 RUNNER = "maggy-runner"
-STAGES = ("spec", "plan", "build")  # every stage the runner can drive, in flow order
+STAGES = ("spec", "plan", "build", "verify")  # every stage the runner can drive, in flow order
 CAPABILITIES = [RUNNER, "stage:spec"]  # what intake tags new items with: they start at spec
 REQUIRED = [RUNNER]  # opt-in: untagged items are never claimed (RFC §2.4)
 
@@ -44,3 +44,4 @@ class RunnerConfig:
     state_file: Path | None = None  # held leases; None: <state_dir>/runner/state.json
     max_failures: int = 3  # consecutive failed attempts before the item waits for a human
     adapters: dict[str, AdapterSpec] = field(default_factory=dict)  # by name, for stage roles
+    vision: list | None = None  # verify-stage vision backends; None: local Ollama Qwen-VL

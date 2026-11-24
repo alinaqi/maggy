@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from maggy.runner.stages.models import Shape
 from maggy.runner.stages.plan_check import plan_problems
+from maggy.runner.stages.visual_models import VisualSpec
 
 KEY = r"^[A-Za-z0-9_.-]{1,40}$"
 AUTOMATED = ("unit", "integration", "e2e", "visual")
@@ -32,6 +33,7 @@ class TestPlanEntry(Shape):
     expected: str = Field(min_length=1)
     evidence: Literal["unit", "integration", "e2e", "visual", "manual"]
     regression_test_name: str = Field(min_length=1, max_length=200)
+    visual: VisualSpec | None = None  # a Maggy-run visual check (evidence: visual)
 
     def validation(self) -> tuple[str, int]:
         """(kind, min trust): automated evidence needs CI (3), manual acceptance reviewer (2)."""

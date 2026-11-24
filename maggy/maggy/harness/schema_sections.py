@@ -97,7 +97,8 @@ class Worker(Strict):
     timeout_minutes: int = Field(30, gt=0)
     isolation: Literal["worktree", "container"] = "worktree"
     allow_host_execution: bool = False  # personal profile only (loader enforces)
-    stages: list[Literal["spec", "plan", "build"]] = ["spec", "plan", "build"]  # claimable
+    stages: list[Literal["spec", "plan", "build", "verify"]] = [
+        "spec", "plan", "build", "verify"]  # claimable
 
 
 class RiskRule(Strict):
@@ -136,3 +137,10 @@ class Validation(Strict):
     visual_for: list[str] = []
     check_timeout_s: int = Field(600, gt=0)  # per required check run by the runner
     regression: Regression = Regression()
+
+
+class Evidence(Strict):
+    """Evidence privacy (RFC §2.6.9): screenshots and logs stay local unless the personal
+    profile lists the external review providers it opts into (loader enforces)."""
+
+    external_review: list[str] | Literal[False] = False
