@@ -10,10 +10,13 @@ pass the secret scan. Then: any FAIL gives the item back; any PENDING waits for 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from maggy.runner.awg_types import EvidenceSpec
 from maggy.runner.evidence import attach_once, ci_validation, recorded_keys
+from maggy.runner.pr_evidence.models import EvidenceRecord, gate
 from maggy.runner.session import RunReport, Session
+from maggy.runner.stages.verify_evidence import evidence_record, publish_record
 from maggy.runner.stages.verify_wait import wait_for_human
 from maggy.runner.verify.models import ViewResult
 from maggy.runner.verify.run import VerifyOutcome
@@ -23,21 +26,38 @@ RANK = {"PASS": 0, "PENDING": 1, "FAIL": 2}
 
 
 def conclude_verify(session: Session, outcome: VerifyOutcome) -> RunReport:
+    """Evidence, then the PR evidence record (review council included), then the gate:
+    failed or blocking findings -> back to build; pending/blocked -> a human; else submit."""
     _attach(session, outcome)
-    verdicts = _record(session, outcome)
-    failed = [r for r in outcome.results if r.verdict == "FAIL"]
+    verdicts, scanned = _record(session, outcome)
+    record = evidence_record(session, outcome, scanned)
+    publish_record(session, record, outcome)
     failed_commands = [c.name for c in outcome.commands if not c.passed]
-    if failed or failed_commands:
-        lines = [*map(_line, failed), *(f"repo command {n}: FAIL" for n in failed_commands)]
+    if gate(record) == "failed" or failed_commands:
+        lines = [*map(_line, (r for r in outcome.results if r.verdict == "FAIL")),
+                 *(f"repo command {n}: FAIL" for n in failed_commands), *_findings(record)]
         return session.give_back("failed", "verify failed:\n" + "\n".join(lines))
-    pending = [r for r in outcome.results if r.verdict == "PENDING"]
-    if pending:
-        return wait_for_human(session, outcome.sha, pending)
+    if gate(record) == "waiting":
+        pending = [r for r in outcome.results if r.verdict == "PENDING"]
+        return wait_for_human(session, outcome.sha, (pending, _notes(record, pending)))
     session.verify()
     session.awg.submit(session.claim, f"maggy: verified {outcome.sha[:12]}: {verdicts}",
                        outcome.sha)
     session.log("verified", {"sha": outcome.sha, "verdicts": verdicts})
     return session.report("submitted", outcome.sha)
+
+
+def _findings(record: EvidenceRecord) -> list[str]:
+    return [f"review: blocking: {f.file}:{f.line or ''} {f.title}" for f in record.findings]
+
+
+def _notes(record: EvidenceRecord, pending: list[ViewResult]) -> list[str]:
+    """Waiting reasons not already named by a pending check: unchecked or manual criteria
+    and a review council that could not run."""
+    named = {r.criterion_id for r in pending}
+    rows = [f"- [{row.criterion_id}] {row.verdict}: {row.detail}" for row in record.rows
+            if row.verdict in ("pending", "blocked") and row.criterion_id not in named]
+    return rows + [f"- {gap}" for gap in record.gaps if gap.startswith("review council failed")]
 
 
 def _line(result: ViewResult) -> str:
@@ -70,7 +90,8 @@ def _spec(session: Session, result: ViewResult, where: tuple[dict, str]) -> Evid
                         validation=str(titled[0]["id"]) if titled else None)
 
 
-def _record(session: Session, outcome: VerifyOutcome) -> dict[str, str]:
+def _record(session: Session, outcome: VerifyOutcome
+            ) -> tuple[dict[str, str], tuple[list[Path], dict[Path, list[str]]]]:
     verdicts: dict[str, str] = {}
     for result in outcome.results:
         old = verdicts.get(result.criterion_id, "PASS")
@@ -84,7 +105,7 @@ def _record(session: Session, outcome: VerifyOutcome) -> dict[str, str]:
     session.awg.annotate(session.claim, f"verify-{outcome.sha}:{session.claim.attempt_id}", {
         "sha": outcome.sha, "verdicts": verdicts, "results": [_row(r) for r in outcome.results],
         "artifacts": [str(p) for p in allowed], "withheld": [str(p) for p in withheld]})
-    return verdicts
+    return verdicts, (allowed, withheld)
 
 
 def _row(result: ViewResult) -> dict:

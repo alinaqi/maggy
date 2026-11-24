@@ -36,12 +36,13 @@ class Publisher:
     def __init__(self, awg: AwgClient, config: PublishConfig) -> None:
         self.awg, self.config, self.gh = awg, config, GhCli(config.repo)
 
-    def __call__(self, claim: Claim, result: WorkerResult) -> dict:
+    def __call__(self, claim: Claim, result: WorkerResult, evidence: str = "") -> dict:
+        """`evidence`: the verify stage's evidence record, rendered into the PR body."""
         sha = result.candidate_commit
         if not sha:
             raise PublishError("no candidate commit to publish")
         push = self._step(claim, ("push", sha), lambda: self._push(claim, sha))
-        pr = self._step(claim, ("pr", sha), lambda: self._pr(claim, result))
+        pr = self._step(claim, ("pr", sha), lambda: self._pr(claim, (result, evidence)))
         return {"push": push, "pr": pr}
 
     def settle(self, claim: Claim) -> list[str]:
@@ -67,8 +68,8 @@ class Publisher:
         push_branch(self.config.repo, branch, (sha, expected))
         return {"pushed": True, "sha": sha}
 
-    def _pr(self, claim: Claim, result: WorkerResult) -> dict:
-        body = self._body_file(claim, result)
+    def _pr(self, claim: Claim, content: tuple[WorkerResult, str]) -> dict:
+        body = self._body_file(claim, content)
         request = PrRequest(branch_for(claim.ref), self.config.base, pr_title(claim), body)
         existing = self.gh.find(request.head)
         action = "edited" if existing else "created"
@@ -79,10 +80,10 @@ class Publisher:
             existing = self.gh.find(request.head) or {}
         return {"action": action, "number": existing.get("number"), "url": existing.get("url")}
 
-    def _body_file(self, claim: Claim, result: WorkerResult) -> Path:
+    def _body_file(self, claim: Claim, content: tuple[WorkerResult, str]) -> Path:
         path = self.config.state_dir / "attempts" / claim.attempt_id / "pr-body.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(render_body(claim, result))
+        path.write_text(render_body(claim, *content))
         return path
 
 

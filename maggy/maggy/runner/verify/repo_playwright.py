@@ -26,7 +26,8 @@ def run_repo_visual(job: VisualJob, entry: dict) -> ViewResult:
     regression = job.profile.validation.regression
     if regression.runner != "playwright":
         return ViewResult(criterion, VIEWPORT, "PENDING",
-                          "no visual check described (no visual spec, no repo Playwright)")
+                          "no visual check described (no visual spec, no repo Playwright)",
+                          blocked=True)
     refuse_host_checks(job.profile, f"visual check {test}")
     work = job.work_dir / "visual" / criterion
     run = run_named(ProofPlan(job.repo, (job.sha, job.sha), work, _gated(job.profile)), test,
