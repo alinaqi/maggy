@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **Orphaned `maggy/maggy/orchestrator/config.py`** (`load_config`, `load_identities`,
+  `load_agents`, `load_routing`): its only importer was `orchestrator/__main__.py`, deleted with
+  the orchestrator CLI, so nothing in kept code, routes, CLI, hooks, skills, scripts or
+  install.sh references it (`scripts/polyphony/config.py`, tested by the root
+  `tests/test_polyphony_config.py`, is a separate copy and stays). No test files removed; the
+  guard `maggy/tests/test_orchestrator_dead_modules_removed.py` now lists `config` as dead.
 - **Duplicate `_PI_MODELS`** in `maggy/maggy/pipeline/backend_claude.py`: it now imports the
   single set from `pipeline/backend_pi.py` (also used by `api/routes_chat.py`), so the Claude and Pi
   backends can no longer drift apart. Guarded by `maggy/tests/test_pi_models_source.py`.

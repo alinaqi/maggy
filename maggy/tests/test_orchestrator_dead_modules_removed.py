@@ -11,10 +11,10 @@ DEAD = (
     "adapters", "sources", "router",
     "scoring", "identity", "events",
     "store", "state_machine", "orchestrator",
-    "workspace", "__main__",
+    "workspace", "__main__", "config",
 )
 KEPT = (
-    "worktree", "merge", "merge_rollback", "config",
+    "worktree", "merge", "merge_rollback",
     "models", "isolation",
 )
 
