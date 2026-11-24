@@ -1,8 +1,9 @@
-"""Mnemos — Task-scoped memory lifecycle system."""
+"""Mnemos v0 compat API and fatigue routing thresholds.
 
-__version__ = "0.1.0"
+Only what the executor and model router import lives here; the Mnemos memory
+graph, CLI and hooks are scripts/mnemos (`python3 -m mnemos`).
+"""
 
-# Backward-compatible v0 stub APIs
 from maggy.mnemos._compat import FatigueTracker, SignalLog
 
 __all__ = ["FatigueTracker", "SignalLog"]

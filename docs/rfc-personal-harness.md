@@ -425,7 +425,8 @@ Resolved: trust identity (§2.4: AWG token kinds, plus the Phase 0 AWG change), 
 spec versioning (WORK version).
 
 1. **T3 Code:** confirm config inheritance (spike in §2.2).
-2. **Mnemos:** which of `scripts/mnemos` and `maggy/maggy/mnemos` survives as AWG's context provider?
+2. **Mnemos:** resolved in Phase 6: `scripts/mnemos` survives. The package under `maggy/maggy` now holds only the v0
+   compat API (`FatigueTracker`, `SignalLog`) and the fatigue routing thresholds that the executor and model router import.
 
 ---
 
