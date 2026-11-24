@@ -11,6 +11,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Maggy: Personal Harness (Phase 6)
 
 #### Removed
+- **Duplicate Mnemos memory graph in `maggy/maggy/mnemos/`** (Mnemos consolidation; `scripts/mnemos`,
+  run as `python3 -m mnemos` by the hooks, commands and skills, is the kept implementation):
+  `__main__`, `activation`, `checkpoint`, `cli`, `cli_hooks`, `cli_nodes`, `consolidation`, `db`,
+  `db_queries`, `delegation`, `extraction`, `fatigue`, `fatigue_dimensions`, `handoff`, `merge`,
+  `models`, `orchestrator`, `rem`, `rem_pruning`, `rem_skills`, `rem_slow_wave`, `rem_wake`,
+  `scope`, `signals`, `skills` and `status`. Only `python -m maggy.mnemos` and its own tests
+  reached them. KEPT: `maggy.mnemos` (`FatigueTracker`, `SignalLog` from `_compat.py`) and
+  `constants.py` cut down to the three fatigue routing thresholds, because the executor
+  (`services/executor.py`, `services/executor_helpers.py`) and `process/model_router.py`
+  import them. The unused Mnemos fixtures in `maggy/tests/conftest.py` are removed. Removed
+  tests: `maggy/tests/test_mnemos_{activation,checkpoint,checkpoint_compat,cli,cli_hooks,
+  cli_nodes,consolidation,constants,db,db_queries,delegation,extraction,fatigue,
+  fatigue_dimensions,handoff,merge,models,orchestrator,rem,rem_pruning,rem_skills,
+  rem_slow_wave,rem_wake,scope,signals,skills,status}.py`. Store, consolidation, checkpoint,
+  signal, fatigue and CLI coverage is ported onto `scripts/mnemos` in
+  `maggy/tests/test_scripts_mnemos_store.py` and `test_scripts_mnemos_fatigue.py`. New guard
+  `maggy/tests/test_maggy_mnemos_consolidated.py`. The RFC's open Mnemos question is marked resolved.
 - **Orphaned `maggy/maggy/orchestrator/config.py`** (`load_config`, `load_identities`,
   `load_agents`, `load_routing`): its only importer was `orchestrator/__main__.py`, deleted with
   the orchestrator CLI, so nothing in kept code, routes, CLI, hooks, skills, scripts or
