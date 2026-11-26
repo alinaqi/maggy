@@ -21,14 +21,18 @@ _PROVIDER_KEYS = (
 )
 
 
+# CI runners set these; left in place they point config writes outside HOME.
+_XDG_DIRS = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME")
+
+
 def _isolate_environment() -> str:
-    """Point HOME at a temp dir, drop ~/bin from PATH, hide provider keys."""
+    """Point HOME at a temp dir, drop ~/bin from PATH, hide provider keys and XDG dirs."""
     real_bin = str(Path.home() / "bin")
     home = tempfile.mkdtemp(prefix="maggy-test-home-")
     os.environ["HOME"] = home
     paths = os.environ.get("PATH", "").split(os.pathsep)
     os.environ["PATH"] = os.pathsep.join(p for p in paths if p != real_bin)
-    for key in _PROVIDER_KEYS:
+    for key in (*_PROVIDER_KEYS, *_XDG_DIRS):
         os.environ.pop(key, None)
     return home
 

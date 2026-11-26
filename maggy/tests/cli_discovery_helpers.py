@@ -59,12 +59,17 @@ def _fake_cli(bin_dir: Path, name: str, outputs: dict[str, str]) -> None:
     exe.chmod(0o755)
 
 
-@pytest.fixture(autouse=True)
-def fake_clis(tmp_path: Path, monkeypatch) -> Path:
-    """PATH holds only the fake claude/codex/kimi/ollama binaries."""
+def install_fake_clis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put only the fake claude/codex/kimi/ollama binaries on PATH."""
     bin_dir = tmp_path / "fake-bin"
     bin_dir.mkdir()
     for name, outputs in _FAKE_HELP.items():
         _fake_cli(bin_dir, name, outputs)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     return bin_dir
+
+
+@pytest.fixture(autouse=True)
+def fake_clis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """PATH holds only the fake claude/codex/kimi/ollama binaries."""
+    return install_fake_clis(tmp_path, monkeypatch)
