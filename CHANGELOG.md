@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Maggy: Personal Harness (Phase 6)
 
+#### Fixed
+- Test suite is hermetic on CI runners. The test setup also clears `XDG_CONFIG_HOME` / `XDG_DATA_HOME` / `XDG_STATE_HOME` / `XDG_CACHE_HOME`. GitHub runners set these, so the OpenCode emitter resolved its user config outside the temp HOME and correctly refused it, which failed 5 harness tests. `test_pi_adapter`'s claude-command test now uses fake CLIs instead of whatever `claude` is on PATH.
+
 #### Changed
 - Split `tests/test_cli_discovery.py` (217 lines, 16 functions) into it, `test_cli_discovery_auto_approve.py` and the shared fake-CLI fixture `cli_discovery_helpers.py`, so each test file meets the quality gates (<=200 lines, <=10 functions). No test was removed.
 

@@ -6,6 +6,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from cli_discovery_helpers import install_fake_clis
 
 from maggy.adapters.pi import (
     DEFAULT_MODELS,
@@ -70,7 +71,8 @@ class TestQuotaDetection:
 
 
 class TestBuildCommand:
-    def test_claude_command_format(self):
+    def test_claude_command_format(self, tmp_path, monkeypatch):
+        install_fake_clis(tmp_path, monkeypatch)
         adapter = PiAdapter()
         model = adapter.get_model("claude")
         cmd = adapter._build_command(model, "hello", 5, "/tmp")
